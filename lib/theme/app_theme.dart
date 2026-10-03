@@ -10,12 +10,37 @@ class AppTheme {
   AppTheme._();
 
   static ColorScheme _scheme(Brightness brightness) {
-    return ColorScheme.fromSeed(
+    final base = ColorScheme.fromSeed(
       seedColor: AppColors.seed,
       brightness: brightness,
       secondary: AppColors.secondarySeed,
       tertiary: AppColors.tertiarySeed,
       error: AppColors.errorSeed,
+    );
+
+    if (brightness == Brightness.light) {
+      return base.copyWith(
+        primary: AppColors.accent,
+        onPrimary: Colors.white,
+        primaryContainer: AppColors.lightPeach,
+        onPrimaryContainer: const Color(0xFF3A1400),
+        secondaryContainer: AppColors.lightGreenContainer,
+        tertiaryContainer: AppColors.lightBlueContainer,
+        surface: AppColors.lightBackground,
+        onSurface: const Color(0xFF2A1A14),
+        onSurfaceVariant: const Color(0xFF5A453D),
+        surfaceContainerLowest: AppColors.lightCard,
+        surfaceContainerLow: AppColors.lightBackground,
+        surfaceContainer: AppColors.lightMuted,
+        surfaceContainerHigh: AppColors.lightMuted,
+        surfaceContainerHighest: AppColors.lightBorder,
+        outlineVariant: AppColors.lightBorder,
+      );
+    }
+
+    return base.copyWith(
+      primary: const Color(0xFFFF8A3D),
+      onPrimary: const Color(0xFF3A1400),
     );
   }
 
@@ -84,7 +109,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: cs.surfaceContainerHighest, width: isDark ? 1 : 2),
+          side: BorderSide(color: cs.outlineVariant, width: isDark ? 1 : 1.5),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

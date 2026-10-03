@@ -27,7 +27,9 @@ class PillButton extends StatelessWidget {
 
     return Material(
       color: background,
-      shape: const StadiumBorder(),
+      shape: StadiumBorder(
+        side: filled ? BorderSide.none : BorderSide(color: cs.outlineVariant, width: 1.5),
+      ),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: onTap,
@@ -35,6 +37,7 @@ class PillButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
                 Icon(icon, size: 20, color: foreground),

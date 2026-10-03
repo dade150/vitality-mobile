@@ -35,27 +35,26 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 SectionCard(
                   padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      RadioListTile<ThemeMode>(
-                        title: const Text('Chiaro'),
-                        value: ThemeMode.light,
-                        groupValue: themeProvider.themeMode,
-                        onChanged: (mode) => context.read<ThemeProvider>().setThemeMode(mode ?? ThemeMode.system),
-                      ),
-                      RadioListTile<ThemeMode>(
-                        title: const Text('Scuro'),
-                        value: ThemeMode.dark,
-                        groupValue: themeProvider.themeMode,
-                        onChanged: (mode) => context.read<ThemeProvider>().setThemeMode(mode ?? ThemeMode.system),
-                      ),
-                      RadioListTile<ThemeMode>(
-                        title: const Text('Sistema'),
-                        value: ThemeMode.system,
-                        groupValue: themeProvider.themeMode,
-                        onChanged: (mode) => context.read<ThemeProvider>().setThemeMode(mode ?? ThemeMode.system),
-                      ),
-                    ],
+                  child: RadioGroup<ThemeMode>(
+                    groupValue: themeProvider.themeMode,
+                    onChanged: (mode) =>
+                        context.read<ThemeProvider>().setThemeMode(mode ?? ThemeMode.system),
+                    child: const Column(
+                      children: [
+                        RadioListTile<ThemeMode>(
+                          title: Text('Chiaro'),
+                          value: ThemeMode.light,
+                        ),
+                        RadioListTile<ThemeMode>(
+                          title: Text('Scuro'),
+                          value: ThemeMode.dark,
+                        ),
+                        RadioListTile<ThemeMode>(
+                          title: Text('Sistema'),
+                          value: ThemeMode.system,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 28),
