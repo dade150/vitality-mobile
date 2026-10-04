@@ -16,6 +16,8 @@ extension MealTypeLabel on MealType {
 }
 
 class MealEntry {
+  /// Id della riga su Supabase (meals.id). Null per voci non salvate.
+  final String? id;
   final DateTime date;
   final MealType type;
   final String description;
@@ -23,6 +25,7 @@ class MealEntry {
   final bool isEstimated;
 
   MealEntry({
+    this.id,
     required this.date,
     required this.type,
     required this.description,
