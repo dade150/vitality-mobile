@@ -70,7 +70,8 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
       if (_route?.isCurrent ?? false) Navigator.of(context).pop();
     } else {
       setState(() => _saving = false);
-      _showMessage('Salvataggio non riuscito. Controlla la connessione e riprova.');
+      _showMessage(
+          health.errorMessage ?? 'Salvataggio non riuscito. Controlla la connessione e riprova.');
     }
   }
 

@@ -1,12 +1,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
+import '../services/error_handler.dart';
 
 /// Stato di autenticazione esposto alla UI tramite `provider`.
 ///
 /// Non tiene mai in mano il token esplicitamente: si limita ad ascoltare
 /// `onAuthStateChange` di Supabase (che gestisce persistenza e refresh da
 /// solo) e a notificare i listener quando la sessione cambia.
+///
+/// Gestione errori: gli errori propri di Supabase Auth vengono mappati da
+/// [_mapAuthError] (messaggi utente già pronti); tutto il resto (rete,
+/// timeout, bug) passa da `ErrorHandler`, che classifica l'errore e, se è
+/// imprevisto, apre la schermata di errore.
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
 
@@ -52,8 +58,8 @@ class AuthProvider extends ChangeNotifier {
     } on AuthException catch (e) {
       _errorMessage = _mapAuthError(e);
       return false;
-    } catch (_) {
-      _errorMessage = 'Errore di connessione. Riprova.';
+    } catch (e, st) {
+      _errorMessage = ErrorHandler.handle(e, st, 'AuthProvider.signIn').message;
       return false;
     } finally {
       _setLoading(false);
@@ -79,7 +85,7 @@ class AuthProvider extends ChangeNotifier {
       final user = response.user;
       if (user != null && (user.identities?.isEmpty ?? false)) {
         _errorMessage = 'Esiste già un account con questa email.';
-        return false; 
+        return false;
       }
 
       _pendingEmailConfirmation = response.session == null;
@@ -87,8 +93,8 @@ class AuthProvider extends ChangeNotifier {
     } on AuthException catch (e) {
       _errorMessage = _mapAuthError(e);
       return false;
-    } catch (_) {
-      _errorMessage = 'Errore di connessione. Riprova.';
+    } catch (e, st) {
+      _errorMessage = ErrorHandler.handle(e, st, 'AuthProvider.signUp').message;
       return false;
     } finally {
       _setLoading(false);
@@ -105,8 +111,8 @@ class AuthProvider extends ChangeNotifier {
     } on AuthException catch (e) {
       _errorMessage = _mapAuthError(e);
       return false;
-    } catch (_) {
-      _errorMessage = 'Errore di connessione. Riprova.';
+    } catch (e, st) {
+      _errorMessage = ErrorHandler.handle(e, st, 'AuthProvider.resendConfirmation').message;
       return false;
     } finally {
       _setLoading(false);
@@ -116,8 +122,10 @@ class AuthProvider extends ChangeNotifier {
   Future<void> signOut() async {
     try {
       await _authService.signOut();
-    } catch (_) {
-      debugPrint('Revoca remota non riuscita: sessione locale già rimossa');
+    } catch (e, st) {
+      // Logout localmente riuscito: la revoca remota può fallire offline.
+      // Solo log, mai la schermata di errore in fase di uscita.
+      ErrorHandler.logOnly(e, st, 'AuthProvider.signOut');
     }
   }
 
@@ -145,5 +153,4 @@ class AuthProvider extends ChangeNotifier {
     }
     return msg;
   }
-
 }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'providers/theme_provider.dart';
 import 'providers/settings_provider.dart';
@@ -13,6 +12,7 @@ import 'providers/reports_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/auth_provider.dart';
 
+import 'services/error_handler.dart';
 import 'services/supabase_client.dart';
 
 import 'theme/app_theme.dart';
@@ -21,6 +21,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/diary/diary_screen.dart';
 import 'screens/diary/add_activity_screen.dart';
 import 'screens/diary/add_meal_screen.dart';
+import 'screens/error/error_screen.dart';
 import 'screens/history/history_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/chat/chat_screen.dart';
@@ -30,12 +31,7 @@ import 'screens/appointments/appointments_screen.dart';
 import 'screens/appointments/add_visit_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/therapy_config_screen.dart';
-
-/// Chiave globale del Navigator: permette a [_AuthRedirector] di navigare
-/// senza passare da un BuildContext dentro un widget specifico, quindi
-/// funziona da qualunque schermata l'app si trovi quando la sessione
-/// diventa valida (login, o conferma email arrivata via deep link).
-final navigatorKey = GlobalKey<NavigatorState>();
+import 'utils/navigation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,39 +43,29 @@ Future<void> main() async {
     if (kDebugMode) {
       debugPrint('FlutterError: ${details.exceptionAsString()}\n${details.stack}');
     }
-    _logErrorToSupabase(details.exceptionAsString(), details.stack.toString());
+    // Solo log: navigare qui dentro (errore di rendering/layout) può
+    // innescare un loop di rebuild. La schermata di errore la mostra
+    // solo ErrorHandler.handle per gli errori classificati come imprevisti.
+    ErrorHandler.logOnly(details.exception, details.stack, 'FlutterError.onError');
   };
 
   PlatformDispatcher.instance.onError = (error, stack) {
-    // In debug NON sopprimiamo l'errore: altrimenti un'eccezione asincrona
-    // (es. durante una rebuild subito dopo il login) sparisce senza lasciare
-    // traccia, e dall'esterno sembra solo che l'app "si blocchi" senza un
-    // perché. In release continuiamo a non far crashare l'app.
     if (kDebugMode) {
-      debugPrint('Uncaught async error: $error\n$stack');
-      _logErrorToSupabase(error.toString(), stack.toString());
+      // In debug NON sopprimiamo l'errore: altrimenti un'eccezione asincrona
+      // (es. durante una rebuild subito dopo il login) sparisce senza lasciare
+      // traccia, e dall'esterno sembra solo che l'app "si blocchi" senza un
+      // perché. Restituiamo false e Flutter stampa l'errore con lo stack.
+      ErrorHandler.logOnly(error, stack, 'PlatformDispatcher.onError');
       return false;
     }
-    _logErrorToSupabase(error.toString(), stack.toString());
+    // In release l'app non deve crashare: ErrorHandler classifica l'errore e,
+    // se è imprevisto, mostra la schermata di errore invece di lasciare l'app
+    // in uno stato rotto. Ritorna true => l'errore è considerato gestito.
+    ErrorHandler.handle(error, stack, 'PlatformDispatcher.onError');
     return true;
   };
 
   runApp(const VitalityAssistApp());
-}
-
-void _logErrorToSupabase(String error, String stackTrace) {
-  // NOTA: la tabella `app_logs` non esiste ancora nello schema — finché non
-  // la crei questo insert fallisce sempre (silenziosamente, per via del
-  // catch sotto). Non blocca nulla, ma il log non viene mai salvato davvero.
-  try {
-    Supabase.instance.client.from('app_logs').insert({
-      'message': error,
-      'stacktrace': stackTrace,
-      'timestamp': DateTime.now().toIso8601String(),
-    });
-  } catch (e) {
-    debugPrint('Impossibile salvare il log su Supabase: $e');
-  }
 }
 
 class VitalityAssistApp extends StatelessWidget {
@@ -197,6 +183,8 @@ class _AppWithTheme extends StatelessWidget {
             '/diary/add-meal': (context) => const AddMealScreen(),
             '/settings': (context) => const SettingsScreen(),
             '/settings/therapy': (context) => const TherapyConfigScreen(),
+            // Spinta da ErrorHandler (errori imprevisti) via navigatorKey.
+            '/error': (context) => const ErrorScreen(),
           },
         );
       },

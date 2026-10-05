@@ -41,6 +41,7 @@ Future<void> showEditEntriesSheet({
   required String? Function(EditableEntry entry, List<String> values) validate,
   required Future<bool> Function(EditableEntry entry, List<String> values) onSave,
   required Future<bool> Function(EditableEntry entry) onDelete,
+  String? Function()? errorMessage,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -55,6 +56,7 @@ Future<void> showEditEntriesSheet({
       validate: validate,
       onSave: onSave,
       onDelete: onDelete,
+      errorMessage: errorMessage,
     ),
   );
 }
@@ -67,6 +69,10 @@ class _EditEntriesSheet extends StatefulWidget {
   final Future<bool> Function(EditableEntry entry, List<String> values) onSave;
   final Future<bool> Function(EditableEntry entry) onDelete;
 
+  /// Messaggio classificato dal provider per l'ultimo errore atteso
+  /// (`HealthProvider.errorMessage`); se null si ricade su [_genericError].
+  final String? Function()? errorMessage;
+
   const _EditEntriesSheet({
     required this.title,
     required this.deleteLabel,
@@ -74,6 +80,7 @@ class _EditEntriesSheet extends StatefulWidget {
     required this.validate,
     required this.onSave,
     required this.onDelete,
+    this.errorMessage,
   });
 
   @override
@@ -158,7 +165,7 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
     } else {
       setState(() {
         _busy = false;
-        _error = _genericError;
+        _error = widget.errorMessage?.call() ?? _genericError;
       });
     }
   }
@@ -207,7 +214,7 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
     } else {
       setState(() {
         _busy = false;
-        _error = _genericError;
+        _error = widget.errorMessage?.call() ?? _genericError;
       });
     }
   }

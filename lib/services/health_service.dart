@@ -4,6 +4,7 @@ import '../models/activity_entry.dart';
 import '../models/meal_entry.dart';
 import '../models/therapy_item.dart';
 import '../models/vital_readings.dart';
+import 'error_handler.dart';
 
 /// Registrazione di un'assunzione di terapia (riga di `therapy_logs`).
 class TherapyLog {
@@ -51,9 +52,18 @@ class HealthService {
 
   static String _iso(DateTime d) => d.toUtc().toIso8601String();
 
+  /// 0 righe toccate = la riga non c'è più (lista obsoleta, doppia
+  /// eliminazione) oppure la RLS non consente l'operazione: Supabase non
+  /// genera errore ma restituisce un result set vuoto. E' una condizione
+  /// "attesa" che l'utente può capire, quindi viene lanciata come
+  /// [AppFailure] non imprevisto: il messaggio finisce nel form/snackbar
+  /// invece che nella schermata di errore.
   static void _requireAffected(List<dynamic> rows) {
     if (rows.isEmpty) {
-      throw StateError('Nessuna riga modificata (non trovata o non consentita).');
+      throw const AppFailure(
+        'L\'elemento non esiste più o non puoi modificarlo.',
+        cause: 'nessuna riga interessata (record assente o bloccato da RLS)',
+      );
     }
   }
 
