@@ -7,6 +7,7 @@ class AppDateFormat {
   AppDateFormat._();
 
   static final DateFormat _dayMonth = DateFormat('d MMMM', 'it_IT');
+  static final DateFormat _dayMonthYear = DateFormat('d MMMM yyyy', 'it_IT');
   static final DateFormat _weekdayShort = DateFormat('E', 'it_IT');
   static final DateFormat _monthYear = DateFormat('MMMM yyyy', 'it_IT');
   static final DateFormat _daySmall = DateFormat('d', 'it_IT');
@@ -16,6 +17,9 @@ class AppDateFormat {
       s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
   static String dayMonth(DateTime date) => _dayMonth.format(date);
+
+  /// "12 maggio 2025"
+  static String dayMonthYear(DateTime date) => _dayMonthYear.format(date);
 
   static String weekdayShort(DateTime date) =>
       _capitalize(_weekdayShort.format(date));

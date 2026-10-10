@@ -7,15 +7,22 @@ import '../models/activity_entry.dart';
 import '../models/meal_entry.dart';
 import '../models/therapy_item.dart';
 import '../models/vital_readings.dart';
+import '../services/error_handler.dart';
 import '../services/health_service.dart';
+import 'error_provider.dart';
 
 /// Stato "salute" dell'app, collegato a Supabase.
 ///
 /// Carica gli ultimi [_windowDays] giorni all'accesso (e quando si naviga
 /// più indietro nel Diario), e si svuota al logout. Tutte le operazioni di
-/// scrittura restituiscono `true` se riuscite, `false` altrimenti (la UI
-/// mostra un messaggio generico: i dettagli dell'errore non vengono esposti).
-class HealthProvider extends ChangeNotifier {
+/// scrittura restituiscono `true` se riuscite, `false` altrimenti.
+///
+/// La gestione errori passa dal mixin [ErrorReporting] (`guard`):
+/// - errore atteso    -> [errorMessage] valorizzato, la UI mostra il
+///                       messaggio (snackbar/errore inline nel form)
+/// - errore imprevisto -> [errorMessage] resta null, compare la
+///                       schermata di errore (ErrorHandler)
+class HealthProvider extends ChangeNotifier with ErrorReporting {
   HealthProvider({HealthService? service}) : _service = service ?? HealthService() {
     final auth = Supabase.instance.client.auth;
     _authSub = auth.onAuthStateChange.listen(_onAuthChange);
@@ -108,6 +115,7 @@ class HealthProvider extends ChangeNotifier {
     _loading = false;
     _loadFailed = false;
     _hasLoaded = false;
+    errorMessage = null;
     _therapyItems = [];
     _therapyLogs = [];
     _glucose = [];
@@ -124,6 +132,7 @@ class HealthProvider extends ChangeNotifier {
 
     _loading = true;
     _loadFailed = false;
+    errorMessage = null;
     notifyListeners();
 
     final since = _since;
@@ -146,8 +155,8 @@ class HealthProvider extends ChangeNotifier {
       _therapyLogs = logs;
       _applyTakenToday();
       _hasLoaded = true;
-    } catch (e) {
-      _logError('refresh', e);
+    } catch (e, st) {
+      ErrorHandler.handle(e, st, 'HealthProvider.refresh');
       if (uid == _userId) _loadFailed = true;
     } finally {
       if (uid == _userId) {
@@ -174,31 +183,23 @@ class HealthProvider extends ChangeNotifier {
     }
   }
 
-  void _logError(String where, Object e) {
-    // Niente messaggi/valori nei log: potrebbero contenere dati sanitari.
-    if (kDebugMode) {
-      final code = e is PostgrestException ? ' (${e.code})' : '';
-      debugPrint('HealthProvider.$where: ${e.runtimeType}$code');
-    }
-  }
-
   /// Esegue la scrittura e poi ricarica la parte interessata.
   ///
-  /// Restituisce `true` anche se la ricarica fallisce: la riga è stata
-  /// salvata e segnalare un falso errore indurrebbe l'utente a ripetere
+  /// La scrittura passa da [guard]: un errore atteso finisce in
+  /// [errorMessage] (la UI lo mostra), uno imprevisto apre la schermata di
+  /// errore. Restituisce `true` anche se la ricarica fallisce: la riga è
+  /// stata salvata e segnalare un falso errore indurrebbe l'utente a ripetere
   /// l'inserimento. In quel caso si alza invece [loadFailed], così la UI
   /// mostra il banner "Riprova" invece di una lista obsoleta.
+  ///
+  /// Logging: unico canale è `ErrorHandler` (classify + log). Non vengono
+  /// mai messi in log i valori letti/scritti, solo l'eccezione classificata.
   Future<bool> _write(Future<void> Function() op, Future<void> Function() reload) async {
-    try {
-      await op();
-    } catch (e) {
-      _logError('write', e);
-      return false;
-    }
+    if (!await guard(op, where: 'HealthProvider.write')) return false;
     try {
       await reload();
-    } catch (e) {
-      _logError('reload', e);
+    } catch (e, st) {
+      ErrorHandler.handle(e, st, 'HealthProvider.reload');
       _loadFailed = true;
       notifyListeners();
     }

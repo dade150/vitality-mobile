@@ -1,11 +1,22 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/reports_provider.dart';
+
+import '../../models/clinical_parameter.dart';
 import '../../models/medical_report.dart';
+import '../../providers/clinical_provider.dart';
+import '../../providers/reports_provider.dart';
+import '../../services/error_handler.dart';
+import '../../services/report_service.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/date_format.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/section_card.dart';
 
+/// Carica un referto (PDF) al backend, che lo salva su Storage ed estrae i
+/// valori clinici. Una volta arrivata la risposta l'utente SCEGLIE quali
+/// valori salvare (conferma manuale) e in quale data: solo allora finiscono
+/// in `diabetes_data` tramite [ClinicalProvider].
 class AddReportScreen extends StatefulWidget {
   const AddReportScreen({super.key});
 
@@ -14,36 +25,192 @@ class AddReportScreen extends StatefulWidget {
 }
 
 class _AddReportScreenState extends State<AddReportScreen> {
-  bool _uploaded = false;
   bool _uploading = false;
+  bool _saving = false;
 
-  Future<void> _simulateUpload() async {
-    setState(() => _uploading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+  String? _filename;
+  List<int>? _bytes;
+
+  ReportUploadResult? _result;
+
+  final Set<ClinicalParameterType> _selected = {};
+  final _dateCtrl = TextEditingController();
+  DateTime? _examDate;
+  String? _error;
+
+  static const _genericError = 'Operazione non riuscita. Controlla la connessione e riprova.';
+
+  @override
+  void dispose() {
+    _dateCtrl.dispose();
+    super.dispose();
+  }
+
+  void _setExamDate(DateTime d) {
+    _examDate = d;
+    _dateCtrl.text = AppDateFormat.dayMonthYear(d);
+  }
+
+  void _toggle(ClinicalParameterType type) {
+    setState(() {
+      if (!_selected.remove(type)) _selected.add(type);
+    });
+  }
+
+  // ------------------------------------------------------------- Selezione
+
+  Future<void> _pickFile() async {
+    FocusScope.of(context).unfocus();
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty || !mounted) return;
+    final file = picked.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) {
+      setState(() => _error = 'Non riesco a leggere il file selezionato.');
+      return;
+    }
+    setState(() {
+      _filename = file.name;
+      _bytes = bytes;
+      _result = null;
+      _selected.clear();
+      _examDate = null;
+      _dateCtrl.clear();
+      _error = null;
+    });
+  }
+
+  // ------------------------------------------------------------- Caricamento
+
+  Future<void> _upload() async {
+    final bytes = _bytes;
+    final filename = _filename;
+    if (bytes == null || filename == null) {
+      setState(() => _error = 'Scegli prima il documento da caricare.');
+      return;
+    }
+    setState(() {
+      _uploading = true;
+      _error = null;
+    });
+
+    final title = filename.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+    final ReportUploadResult result;
+    try {
+      result = await ReportService.upload(bytes: bytes, filename: filename, title: title);
+    } catch (e, st) {
+      // Classifica: errore atteso -> messaggio qui; imprevisto -> schermata
+      // di errore (già aperta da ErrorHandler).
+      final failure = ErrorHandler.handle(e, st, 'AddReportScreen.upload');
+      if (!mounted) return;
+      setState(() {
+        _uploading = false;
+        _error = failure.unexpected ? null : (failure.message.isNotEmpty ? failure.message : _genericError);
+      });
+      return;
+    }
     if (!mounted) return;
+
     setState(() {
       _uploading = false;
-      _uploaded = true;
+      _result = result;
+      _setExamDate(DateTime.now());
+      _selected
+        ..clear()
+        ..addAll(result.extracted.map((e) => e.type));
+      if (result.extracted.isEmpty) {
+        _error = 'Nessun parametro riconosciuto nel documento.';
+      }
     });
+
+    // Appare subito nella sezione "I Miei Referti" della schermata clinica.
     context.read<ReportsProvider>().addReport(
           MedicalReport(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            title: 'Referto Caricato',
+            id: result.id,
+            title: title,
             date: DateTime.now(),
-            extractedParams: const {
-              'HbA1c': '6.8%',
-              'eGFR': '92 mL/min',
-              'UACR': '15 mg/g',
-              'Pressione': '120/80',
+            extractedParams: {
+              for (final v in result.extracted)
+                v.type.label: '${v.type.format(v.value)} ${v.type.unit}',
             },
           ),
         );
   }
 
+  // ---------------------------------------------------------------- Salvataggio
+
+  Future<void> _pickDate() async {
+    FocusScope.of(context).unfocus();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _examDate ?? today,
+      firstDate: ClinicalParameterType.earliestDate,
+      lastDate: today,
+      helpText: "Data dell'esame",
+      cancelText: 'Annulla',
+      confirmText: 'Conferma',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _setExamDate(picked));
+  }
+
+  /// Salva i valori spuntati nei parametri clinici (conferma manuale).
+  Future<void> _saveValues() async {
+    final date = _examDate;
+    final values = _selected.isEmpty
+        ? const <ExtractedValue>[]
+        : _result!.extracted.where((v) => _selected.contains(v.type)).toList();
+    if (date == null) {
+      setState(() => _error = "Scegli la data dell'esame.");
+      return;
+    }
+    if (values.isEmpty) {
+      setState(() => _error = 'Spunta almeno un valore da salvare.');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    final clinical = context.read<ClinicalProvider>();
+    for (final v in values) {
+      final ok = await clinical.addReading(v.type, v.value, date);
+      if (!ok) {
+        if (!mounted) return;
+        setState(() {
+          _saving = false;
+          _error = clinical.errorMessage ?? _genericError;
+        });
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(values.length == 1
+            ? 'Valore salvato nei parametri clinici.'
+            : '${values.length} valori salvati nei parametri clinici.'),
+      ),
+    );
+    Navigator.of(context).maybePop();
+  }
+
+  // ------------------------------------------------------------------- Build
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final result = _result;
 
     return AppScaffold(
       navIndex: 2,
@@ -61,34 +228,95 @@ class _AddReportScreenState extends State<AddReportScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _uploading ? null : _simulateUpload,
-              icon: _uploading
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.upload_file_rounded),
-              label: Text(_uploading ? 'Caricamento...' : 'Carica Documento'),
+          if (result == null) ...[
+            OutlinedButton.icon(
+              onPressed: _uploading ? null : _pickFile,
+              icon: const Icon(Icons.attach_file_rounded),
+              label: Text(_filename ?? 'Scegli il documento (PDF)'),
             ),
-          ),
-          if (_uploaded) ...[
-            const SizedBox(height: 28),
-            Text('Parametri Clinici Estratti', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 12),
-            SectionCard(
-              child: Column(
-                children: [
-                  _paramRow(context, icon: Icons.bloodtype_outlined, label: 'HbA1c', value: '6.8%'),
-                  const Divider(),
-                  // eGFR (velocità di filtrazione renale): icona semplice a "imbuto/filtro".
-                  _paramRow(context, icon: Icons.filter_alt_outlined, label: 'eGFR', value: '92 mL/min'),
-                  const Divider(),
-                  _paramRow(context, icon: Icons.science_outlined, label: 'UACR', value: '15 mg/g'),
-                  const Divider(),
-                  _paramRow(context, icon: Icons.favorite_outline_rounded, label: 'Pressione', value: '120/80'),
-                ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _uploading ? null : _upload,
+                icon: _uploading
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.upload_file_rounded),
+                label: Text(_uploading ? 'Caricamento...' : 'Carica Documento'),
               ),
             ),
+          ] else ...[
+            Text('Parametri Clinici Estratti', style: theme.textTheme.titleLarge),
+            const SizedBox(height: 4),
+            Text(
+              'Spunta quelli che vuoi salvare: compaiono in "Parametri Clinici".',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            if (result.extracted.isEmpty)
+              Text('Il documento non contiene parametri riconosciuti.',
+                  style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic))
+            else
+              SectionCard(
+                child: Column(
+                  children: [
+                    for (final v in result.extracted)
+                      InkWell(
+                        onTap: _saving ? null : () => _toggle(v.type),
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: _selected.contains(v.type),
+                              onChanged: _saving ? null : (_) => _toggle(v.type),
+                            ),
+                            Expanded(
+                              child: _paramRow(context,
+                                  icon: v.type.icon,
+                                  label: v.type.label,
+                                  value: '${v.type.format(v.value)} ${v.type.unit}'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const Divider(),
+                    Text("Data dell'esame", style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _dateCtrl,
+                      readOnly: true,
+                      enabled: !_saving,
+                      onTap: _pickDate,
+                      decoration: const InputDecoration(
+                        hintText: 'Tocca per scegliere la data',
+                        suffixIcon: Icon(Icons.calendar_month_outlined),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _saving || _uploading ? null : _saveValues,
+                icon: _saving
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.save_rounded),
+                label: Text(_saving ? 'Salvataggio...' : 'Salva nei parametri clinici'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _saving || _uploading ? null : _pickFile,
+              icon: const Icon(Icons.swap_horiz_rounded),
+              label: const Text('Scegli un altro documento'),
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: TextStyle(color: cs.error, fontSize: 16)),
+          ],
+          if (result != null) ...[
             const SizedBox(height: 28),
             Text('Note e Screening Medici', style: theme.textTheme.titleLarge),
             const SizedBox(height: 12),

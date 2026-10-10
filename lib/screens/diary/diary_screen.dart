@@ -99,6 +99,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     required bool decimal,
     required String? Function(List<double?> values) validate,
     required Future<bool> Function(List<double> values) onSave,
+    String? Function()? errorMessage,
   }) {
     return showDialog<void>(
       context: context,
@@ -109,6 +110,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         decimal: decimal,
         validate: validate,
         onSave: onSave,
+        errorMessage: errorMessage,
       ),
     );
   }
@@ -125,6 +127,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ? 'Inserisci un valore tra 20 e 600 mg/dL'
           : null,
       onSave: (v) => health.addGlucoseReading(v[0], at: when),
+      errorMessage: () => health.errorMessage,
     );
   }
 
@@ -145,6 +148,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         return null;
       },
       onSave: (v) => health.addPressureReading(v[0].round(), v[1].round(), at: when),
+      errorMessage: () => health.errorMessage,
     );
   }
 
@@ -198,6 +202,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
       },
       onSave: (e, v) => health.updateGlucose(e.id, _parseNumber(v[0])!),
       onDelete: (e) => health.deleteGlucose(e.id),
+      errorMessage: () => health.errorMessage,
     );
   }
 
@@ -239,6 +244,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
       },
       onSave: (e, v) => health.updatePressure(e.id, int.parse(v[0]), int.parse(v[1])),
       onDelete: (e) => health.deletePressure(e.id),
+      errorMessage: () => health.errorMessage,
     );
   }
 
@@ -281,6 +287,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
       },
       onSave: (e, v) => health.updateMeal(e.id, description: v[0], calories: int.parse(v[1])),
       onDelete: (e) => health.deleteMeal(e.id),
+      errorMessage: () => health.errorMessage,
     );
   }
 
@@ -324,6 +331,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         steps: v[1].isEmpty ? 0 : int.parse(v[1]),
       ),
       onDelete: (e) => health.deleteActivity(e.id),
+      errorMessage: () => health.errorMessage,
     );
   }
 
@@ -497,7 +505,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   final provider = context.read<HealthProvider>();
                   final ok = await provider.toggleTherapyTaken(item.id);
                   if (!ok && mounted && !provider.isTherapyToggling(item.id)) {
-                    _showMessage('Salvataggio non riuscito. Riprova.');
+                    _showMessage(provider.errorMessage ?? 'Salvataggio non riuscito. Riprova.');
                   }
                 },
           child: const Text('Segna come presa', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
@@ -512,7 +520,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                 final provider = context.read<HealthProvider>();
                 final ok = await provider.toggleTherapyTaken(item.id);
                 if (!ok && mounted && !provider.isTherapyToggling(item.id)) {
-                  _showMessage('Operazione non riuscita. Riprova.');
+                  _showMessage(provider.errorMessage ?? 'Operazione non riuscita. Riprova.');
                 }
               },
         child: const Text('Annulla'),
@@ -734,6 +742,7 @@ class _AddEntryDialog extends StatefulWidget {
     required this.decimal,
     required this.validate,
     required this.onSave,
+    this.errorMessage,
   });
 
   final String title;
@@ -741,6 +750,10 @@ class _AddEntryDialog extends StatefulWidget {
   final bool decimal;
   final String? Function(List<double?> values) validate;
   final Future<bool> Function(List<double> values) onSave;
+
+  /// Messaggio classificato dal provider (solo errori attesi): se null si
+  /// ricade sul testo generico.
+  final String? Function()? errorMessage;
 
   @override
   State<_AddEntryDialog> createState() => _AddEntryDialogState();
@@ -792,7 +805,7 @@ class _AddEntryDialogState extends State<_AddEntryDialog> {
     } else {
       setState(() {
         _busy = false;
-        _error = 'Salvataggio non riuscito. Riprova.';
+        _error = widget.errorMessage?.call() ?? 'Salvataggio non riuscito. Riprova.';
       });
     }
   }
