@@ -9,6 +9,7 @@ import 'providers/user_provider.dart';
 import 'providers/health_provider.dart';
 import 'providers/appointments_provider.dart';
 import 'providers/reports_provider.dart';
+import 'providers/clinical_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/auth_provider.dart';
 
@@ -25,7 +26,7 @@ import 'screens/error/error_screen.dart';
 import 'screens/history/history_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/chat/chat_screen.dart';
-import 'screens/reports/reports_screen.dart';
+import 'screens/reports/clinical_screen.dart';
 import 'screens/reports/add_report_screen.dart';
 import 'screens/appointments/appointments_screen.dart';
 import 'screens/appointments/add_visit_screen.dart';
@@ -81,6 +82,7 @@ class VitalityAssistApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => HealthProvider()),
         ChangeNotifierProvider(create: (_) => AppointmentsProvider()),
         ChangeNotifierProvider(create: (_) => ReportsProvider()),
+        ChangeNotifierProvider(create: (_) => ClinicalProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
       ],
@@ -175,7 +177,7 @@ class _AppWithTheme extends StatelessWidget {
             '/history': (context) => const HistoryScreen(),
             '/profile': (context) => const ProfileScreen(),
             '/chat': (context) => const ChatScreen(),
-            '/reports': (context) => const ReportsScreen(),
+            '/reports': (context) => const ClinicalParametersScreen(),
             '/reports/add': (context) => const AddReportScreen(),
             '/appointments': (context) => const AppointmentsScreen(),
             '/appointments/add': (context) => const AddVisitScreen(),

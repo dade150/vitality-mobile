@@ -47,6 +47,25 @@ class ApiService {
     return _ensure(r);
   }
 
+  /// POST multipart (upload di un file + campi testo).
+  ///
+  /// Usato per caricare un referto al backend, che lo salva su Storage ed
+  /// estrae i valori. Il Content-Type va rimosso: lo imposterebbe a
+  /// `application/json` e romperebbe il boundary del multipart.
+  static Future<http.Response> postMultipart(
+    String endpoint, {
+    required Map<String, String> fields,
+    required List<http.MultipartFile> files,
+  }) async {
+    final headers = await _getHeaders()..remove('Content-Type');
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'))
+      ..headers.addAll(headers)
+      ..fields.addAll(fields)
+      ..files.addAll(files);
+    final r = await http.Response.fromStream(await request.send().timeout(timeout));
+    return _ensure(r);
+  }
+
   // ------------------------------------------------------------------ Errori
 
   /// Lancia [AppFailure] se la risposta non è 2xx, altrimenti la restituisce.
