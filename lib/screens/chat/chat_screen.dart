@@ -21,11 +21,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  void _send() {
-    final text = _controller.text;
-    if (text.trim().isEmpty) return;
-    context.read<ChatProvider>().sendMessage(text);
-    _controller.clear();
+  void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -35,6 +31,49 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     });
+  }
+
+  Future<void> _send() async {
+    final chat = context.read<ChatProvider>();
+    final text = _controller.text;
+    if (text.trim().isEmpty || chat.isSending) return;
+    _controller.clear();
+
+    // La parte sincrona di sendMessage aggiunge già il messaggio utente.
+    final pending = chat.sendMessage(text);
+    _scrollToEnd();
+    final ok = await pending;
+    if (!mounted) return;
+    _scrollToEnd();
+    if (!ok && chat.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(chat.errorMessage!)));
+    }
+  }
+
+  Widget _bubble({
+    required ThemeData theme,
+    required bool isUser,
+    required Widget child,
+  }) {
+    final cs = theme.colorScheme;
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.all(14),
+        constraints: const BoxConstraints(maxWidth: 320),
+        decoration: BoxDecoration(
+          color: isUser ? cs.primary : cs.surfaceContainerHigh,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isUser ? 18 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 18),
+          ),
+        ),
+        child: child,
+      ),
+    );
   }
 
   @override
@@ -63,29 +102,28 @@ class _ChatScreenState extends State<ChatScreen> {
                       ? ListView.builder(
                           controller: _scrollController,
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          itemCount: chat.messages.length,
+                          // +1: bolla di caricamento mentre si aspetta la risposta
+                          itemCount: chat.messages.length + (chat.isSending ? 1 : 0),
                           itemBuilder: (context, index) {
-                            final message = chat.messages[index];
-                            return Align(
-                              alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(vertical: 6),
-                                padding: const EdgeInsets.all(14),
-                                constraints: const BoxConstraints(maxWidth: 320),
-                                decoration: BoxDecoration(
-                                  color: message.isUser ? cs.primary : cs.surfaceContainerHigh,
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: const Radius.circular(18),
-                                    topRight: const Radius.circular(18),
-                                    bottomLeft: Radius.circular(message.isUser ? 18 : 4),
-                                    bottomRight: Radius.circular(message.isUser ? 4 : 18),
-                                  ),
+                            if (index == chat.messages.length) {
+                              return _bubble(
+                                theme: theme,
+                                isUser: false,
+                                child: const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
                                 ),
-                                child: Text(
-                                  message.text,
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: message.isUser ? cs.onPrimary : cs.onSurface,
-                                  ),
+                              );
+                            }
+                            final message = chat.messages[index];
+                            return _bubble(
+                              theme: theme,
+                              isUser: message.isUser,
+                              child: Text(
+                                message.text,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: message.isUser ? cs.onPrimary : cs.onSurface,
                                 ),
                               ),
                             );
@@ -142,7 +180,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         height: 60,
                         child: FloatingActionButton(
                           heroTag: 'send',
-                          onPressed: _send,
+                          onPressed: chat.isSending ? null : _send,
                           backgroundColor: cs.primary,
                           child: Icon(Icons.send_rounded, color: cs.onPrimary),
                         ),

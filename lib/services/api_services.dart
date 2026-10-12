@@ -12,16 +12,24 @@ import 'error_handler.dart';
 /// convertite in [AppFailure] già classificato, così il chiamante può
 /// buttarle in `ErrorHandler.handle` (o nel mixin `ErrorReporting.guard`)
 /// come qualsiasi altro errore:
-/// - 4xx      -> errore atteso: messaggio utente, nessuna schermata
-/// - 5xx/403  -> imprevisto: schermata di errore
+/// - 4xx          -> errore atteso: messaggio utente, nessuna schermata
+/// - 502/503      -> servizio a monte non disponibile: atteso, snackbar
+/// - altri 5xx/403 -> imprevisto: schermata di errore
 class ApiService {
-  // Cambia con l'URL di produzione quando sarà il momento; probabilmente lo passiamo da .env
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
+  /// Passato con `--dart-define-from-file=config/env.json`.
+  static const String baseUrl = String.fromEnvironment('API_BASE_URL');
 
-  /// Senza timeout un BE appeso bloccherebbe la UI in stato "loading" per
-  /// sempre. TimeoutException è classificata da ErrorHandler come errore
-  /// atteso ("Connessione assente o instabile. Riprova.").
+  /// Timeout di default; per chiamate lente (LLM, upload) passare `timeout`.
   static const Duration timeout = Duration(seconds: 15);
+
+  static Uri _uri(String endpoint) {
+    if (baseUrl.isEmpty) {
+      throw StateError(
+        'API_BASE_URL mancante: lancia con --dart-define-from-file=config/env.json',
+      );
+    }
+    return Uri.parse('$baseUrl$endpoint');
+  }
 
   static Future<Map<String, String>> _getHeaders() async {
     final session = Supabase.instance.client.auth.currentSession;
@@ -33,17 +41,19 @@ class ApiService {
     };
   }
 
-  static Future<http.Response> get(String endpoint) async {
+  static Future<http.Response> get(String endpoint, {Duration? timeout}) async {
     final headers = await _getHeaders();
-    final r = await http.get(Uri.parse('$baseUrl$endpoint'), headers: headers).timeout(timeout);
+    final r = await http
+        .get(_uri(endpoint), headers: headers)
+        .timeout(timeout ?? ApiService.timeout);
     return _ensure(r);
   }
 
-  static Future<http.Response> post(String endpoint, String body) async {
+  static Future<http.Response> post(String endpoint, String body, {Duration? timeout}) async {
     final headers = await _getHeaders();
-    final r =
-        await http.post(Uri.parse('$baseUrl$endpoint'), headers: headers, body: body)
-            .timeout(timeout);
+    final r = await http
+        .post(_uri(endpoint), headers: headers, body: body)
+        .timeout(timeout ?? ApiService.timeout);
     return _ensure(r);
   }
 
@@ -56,13 +66,16 @@ class ApiService {
     String endpoint, {
     required Map<String, String> fields,
     required List<http.MultipartFile> files,
+    Duration? timeout,
   }) async {
     final headers = await _getHeaders()..remove('Content-Type');
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'))
+    final request = http.MultipartRequest('POST', _uri(endpoint))
       ..headers.addAll(headers)
       ..fields.addAll(fields)
       ..files.addAll(files);
-    final r = await http.Response.fromStream(await request.send().timeout(timeout));
+    final r = await http.Response.fromStream(
+      await request.send().timeout(timeout ?? ApiService.timeout),
+    );
     return _ensure(r);
   }
 
@@ -76,6 +89,18 @@ class ApiService {
 
   static AppFailure _failureFrom(http.Response r) {
     final detail = _detailFrom(r);
+
+    // 502/503 = LLM o auth provider momentaneamente giù: errore atteso,
+    // basta una snackbar, non la schermata di errore.
+    if (r.statusCode == 502 || r.statusCode == 503) {
+      return AppFailure(
+        detail.isNotEmpty
+            ? detail
+            : 'Servizio momentaneamente non disponibile. Riprova tra qualche istante.',
+        cause: 'HTTP ${r.statusCode}: $detail',
+      );
+    }
+
     // 403 = permessi: non è un errore di validazione ma un problema di
     // configurazione -> schermata di errore, come RLS/JWT su Supabase.
     if (r.statusCode >= 500 || r.statusCode == 403) {
@@ -91,10 +116,13 @@ class ApiService {
   /// Preferisce il corpo d'errore prodotto dal BE (`message`/`detail`/`error`);
   /// se non leggibile restituisce la stringa vuota e si usa il messaggio
   /// generico associato allo status.
+  ///
+  /// Nota: con gli errori 422 di FastAPI `detail` è una lista, non una
+  /// stringa: viene scartata e si usa il messaggio generico.
   static String _detailFrom(http.Response r) {
     if (r.body.isEmpty) return '';
     try {
-      final decoded = jsonDecode(r.body);
+      final decoded = jsonDecode(utf8.decode(r.bodyBytes));
       if (decoded is Map) {
         for (final key in ['message', 'detail', 'error']) {
           final v = decoded[key];

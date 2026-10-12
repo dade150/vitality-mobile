@@ -138,6 +138,9 @@ class _AuthRedirectorState extends State<_AuthRedirector> {
       navigatorKey.currentState?.pushNamedAndRemoveUntil('/diary', (route) => false);
     } else if (!isAuthenticated && _wasAuthenticated) {
       navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+    } else if (!isAuthenticated && _wasAuthenticated) {
+      context.read<ChatProvider>().clear();   // <- nuova riga
+      navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
     }
 
     _wasAuthenticated = isAuthenticated;
