@@ -35,19 +35,25 @@ class PillButton extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 20, color: foreground),
-                const SizedBox(width: 8),
+          // scaleDown evita overflow orizzontale quando il bottone è in uno
+          // spazio stretto (es. Expanded affiancati): scala solo il contenuto
+          // icona+testo, il padding resta invariato.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20, color: foreground),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  label,
+                  style: textTheme.labelLarge?.copyWith(color: foreground),
+                ),
               ],
-              Text(
-                label,
-                style: textTheme.labelLarge?.copyWith(color: foreground),
-              ),
-            ],
+            ),
           ),
         ),
       ),

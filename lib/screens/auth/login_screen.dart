@@ -33,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = context.read<AuthProvider>();
     final ok = await auth.signIn(_data.email, _data.password);
 
-    // La navigazione verso /diary in caso di successo è gestita da
+    // La navigazione verso /chat in caso di successo è gestita da
     // _AuthRedirector in main.dart: reagisce al cambio di stato di
     // AuthProvider da qualunque schermata, quindi qui non serve richiamarla.
     if (!mounted) return;
