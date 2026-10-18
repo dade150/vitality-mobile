@@ -186,7 +186,7 @@ class ProfileScreen extends StatelessWidget {
 
     if (profile == null) {
       return AppScaffold(
-        navIndex: 1,
+        navIndex: 0,
         body: Center(
           child: profileProvider.loadFailed
               ? Column(
@@ -208,10 +208,21 @@ class ProfileScreen extends StatelessWidget {
     }
 
     return AppScaffold(
-      navIndex: 1,
+      navIndex: 0,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back_rounded),
+                tooltip: 'Torna alla chat',
+              ),
+              Text('Profilo', style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800)),
+            ],
+          ),
+          const SizedBox(height: 8),
           SectionCard(
             child: Column(
               children: [
