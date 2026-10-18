@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/user_provider.dart';
+import 'package:intl/intl.dart';
+import '../../models/profile.dart';
+import '../../providers/profile_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/pill_button.dart';
@@ -9,119 +11,201 @@ import '../../widgets/section_card.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
-  Future<void> _editProfile(BuildContext context, UserProvider user) async {
-    final nameController = TextEditingController(text: user.name);
-    final emailController = TextEditingController(text: user.email);
-    final phoneController = TextEditingController(text: user.phone);
-    final ageController = TextEditingController(text: user.age.toString());
-    final weightController = TextEditingController(text: user.weightKg.toStringAsFixed(0));
-    final heightController = TextEditingController(text: user.heightCm.toStringAsFixed(0));
-    String gender = user.gender;
+  /// Accetta sia la virgola sia il punto (tastiera italiana).
+  static double? _parseDouble(String raw) {
+    final v = double.tryParse(raw.trim().replaceAll(',', '.'));
+    return (v == null || v.isNaN || v.isInfinite) ? null : v;
+  }
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
-          ),
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Modifica Dati', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 16),
-                    TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nome e Cognome')),
-                    const SizedBox(height: 12),
-                    TextField(controller: emailController, decoration: const InputDecoration(labelText: 'Email')),
-                    const SizedBox(height: 12),
-                    TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'Telefono')),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: ageController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: 'Età'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: gender,
-                            decoration: const InputDecoration(labelText: 'Sesso'),
-                            items: const [
-                              DropdownMenuItem(value: 'Maschio', child: Text('Maschio')),
-                              DropdownMenuItem(value: 'Femmina', child: Text('Femmina')),
-                              DropdownMenuItem(value: 'Altro', child: Text('Altro')),
-                            ],
-                            onChanged: (v) => setState(() => gender = v ?? gender),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: weightController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: 'Peso (kg)'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: heightController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: 'Altezza (cm)'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: () {
-                          user.updateProfile(
-                            name: nameController.text,
-                            email: emailController.text,
-                            phone: phoneController.text,
-                            age: int.tryParse(ageController.text) ?? user.age,
-                            gender: gender,
-                            weightKg: double.tryParse(weightController.text) ?? user.weightKg,
-                            heightCm: double.tryParse(heightController.text) ?? user.heightCm,
-                          );
-                          Navigator.of(sheetContext).pop();
-                        },
-                        child: const Text('Salva'),
+  Future<void> _editProfile(BuildContext context, ProfileProvider profileProvider) async {
+    final profile = profileProvider.profile;
+    if (profile == null) return;
+
+    final nameController = TextEditingController(text: profile.name);
+    final surnameController = TextEditingController(text: profile.surname);
+    final phoneController = TextEditingController(text: profile.phone);
+    final weightController = TextEditingController(text: profile.peso.toStringAsFixed(1));
+    final heightController = TextEditingController(text: profile.altezza.toString());
+
+    // Nullable: se manca la data, il campo resta vuoto finché non la scegli.
+    DateTime? selectedBirth = profile.birth;
+    String gender = profile.sesso;
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheetContext) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+            ),
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                final genderItems = [
+                  for (final v in Profile.sessoValues)
+                    DropdownMenuItem(value: v, child: Text(Profile.labelForSesso(v))),
+                  // Valore già nel DB ma non proposto dall'app: va mostrato
+                  // altrimenti DropdownButton va in assert.
+                  if (gender.isNotEmpty && !Profile.sessoValues.contains(gender))
+                    DropdownMenuItem(value: gender, child: Text(Profile.labelForSesso(gender))),
+                ];
+
+                return SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Modifica Dati', style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nome'))),
+                          const SizedBox(width: 12),
+                          Expanded(child: TextField(controller: surnameController, decoration: const InputDecoration(labelText: 'Cognome'))),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
+                      const SizedBox(height: 12),
+                      TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'Telefono')),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final now = DateTime.now();
+                                final first = DateTime(now.year - 120);
+                                // initialDate deve stare tra first e last:
+                                // una data fuori range fa assert del date picker.
+                                var initial = selectedBirth ?? DateTime(now.year - 60);
+                                if (initial.isBefore(first)) initial = first;
+                                if (initial.isAfter(now)) initial = now;
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: initial,
+                                  firstDate: first,
+                                  lastDate: now,
+                                );
+                                if (picked != null) {
+                                  setState(() => selectedBirth = picked);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Data di nascita'),
+                                child: Text(selectedBirth == null
+                                    ? 'gg/mm/aaaa'
+                                    : DateFormat('dd/MM/yyyy').format(selectedBirth!)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: gender.isEmpty ? null : gender,
+                              decoration: const InputDecoration(labelText: 'Sesso'),
+                              items: genderItems,
+                              onChanged: (v) => setState(() => gender = v ?? gender),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: weightController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(labelText: 'Peso (kg)'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: heightController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Altezza (cm)'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () async {
+                            final ok = await profileProvider.updateProfile(
+                              name: nameController.text,
+                              surname: surnameController.text,
+                              phone: phoneController.text,
+                              birth: selectedBirth,
+                              sesso: gender.isEmpty ? null : gender,
+                              peso: _parseDouble(weightController.text) ?? profile.peso,
+                              altezza: int.tryParse(heightController.text) ?? profile.altezza,
+                            );
+                            if (!sheetContext.mounted) return;
+                            if (!ok) {
+                              // Errore atteso: resta nel form con il motivo.
+                              ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(
+                                content: Text(profileProvider.errorMessage ??
+                                    'Salvataggio non riuscito. Riprova.'),
+                              ));
+                              return;
+                            }
+                            Navigator.of(sheetContext).pop();
+                          },
+                          child: const Text('Salva'),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      );
+    } finally {
+      nameController.dispose();
+      surnameController.dispose();
+      phoneController.dispose();
+      weightController.dispose();
+      heightController.dispose();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final user = context.watch<UserProvider>();
+    final profileProvider = context.watch<ProfileProvider>();
+    final profile = profileProvider.profile;
+
+    if (profile == null) {
+      return AppScaffold(
+        navIndex: 1,
+        body: Center(
+          child: profileProvider.loadFailed
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.cloud_off_rounded, size: 48, color: cs.error),
+                    const SizedBox(height: 12),
+                    const Text('Impossibile caricare il profilo.'),
+                    const SizedBox(height: 12),
+                    FilledButton.tonal(
+                      onPressed: profileProvider.refresh,
+                      child: const Text('Riprova'),
+                    ),
+                  ],
+                )
+              : const CircularProgressIndicator(),
+        ),
+      );
+    }
 
     return AppScaffold(
       navIndex: 1,
@@ -137,10 +221,12 @@ class ProfileScreen extends StatelessWidget {
                   child: Icon(Icons.person_rounded, size: 48, color: cs.primary),
                 ),
                 const SizedBox(height: 16),
-                Text(user.name, style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
+                Text('${profile.name} ${profile.surname}', style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
                 const SizedBox(height: 8),
                 Text(
-                  '${user.email}\n${user.phone}\nEtà: ${user.age} anni\nSesso: ${user.gender}',
+                  '${profile.email}\n${profile.phone}\n'
+                  'Età: ${profile.age ?? '—'} anni\n'
+                  'Sesso: ${profile.sessoLabel}',
                   style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),
@@ -149,7 +235,7 @@ class ProfileScreen extends StatelessWidget {
                   label: 'Modifica Dati',
                   icon: Icons.edit_rounded,
                   filled: true,
-                  onTap: () => _editProfile(context, user),
+                  onTap: () => _editProfile(context, profileProvider),
                 ),
               ],
             ),
@@ -164,22 +250,22 @@ class ProfileScreen extends StatelessWidget {
                 _VitalStat(
                   icon: Icons.monitor_weight_outlined,
                   label: 'Peso',
-                  value: user.weightKg.toStringAsFixed(0),
+                  value: profile.peso.toStringAsFixed(1),
                   unit: 'kg',
                   color: cs.primary,
                 ),
                 _VitalStat(
                   icon: Icons.height_rounded,
                   label: 'Altezza',
-                  value: user.heightCm.toStringAsFixed(0),
+                  value: profile.altezza.toString(),
                   unit: 'cm',
                   color: cs.secondary,
                 ),
                 _VitalStat(
                   icon: Icons.speed_rounded,
                   label: 'BMI',
-                  value: user.bmi.toStringAsFixed(1),
-                  unit: '(${user.bmiCategory})',
+                  value: profile.bmi.toStringAsFixed(1),
+                  unit: '(${profile.bmiCategory})',
                   color: cs.tertiary,
                 ),
               ];
@@ -197,14 +283,14 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 32),
           Center(
             child: TextButton.icon(
-            onPressed: () async {
-              final auth = context.read<AuthProvider>();
-              await auth.signOut();          // 1) PRIMA aspetta: sessione azzerata
-              if (!context.mounted) return;
-              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);  // 2) POI naviga
-            },
-            icon: Icon(Icons.logout_rounded, color: cs.error),
-            label: Text('Esci', style: TextStyle(color: cs.error)),
+              onPressed: () async {
+                final auth = context.read<AuthProvider>();
+                await auth.signOut();
+                if (!context.mounted) return;
+                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              },
+              icon: Icon(Icons.logout_rounded, color: cs.error),
+              label: Text('Esci', style: TextStyle(color: cs.error)),
             ),
           ),
         ],

@@ -97,7 +97,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       } else {
         // Confirm email OFF: sessione già presente, entra subito nell'app.
-        Navigator.of(context).pushNamedAndRemoveUntil('/diary', (r) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil('/chat', (r) => false);
       }
     } else if (auth.errorMessage != null) {
       _showSnack(auth.errorMessage!);

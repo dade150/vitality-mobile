@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/meal_entry.dart';
@@ -6,10 +8,12 @@ import '../../providers/health_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/entry_edit_sheet.dart';
-import '../../widgets/pill_button.dart';
 import '../../widgets/section_card.dart';
 import '../../utils/date_format.dart';
 import '../../theme/app_colors.dart';
+
+/// Livello di granularità della vista del Diario.
+enum DiaryView { giorno, settimana, mese }
 
 /// Converte il testo di un campo numerico in `double`, tollerando la virgola
 /// decimale tipica della tastiera italiana.
@@ -24,6 +28,7 @@ class DiaryScreen extends StatefulWidget {
 
 class _DiaryScreenState extends State<DiaryScreen> {
   DateTime _selectedDate = DateTime.now();
+  DiaryView _view = DiaryView.giorno;
 
   @override
   void initState() {
@@ -44,6 +49,30 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   bool get _isToday => _sameDay(_selectedDate, DateTime.now());
 
+  Widget _viewButton(String label, DiaryView value) {
+    final cs = Theme.of(context).colorScheme;
+    final selected = _view == value;
+    return GestureDetector(
+      onTap: () => setState(() => _view = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? Colors.white : cs.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
   DateTime get _dayEnd => DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day + 1);
 
   String _hhmm(DateTime t) =>
@@ -62,9 +91,73 @@ class _DiaryScreenState extends State<DiaryScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
-  void _changeDay(int delta) {
-    setState(() => _selectedDate = _selectedDate.add(Duration(days: delta)));
+  /// Inizio del periodo corrente (inclusivo) secondo la vista attiva.
+  DateTime get _periodStart {
+    switch (_view) {
+      case DiaryView.giorno:
+        return DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+      case DiaryView.settimana:
+        final d = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+        return d.subtract(Duration(days: d.weekday - DateTime.monday));
+      case DiaryView.mese:
+        return DateTime(_selectedDate.year, _selectedDate.month, 1);
+    }
+  }
+
+  /// Fine del periodo corrente (esclusiva).
+  DateTime get _periodEnd {
+    switch (_view) {
+      case DiaryView.giorno:
+        return _periodStart.add(const Duration(days: 1));
+      case DiaryView.settimana:
+        return _periodStart.add(const Duration(days: 7));
+      case DiaryView.mese:
+        return DateTime(_selectedDate.year, _selectedDate.month + 1, 1);
+    }
+  }
+
+  bool _inPeriod(DateTime t) => !t.isBefore(_periodStart) && t.isBefore(_periodEnd);
+
+  int get _periodDays => _periodEnd.difference(_periodStart).inDays;
+
+  /// Navigazione avanti/indietro adattata al livello della vista corrente.
+  void _changePeriod(int delta) {
+    setState(() {
+      switch (_view) {
+        case DiaryView.giorno:
+          _selectedDate = _selectedDate.add(Duration(days: delta));
+        case DiaryView.settimana:
+          _selectedDate = _selectedDate.add(Duration(days: 7 * delta));
+        case DiaryView.mese:
+          final newMonth = DateTime(_selectedDate.year, _selectedDate.month + delta, 1);
+          final lastDay = DateTime(newMonth.year, newMonth.month + 1, 0).day;
+          _selectedDate = DateTime(
+            newMonth.year,
+            newMonth.month,
+            _selectedDate.day > lastDay ? lastDay : _selectedDate.day,
+          );
+      }
+    });
     context.read<HealthProvider>().ensureLoaded(_selectedDate);
+  }
+
+  /// Titolo del periodo mostrato nella barra di navigazione data.
+  String get _periodTitle {
+    switch (_view) {
+      case DiaryView.giorno:
+        return AppDateFormat.dayMonth(_selectedDate);
+      case DiaryView.settimana:
+        final start = _periodStart;
+        final end = _periodEnd.subtract(const Duration(days: 1));
+        final sy = AppDateFormat.daySmall(start);
+        final sm = AppDateFormat.monthShort(start);
+        final ey = AppDateFormat.daySmall(end);
+        final em = AppDateFormat.monthShort(end);
+        final year = end.year != start.year ? ' ${end.year}' : '';
+        return start.month == end.month ? '$sy - $ey $em$year' : '$sy $sm - $ey $em$year';
+      case DiaryView.mese:
+        return AppDateFormat.monthYear(_selectedDate);
+    }
   }
 
   /// Ultimo elemento registrato fino alla fine del giorno selezionato.
@@ -340,6 +433,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final settings = context.watch<SettingsProvider>();
     final health = context.watch<HealthProvider>();
 
@@ -351,24 +445,19 @@ class _DiaryScreenState extends State<DiaryScreen> {
           Text('Il mio Diario',
               style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: PillButton(
-                  label: 'Storico',
-                  icon: Icons.history_rounded,
-                  onTap: () => Navigator.of(context).pushNamed('/history'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: PillButton(
-                  label: 'Profilo',
-                  icon: Icons.person_outline_rounded,
-                  onTap: () => Navigator.of(context).pushNamed('/profile'),
-                ),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              children: [
+                Expanded(child: _viewButton('Giorno', DiaryView.giorno)),
+                Expanded(child: _viewButton('Settimana', DiaryView.settimana)),
+                Expanded(child: _viewButton('Mese', DiaryView.mese)),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           SectionCard(
@@ -377,24 +466,27 @@ class _DiaryScreenState extends State<DiaryScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
-                  onPressed: () => _changeDay(-1),
+                  onPressed: () => _changePeriod(-1),
                   icon: const Icon(Icons.chevron_left_rounded, color: AppColors.accent),
                 ),
-                Column(
-                  children: [
-                    Text(
-                      _isToday ? 'Oggi' : AppDateFormat.weekdayShort(_selectedDate),
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: AppColors.accent,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                if (_view == DiaryView.giorno)
+                  Column(
+                    children: [
+                      Text(
+                        _isToday ? 'Oggi' : AppDateFormat.weekdayShort(_selectedDate),
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: AppColors.accent,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    Text(AppDateFormat.dayMonth(_selectedDate), style: theme.textTheme.bodyMedium),
-                  ],
-                ),
+                      Text(AppDateFormat.dayMonth(_selectedDate), style: theme.textTheme.bodyMedium),
+                    ],
+                  )
+                else
+                  Text(_periodTitle, style: theme.textTheme.titleSmall),
                 IconButton(
-                  onPressed: () => _changeDay(1),
+                  onPressed: () => _changePeriod(1),
                   icon: const Icon(Icons.chevron_right_rounded, color: AppColors.accent),
                 ),
               ],
@@ -419,25 +511,217 @@ class _DiaryScreenState extends State<DiaryScreen> {
             ),
           ],
           const SizedBox(height: 24),
-          if (settings.isSectionVisible('terapia')) ...[
-            _buildTerapiaSection(context, health),
-            const SizedBox(height: 20),
+          if (_view == DiaryView.giorno) ...[
+            if (settings.isSectionVisible('terapia')) ...[
+              _buildTerapiaSection(context, health),
+              const SizedBox(height: 20),
+            ],
+            if (settings.isSectionVisible('glicemia')) ...[
+              _buildGlicemiaSection(context, health),
+              const SizedBox(height: 20),
+            ],
+            if (settings.isSectionVisible('pressione')) ...[
+              _buildPressioneSection(context, health),
+              const SizedBox(height: 20),
+            ],
+            if (settings.isSectionVisible('pasti')) ...[
+              _buildPastiSection(context, health),
+              const SizedBox(height: 20),
+            ],
+            if (settings.isSectionVisible('attivita')) ...[
+              _buildAttivitaSection(context, health),
+              const SizedBox(height: 20),
+            ],
+          ] else ...[
+            if (settings.isSectionVisible('terapia')) ...[
+              _buildTerapiaPeriod(context, health),
+              const SizedBox(height: 20),
+            ],
+            if (settings.isSectionVisible('glicemia')) ...[
+              _buildGlicemiaPeriod(context, health),
+              const SizedBox(height: 20),
+            ],
+            if (settings.isSectionVisible('pressione')) ...[
+              _buildPressionePeriod(context, health),
+              const SizedBox(height: 20),
+            ],
+            if (settings.isSectionVisible('pasti')) ...[
+              _buildPastiPeriod(context, health),
+              const SizedBox(height: 20),
+            ],
+            if (settings.isSectionVisible('attivita')) ...[
+              _buildAttivitaPeriod(context, health),
+              const SizedBox(height: 20),
+            ],
           ],
-          if (settings.isSectionVisible('glicemia')) ...[
-            _buildGlicemiaSection(context, health),
-            const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  // -------------------------------------------------------- Viste periodo
+
+  Widget _buildTerapiaPeriod(BuildContext context, HealthProvider health) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final expected = health.therapyItems.length * _periodDays;
+    int taken = 0;
+    for (final item in health.therapyItems) {
+      for (int i = 0; i < _periodDays; i++) {
+        if (health.isTherapyTaken(item.id, _periodStart.add(Duration(days: i)))) taken++;
+      }
+    }
+    final pct = expected == 0 ? 0 : ((taken / expected) * 100).round();
+
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardHeader(
+            icon: Icons.medication_outlined,
+            iconColor: cs.tertiary,
+            iconBg: cs.tertiaryContainer,
+            title: 'Terapia',
+          ),
+          const SizedBox(height: 12),
+          if (health.therapyItems.isEmpty)
+            Text('Nessuna terapia registrata.', style: theme.textTheme.bodyMedium)
+          else ...[
+            _ValueLine(value: '$pct%', unit: 'aderenza', color: cs.tertiary),
+            const SizedBox(height: 4),
+            Text('$taken di $expected assunzioni registrate', style: theme.textTheme.bodyMedium),
           ],
-          if (settings.isSectionVisible('pressione')) ...[
-            _buildPressioneSection(context, health),
-            const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlicemiaPeriod(BuildContext context, HealthProvider health) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final readings = health.glucoseReadings.where((r) => _inPeriod(r.time)).toList();
+
+    return SectionCard(
+      highlight: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardHeader(
+            icon: Icons.water_drop_outlined,
+            iconColor: cs.primary,
+            iconBg: cs.primaryContainer,
+            title: 'Glicemia',
+          ),
+          const SizedBox(height: 12),
+          if (readings.isEmpty)
+            Text('Nessuna misurazione nel periodo.', style: theme.textTheme.bodyMedium)
+          else ...[
+            _ValueLine(
+              value: _fmtNum(readings.map((r) => r.value).reduce((a, b) => a + b) / readings.length),
+              unit: 'mg/dL · media',
+              color: AppColors.accent,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Min ${_fmtNum(readings.map((r) => r.value).reduce(math.min))} · '
+              'Max ${_fmtNum(readings.map((r) => r.value).reduce(math.max))} · '
+              '${readings.length} misurazioni',
+              style: theme.textTheme.bodyMedium,
+            ),
           ],
-          if (settings.isSectionVisible('pasti')) ...[
-            _buildPastiSection(context, health),
-            const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPressionePeriod(BuildContext context, HealthProvider health) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final readings = health.pressureReadings.where((r) => _inPeriod(r.time)).toList();
+
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardHeader(
+            icon: Icons.favorite_outline_rounded,
+            iconColor: cs.secondary,
+            iconBg: cs.secondaryContainer,
+            title: 'Pressione Arteriosa',
+          ),
+          const SizedBox(height: 12),
+          if (readings.isEmpty)
+            Text('Nessuna misurazione nel periodo.', style: theme.textTheme.bodyMedium)
+          else ...[
+            _ValueLine(
+              value:
+                  '${(readings.map((r) => r.systolic).reduce((a, b) => a + b) / readings.length).round()}'
+                  ' / '
+                  '${(readings.map((r) => r.diastolic).reduce((a, b) => a + b) / readings.length).round()}',
+              unit: 'mmHg · media',
+              color: cs.onSurface,
+            ),
+            const SizedBox(height: 4),
+            Text('${readings.length} misurazioni', style: theme.textTheme.bodyMedium),
           ],
-          if (settings.isSectionVisible('attivita')) ...[
-            _buildAttivitaSection(context, health),
-            const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPastiPeriod(BuildContext context, HealthProvider health) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final meals = health.mealEntries.where((m) => _inPeriod(m.date)).toList();
+    final totalKcal = meals.fold<int>(0, (s, m) => s + m.calories);
+    final avgKcal = _periodDays == 0 ? 0 : (totalKcal / _periodDays).round();
+
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardHeader(
+            icon: Icons.restaurant_outlined,
+            iconColor: cs.secondary,
+            iconBg: cs.secondaryContainer,
+            title: 'Pasti',
+          ),
+          const SizedBox(height: 12),
+          if (meals.isEmpty)
+            Text('Nessun pasto registrato nel periodo.', style: theme.textTheme.bodyMedium)
+          else ...[
+            _ValueLine(value: '$totalKcal', unit: 'kcal totali', color: cs.secondary),
+            const SizedBox(height: 4),
+            Text('~$avgKcal kcal/giorno · ${meals.length} pasti', style: theme.textTheme.bodyMedium),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttivitaPeriod(BuildContext context, HealthProvider health) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final entries = health.activityEntries.where((a) => _inPeriod(a.date)).toList();
+    final steps = entries.fold<int>(0, (s, a) => s + a.steps);
+    final minutes = entries.fold<int>(0, (s, a) => s + a.minutes);
+
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardHeader(
+            icon: Icons.directions_walk_rounded,
+            iconColor: cs.tertiary,
+            iconBg: cs.tertiaryContainer,
+            title: 'Attività',
+          ),
+          const SizedBox(height: 12),
+          if (entries.isEmpty)
+            Text('Nessuna attività registrata nel periodo.', style: theme.textTheme.bodyMedium)
+          else ...[
+            if (steps > 0) _ValueLine(value: '$steps', unit: 'passi totali', color: cs.tertiary),
+            Text('$minutes minuti totali', style: theme.textTheme.bodyMedium),
           ],
         ],
       ),

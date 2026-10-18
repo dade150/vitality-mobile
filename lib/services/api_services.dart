@@ -88,6 +88,7 @@ class ApiService {
   }
 
   static AppFailure _failureFrom(http.Response r) {
+    print('🚨 ERRORE DAL BACKEND: ${r.body}'); // <--- Aggiungi questa riga
     final detail = _detailFrom(r);
 
     // 502/503 = LLM o auth provider momentaneamente giù: errore atteso,

@@ -21,6 +21,10 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
 
   bool get hasMessages => messages.isNotEmpty;
 
+  /// Massimo numero di messaggi di storico inviati al BE: quando la
+  /// conversazione si avvicina a questo limite la UI suggerisce una nuova chat.
+  int get maxHistory => _maxHistory;
+
   Future<bool> sendMessage(String text) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty || isSending) return false;

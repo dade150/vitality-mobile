@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'providers/theme_provider.dart';
 import 'providers/settings_provider.dart';
-import 'providers/user_provider.dart';
+import 'providers/profile_provider.dart';
 import 'providers/health_provider.dart';
 import 'providers/appointments_provider.dart';
 import 'providers/reports_provider.dart';
@@ -78,7 +78,7 @@ class VitalityAssistApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => HealthProvider()),
         ChangeNotifierProvider(create: (_) => AppointmentsProvider()),
         ChangeNotifierProvider(create: (_) => ReportsProvider()),
@@ -120,9 +120,9 @@ class _AuthRedirectorState extends State<_AuthRedirector> {
       final auth = context.read<AuthProvider>();
 
       // Avvio a freddo con sessione già valida: si parte comunque da
-      // /login per un frame, poi si salta subito a /diary.
+      // /login per un frame, poi si salta subito a /chat.
       if (auth.isAuthenticated) {
-        navigatorKey.currentState?.pushNamedAndRemoveUntil('/diary', (route) => false);
+        navigatorKey.currentState?.pushNamedAndRemoveUntil('/chat', (route) => false);
       }
 
       _wasAuthenticated = auth.isAuthenticated;
@@ -135,7 +135,7 @@ class _AuthRedirectorState extends State<_AuthRedirector> {
     final isAuthenticated = auth.isAuthenticated;
 
     if (isAuthenticated && !_wasAuthenticated) {
-      navigatorKey.currentState?.pushNamedAndRemoveUntil('/diary', (route) => false);
+      navigatorKey.currentState?.pushNamedAndRemoveUntil('/chat', (route) => false);
     } else if (!isAuthenticated && _wasAuthenticated) {
       navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
     } else if (!isAuthenticated && _wasAuthenticated) {
