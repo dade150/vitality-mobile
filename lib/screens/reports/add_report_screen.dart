@@ -316,53 +316,6 @@ class _AddReportScreenState extends State<AddReportScreen> {
             const SizedBox(height: 12),
             Text(_error!, style: TextStyle(color: cs.error, fontSize: 16)),
           ],
-          if (result != null) ...[
-            const SizedBox(height: 28),
-            Text('Note e Screening Medici', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 12),
-            SectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _noteRow(context,
-                      icon: Icons.visibility_outlined,
-                      title: 'Visita Oculistica',
-                      date: '15 Maggio 2023',
-                      note: 'Retinopatia assente, prossimo controllo tra 1 anno.'),
-                  const SizedBox(height: 16),
-                  _noteRow(context,
-                      icon: Icons.directions_walk_outlined,
-                      title: 'Controllo Piede',
-                      date: '10 Aprile 2023',
-                      note: 'Nessuna lesione riscontrata, sensibilità conservata.'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
-            Text('Attività Recente', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 12),
-            SectionCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.description_outlined, color: cs.primary),
-                    title: const Text('Referto Cardiologico'),
-                    subtitle: const Text('Oggi, 10:30'),
-                    trailing: Icon(Icons.check_circle_rounded, color: cs.secondary),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.image_outlined, color: cs.primary),
-                    title: const Text('Ricetta Medica'),
-                    subtitle: const Text('Ieri, 15:45'),
-                    trailing: Icon(Icons.check_circle_rounded, color: cs.secondary),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -381,34 +334,6 @@ class _AddReportScreenState extends State<AddReportScreen> {
           Text(value, style: theme.textTheme.titleMedium?.copyWith(color: cs.primary)),
         ],
       ),
-    );
-  }
-
-  Widget _noteRow(BuildContext context,
-      {required IconData icon, required String title, required String date, required String note}) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: cs.tertiary),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(title, style: theme.textTheme.titleSmall)),
-                  Text(date, style: theme.textTheme.bodySmall),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(note, style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic)),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

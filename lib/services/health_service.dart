@@ -91,11 +91,11 @@ class HealthService {
   // ------------------------------------------------------------ Validazioni
 
   static void _checkGlucose(double v) {
-    if (v.isNaN || v < 20 || v > 600) throw ArgumentError('glicemia fuori range');
+    if (v.isNaN || v < -500 || v > 1500) throw ArgumentError('glicemia fuori range');
   }
 
   static void _checkPressure(int sys, int dia) {
-    if (sys < 50 || sys > 260 || dia < 30 || dia > 150 || sys <= dia) {
+    if (sys < -500 || sys > 500 || dia < -500 || dia > 500) {
       throw ArgumentError('pressione fuori range');
     }
   }
@@ -167,11 +167,15 @@ class HealthService {
     });
   }
 
-  Future<void> updateGlucose(String id, double value) async {
+  Future<void> updateGlucose(String id, double value, {DateTime? at}) async {
     _checkGlucose(value);
+    final data = <String, dynamic>{
+      'metric_value': _fmtGlucose(value),
+      if (at != null) 'measured_at': _iso(at),
+    };
     final rows = await _db
         .from('diabetes_data')
-        .update({'metric_value': _fmtGlucose(value)})
+        .update(data)
         .eq('id', id)
         .eq('metric_type', 'GLICEMIA')
         .select('id');
@@ -187,11 +191,15 @@ class HealthService {
     });
   }
 
-  Future<void> updatePressure(String id, int sys, int dia) async {
+  Future<void> updatePressure(String id, int sys, int dia, {DateTime? at}) async {
     _checkPressure(sys, dia);
+    final data = <String, dynamic>{
+      'metric_value': '$sys/$dia',
+      if (at != null) 'measured_at': _iso(at),
+    };
     final rows = await _db
         .from('diabetes_data')
-        .update({'metric_value': '$sys/$dia'})
+        .update(data)
         .eq('id', id)
         .eq('metric_type', 'PRESSIONE')
         .select('id');
@@ -227,10 +235,7 @@ class HealthService {
       out.add(MealEntry(
         id: id,
         date: date,
-        type: MealType.values.firstWhere(
-          (t) => t.name.toUpperCase() == dbType,
-          orElse: () => MealType.spuntino,
-        ),
+        type: MealTypeLabel.fromDb(dbType, date),
         description: _str(r['description']) ?? '',
         calories: _int(r['calories']),
         isEstimated: _bool(r['is_estimated']),
@@ -242,7 +247,7 @@ class HealthService {
   Future<void> insertMeal(MealEntry e) async {
     _checkMeal(e.description, e.calories);
     await _db.from('meals').insert({
-      'meal_type': e.type.name.toUpperCase(),
+      'meal_type': e.type.dbValue,
       'description': e.description.trim(),
       'calories': e.calories,
       'is_estimated': e.isEstimated,
@@ -255,15 +260,18 @@ class HealthService {
     required String description,
     required int calories,
     required bool isEstimated,
+    DateTime? at,
   }) async {
     _checkMeal(description, calories);
+    final data = <String, dynamic>{
+      'description': description.trim(),
+      'calories': calories,
+      'is_estimated': isEstimated,
+      if (at != null) 'meal_at': _iso(at),
+    };
     final rows = await _db
         .from('meals')
-        .update({
-          'description': description.trim(),
-          'calories': calories,
-          'is_estimated': isEstimated,
-        })
+        .update(data)
         .eq('id', id)
         .select('id');
     _requireAffected(rows);
@@ -309,11 +317,21 @@ class HealthService {
     });
   }
 
-  Future<void> updateActivity(String id, {required int minutes, required int steps}) async {
+  Future<void> updateActivity(
+    String id, {
+    required int minutes,
+    required int steps,
+    DateTime? at,
+  }) async {
     _checkActivity(minutes, steps);
+    final data = <String, dynamic>{
+      'duration_minutes': minutes,
+      'steps': steps > 0 ? steps : null,
+      if (at != null) 'activity_at': _iso(at),
+    };
     final rows = await _db
         .from('physical_activities')
-        .update({'duration_minutes': minutes, 'steps': steps > 0 ? steps : null})
+        .update(data)
         .eq('id', id)
         .select('id');
     _requireAffected(rows);

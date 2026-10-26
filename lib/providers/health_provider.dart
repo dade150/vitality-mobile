@@ -290,8 +290,8 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
   Future<bool> addGlucoseReading(double value, {DateTime? at}) =>
       _write(() => _service.insertGlucose(value, at ?? DateTime.now()), _reloadVitals);
 
-  Future<bool> updateGlucose(String id, double value) =>
-      _write(() => _service.updateGlucose(id, value), _reloadVitals);
+  Future<bool> updateGlucose(String id, double value, {DateTime? at}) =>
+      _write(() => _service.updateGlucose(id, value, at: at), _reloadVitals);
 
   Future<bool> deleteGlucose(String id) => _write(() => _service.deleteVital(id), _reloadVitals);
 
@@ -305,8 +305,8 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
   Future<bool> addPressureReading(int systolic, int diastolic, {DateTime? at}) => _write(
       () => _service.insertPressure(systolic, diastolic, at ?? DateTime.now()), _reloadVitals);
 
-  Future<bool> updatePressure(String id, int systolic, int diastolic) =>
-      _write(() => _service.updatePressure(id, systolic, diastolic), _reloadVitals);
+  Future<bool> updatePressure(String id, int systolic, int diastolic, {DateTime? at}) =>
+      _write(() => _service.updatePressure(id, systolic, diastolic, at: at), _reloadVitals);
 
   Future<bool> deletePressure(String id) => _write(() => _service.deleteVital(id), _reloadVitals);
 
@@ -320,8 +320,11 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
   Future<bool> addActivity(ActivityEntry entry) =>
       _write(() => _service.insertActivity(entry), _reloadActivities);
 
-  Future<bool> updateActivity(String id, {required int minutes, required int steps}) =>
-      _write(() => _service.updateActivity(id, minutes: minutes, steps: steps), _reloadActivities);
+  Future<bool> updateActivity(String id, {required int minutes, required int steps, DateTime? at}) =>
+      _write(
+        () => _service.updateActivity(id, minutes: minutes, steps: steps, at: at),
+        _reloadActivities,
+      );
 
   Future<bool> deleteActivity(String id) =>
       _write(() => _service.deleteActivity(id), _reloadActivities);
@@ -332,12 +335,22 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
 
   /// Se le calorie restano quelle stimate, il pasto resta "stimato";
   /// se l'utente le cambia diventano un dato inserito a mano.
-  Future<bool> updateMeal(String id, {required String description, required int calories}) {
+  Future<bool> updateMeal(
+    String id, {
+    required String description,
+    required int calories,
+    DateTime? at,
+  }) {
     final existing = _meals.where((m) => m.id == id).firstOrNull;
     final stillEstimated = existing != null && existing.isEstimated && existing.calories == calories;
     return _write(
-      () => _service.updateMeal(id,
-          description: description, calories: calories, isEstimated: stillEstimated),
+      () => _service.updateMeal(
+        id,
+        description: description,
+        calories: calories,
+        isEstimated: stillEstimated,
+        at: at,
+      ),
       _reloadMeals,
     );
   }

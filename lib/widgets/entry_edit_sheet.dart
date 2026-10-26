@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'vital_entry_sheet.dart';
+
 /// Campo di testo del foglio di modifica.
 class EntryField {
   final String label;
@@ -21,12 +23,18 @@ class EditableEntry {
   final String title;
   final String subtitle;
   final List<EntryField> fields;
+  final DateTime? initialDateTime;
+  final String whenLabel;
+  final bool showTimeInWhen;
 
   const EditableEntry({
     required this.id,
     required this.title,
     required this.subtitle,
     required this.fields,
+    this.initialDateTime,
+    this.whenLabel = 'Quando hai fatto la misurazione?',
+    this.showTimeInWhen = true,
   });
 }
 
@@ -39,7 +47,7 @@ Future<void> showEditEntriesSheet({
   required String deleteLabel,
   required List<EditableEntry> entries,
   required String? Function(EditableEntry entry, List<String> values) validate,
-  required Future<bool> Function(EditableEntry entry, List<String> values) onSave,
+  required Future<bool> Function(EditableEntry entry, List<String> values, DateTime? when) onSave,
   required Future<bool> Function(EditableEntry entry) onDelete,
   String? Function()? errorMessage,
 }) {
@@ -66,7 +74,7 @@ class _EditEntriesSheet extends StatefulWidget {
   final String deleteLabel;
   final List<EditableEntry> entries;
   final String? Function(EditableEntry entry, List<String> values) validate;
-  final Future<bool> Function(EditableEntry entry, List<String> values) onSave;
+  final Future<bool> Function(EditableEntry entry, List<String> values, DateTime? when) onSave;
   final Future<bool> Function(EditableEntry entry) onDelete;
 
   /// Messaggio classificato dal provider per l'ultimo errore atteso
@@ -90,6 +98,7 @@ class _EditEntriesSheet extends StatefulWidget {
 class _EditEntriesSheetState extends State<_EditEntriesSheet> {
   EditableEntry? _selected;
   List<TextEditingController> _controllers = [];
+  DateTime? _when;
   String? _error;
   bool _busy = false;
   ModalRoute<dynamic>? _route;
@@ -135,6 +144,9 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
   void _open(EditableEntry entry) {
     _disposeControllers();
     _selected = entry;
+    _when = entry.initialDateTime != null
+        ? WhenSelector.clampNotFuture(entry.initialDateTime!)
+        : null;
     _error = null;
     _controllers = [for (final f in entry.fields) TextEditingController(text: f.initialValue)];
   }
@@ -158,7 +170,7 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
       _busy = true;
       _error = null;
     });
-    final ok = await widget.onSave(entry, values);
+    final ok = await widget.onSave(entry, values, _when);
     if (!mounted) return;
     if (ok) {
       _closeSheet();
@@ -293,6 +305,19 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
           enabled: !_busy,
           keyboardType: entry.fields[i].keyboardType,
           maxLines: entry.fields[i].maxLines,
+        ),
+        const SizedBox(height: 16),
+      ],
+      if (_when != null) ...[
+        WhenSelector(
+          label: entry.whenLabel,
+          value: _when!,
+          showTime: entry.showTimeInWhen,
+          enabled: !_busy,
+          onChanged: (newWhen) => setState(() {
+            _when = newWhen;
+            _error = null;
+          }),
         ),
         const SizedBox(height: 16),
       ],

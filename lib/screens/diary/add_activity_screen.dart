@@ -5,6 +5,7 @@ import '../../models/activity_entry.dart';
 import '../../services/health_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
+import '../../widgets/vital_entry_sheet.dart';
 
 class AddActivityScreen extends StatefulWidget {
   const AddActivityScreen({super.key});
@@ -16,6 +17,8 @@ class AddActivityScreen extends StatefulWidget {
 class _AddActivityScreenState extends State<AddActivityScreen> {
   final _minutesController = TextEditingController();
   final _stepsController = TextEditingController();
+  late DateTime _when;
+  bool _whenInitialized = false;
   ModalRoute<dynamic>? _route;
 
   // Stesse etichette usate dal servizio per scrivere `activity_type`.
@@ -26,6 +29,11 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _route = ModalRoute.of(context);
+    if (!_whenInitialized) {
+      final arg = _route?.settings.arguments;
+      _when = WhenSelector.clampNotFuture(arg is DateTime ? arg : DateTime.now());
+      _whenInitialized = true;
+    }
   }
 
   @override
@@ -54,14 +62,11 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
       return;
     }
 
-    // Il Diario passa il momento da usare (giorno selezionato); altrimenti adesso.
-    final arg = ModalRoute.of(context)?.settings.arguments;
-    final when = arg is DateTime ? arg : DateTime.now();
     final health = context.read<HealthProvider>();
 
     setState(() => _saving = true);
     final ok = await health.addActivity(
-      ActivityEntry(date: when, type: _type, minutes: minutes, steps: steps),
+      ActivityEntry(date: _when, type: _type, minutes: minutes, steps: steps),
     );
     if (!mounted) return;
     if (ok) {
@@ -143,6 +148,13 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
                             controller: _stepsController,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(hintText: 'es. 2500'),
+                          ),
+                          const SizedBox(height: 20),
+                          WhenSelector(
+                            label: "Quando hai svolto l'attività?",
+                            value: _when,
+                            enabled: !_saving,
+                            onChanged: (v) => setState(() => _when = v),
                           ),
                           const SizedBox(height: 28),
                           SizedBox(

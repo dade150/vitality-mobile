@@ -221,10 +221,13 @@ class _ClinicalEntrySheetState extends State<_ClinicalEntrySheet> {
             TextField(
               controller: _valueCtrl,
               enabled: !_busy,
-              keyboardType: TextInputType.numberWithOptions(decimal: _type.allowsDecimals),
+              keyboardType: TextInputType.numberWithOptions(
+                decimal: _type.allowsDecimals,
+                signed: true,
+              ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(
-                    RegExp(_type.allowsDecimals ? r'[0-9.,]' : r'[0-9]')),
+                    RegExp(_type.allowsDecimals ? r'[-0-9.,]' : r'[-0-9]')),
               ],
               onChanged: (_) {
                 if (_error != null) setState(() => _error = null);

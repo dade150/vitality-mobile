@@ -27,6 +27,7 @@ import 'screens/history/history_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/chat/chat_screen.dart';
 import 'screens/reports/clinical_screen.dart';
+import 'screens/reports/clinical_history_screen.dart';
 import 'screens/reports/add_report_screen.dart';
 import 'screens/appointments/appointments_screen.dart';
 import 'screens/appointments/add_visit_screen.dart';
@@ -48,6 +49,54 @@ Future<void> main() async {
     // innescare un loop di rebuild. La schermata di errore la mostra
     // solo ErrorHandler.handle per gli errori classificati come imprevisti.
     ErrorHandler.logOnly(details.exception, details.stack, 'FlutterError.onError');
+  };
+
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline_rounded, size: 72, color: Color(0xFFE65100)),
+                const SizedBox(height: 16),
+                const Text(
+                  'Ops, qualcosa è andato storto in questa schermata',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Puoi tornare subito alla schermata principale senza perdere i tuoi dati.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16),
+                ),
+                if (kDebugMode) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    details.exceptionAsString(),
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ],
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: () {
+                    navigatorKey.currentState?.pushNamedAndRemoveUntil('/chat', (route) => false);
+                  },
+                  icon: const Icon(Icons.home_rounded),
+                  label: const Text('Torna alla Home'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   };
 
   PlatformDispatcher.instance.onError = (error, stack) {
@@ -181,6 +230,7 @@ class _AppWithTheme extends StatelessWidget {
             '/profile': (context) => const ProfileScreen(),
             '/chat': (context) => const ChatScreen(),
             '/reports': (context) => const ClinicalParametersScreen(),
+            '/reports/history': (context) => const ClinicalHistoryScreen(),
             '/reports/add': (context) => const AddReportScreen(),
             '/appointments': (context) => const AppointmentsScreen(),
             '/appointments/add': (context) => const AddVisitScreen(),
