@@ -200,7 +200,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
     showVitalEntrySheet(
       context: context,
       title: 'Aggiungi Glicemia',
-      subtitle: 'Inserisci il valore misurato con il glucometro e quando lo hai rilevato.',
       icon: Icons.water_drop_outlined,
       fields: const [
         VitalFieldSpec(
@@ -226,7 +225,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
     showVitalEntrySheet(
       context: context,
       title: 'Aggiungi Pressione',
-      subtitle: 'Inserisci la pressione massima (sistolica) e minima (diastolica).',
       icon: Icons.favorite_outline_rounded,
       fields: const [
         VitalFieldSpec(

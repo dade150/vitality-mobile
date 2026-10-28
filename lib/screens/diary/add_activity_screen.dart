@@ -110,14 +110,6 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
                             style: theme.textTheme.headlineLarge?.copyWith(color: AppColors.accent)),
                       ],
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Text(
-                        'Registra la tua attività fisica di oggi.',
-                        style: theme.textTheme.bodyLarge
-                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                      ),
-                    ),
                     const SizedBox(height: 24),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),

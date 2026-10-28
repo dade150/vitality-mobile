@@ -19,12 +19,12 @@ class RegistrationData {
   String password = '';
   bool consensoPrivacy = false;
 
-  // Step 3 - Preferenze diario e notifiche
+  // Step 3 - Preferenze e notifiche
   bool showActivities = true;
   bool showMeals = true;
   bool showAppointments = true;
   bool showReports = true;
-  String fontSize = 'grande'; // 'piccolo' | 'medio' | 'grande'
+  String fontSize = 'GRANDE'; // 'PICCOLO' | 'MEDIO' | 'GRANDE'
   bool darkMode = false;
   bool notifyTherapy = true;
   bool notifyAppointments = true;
@@ -46,7 +46,7 @@ class RegistrationData {
       'show_activities': showActivities,
       'show_reports': showReports,
       'show_appointments': showAppointments,
-      'font_size': fontSize,
+      'font_size': fontSize.toUpperCase(),
       'dark_mode': darkMode,
       'notify_therapy': notifyTherapy,
       'notify_appointments': notifyAppointments,

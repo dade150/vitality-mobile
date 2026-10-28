@@ -46,7 +46,7 @@ class TimeTextInputFormatter extends TextInputFormatter {
 ///
 /// - Se [showTime] è `true`: mostra il pulsante **Giorno** (calendario), una
 ///   casella di testo semplice **Orario (es. 08:30)** e quattro scelte rapide
-///   a singolo tocco (*Adesso*, *Mattina 08:00*, *Pranzo 13:00*, *Sera 20:00*).
+///   a singolo tocco (*Adesso*, *08:00*, *13:00*, *20:00*).
 /// - Se [showTime] è `false`: mostra solo la scelta del **Giorno** (*Oggi*,
 ///   *Ieri* o calendario).
 class WhenSelector extends StatefulWidget {
@@ -249,19 +249,19 @@ class _WhenSelectorState extends State<WhenSelector> {
                 onTap: () => _applyPreset(DateTime.now()),
               ),
               _QuickTimeChip(
-                label: 'Mattina 08:00',
+                label: '08:00',
                 selected: !isNowSelected && v.hour == 8 && v.minute == 0,
                 enabled: widget.enabled,
                 onTap: () => _applyPreset(DateTime(v.year, v.month, v.day, 8, 0)),
               ),
               _QuickTimeChip(
-                label: 'Pranzo 13:00',
+                label: '13:00',
                 selected: !isNowSelected && v.hour == 13 && v.minute == 0,
                 enabled: widget.enabled,
                 onTap: () => _applyPreset(DateTime(v.year, v.month, v.day, 13, 0)),
               ),
               _QuickTimeChip(
-                label: 'Sera 20:00',
+                label: '20:00',
                 selected: !isNowSelected && v.hour == 20 && v.minute == 0,
                 enabled: widget.enabled,
                 onTap: () => _applyPreset(DateTime(v.year, v.month, v.day, 20, 0)),
@@ -400,7 +400,7 @@ class VitalFieldSpec {
 Future<void> showVitalEntrySheet({
   required BuildContext context,
   required String title,
-  required String subtitle,
+  String? subtitle,
   required IconData icon,
   required List<VitalFieldSpec> fields,
   required DateTime initialDateTime,
@@ -429,7 +429,7 @@ Future<void> showVitalEntrySheet({
 
 class _VitalEntrySheet extends StatefulWidget {
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final IconData icon;
   final List<VitalFieldSpec> fields;
   final DateTime initialDateTime;
@@ -439,7 +439,7 @@ class _VitalEntrySheet extends StatefulWidget {
 
   const _VitalEntrySheet({
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     required this.icon,
     required this.fields,
     required this.initialDateTime,
@@ -536,10 +536,13 @@ class _VitalEntrySheetState extends State<_VitalEntrySheet> {
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(widget.title, style: theme.textTheme.headlineSmall),
-                      const SizedBox(height: 2),
-                      Text(widget.subtitle, style: theme.textTheme.bodySmall),
+                      if (widget.subtitle != null && widget.subtitle!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(widget.subtitle!, style: theme.textTheme.bodySmall),
+                      ],
                     ],
                   ),
                 ),

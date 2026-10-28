@@ -101,95 +101,30 @@ class _ChatScreenState extends State<ChatScreen> {
     final chat = context.watch<ChatProvider>();
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: PillButton(
-                          label: 'Impostazioni',
-                          icon: Icons.settings_outlined,
-                          onTap: () => Navigator.of(context).pushNamed('/settings'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: PillButton(
-                          label: 'Profilo',
-                          icon: Icons.person_outline_rounded,
-                          onTap: () => Navigator.of(context).pushNamed('/profile'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: chat.hasMessages
-                      ? ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          // +1: bolla di caricamento mentre si aspetta la risposta
-                          itemCount: chat.messages.length + (chat.isSending ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index == chat.messages.length) {
-                              return _bubble(
-                                theme: theme,
-                                isUser: false,
-                                child: const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                              );
-                            }
-                            final message = chat.messages[index];
-                            return _bubble(
-                              theme: theme,
-                              isUser: message.isUser,
-                              child: Text(
-                                message.text,
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: message.isUser ? cs.onPrimary : cs.onSurface,
-                                ),
-                              ),
-                            );
-                          },
-                        )
-                      : _ChatEmptyState(greeting: _greeting),
-                ),
-              ),
-            ),
-            // "Nuova chat": compare solo quando il contesto sta per esaurirsi
-            // (>= 80% dello storico massimo), come promemoria discreto sopra
-            // l'input. Logica del reset da aggiungere dopo.
-            if (chat.hasMessages && chat.messages.length >= (chat.maxHistory * 0.8).round())
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      body: _AnimatedChatBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        TextButton.icon(
-                          onPressed: () {}, // TODO: logica nuova sessione
-                          icon: const Icon(Icons.add_comment_outlined, size: 18),
-                          label: const Text('Nuova chat'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.accent,
-                            visualDensity: VisualDensity.compact,
-                            textStyle: theme.textTheme.labelMedium,
+                        Expanded(
+                          child: PillButton(
+                            label: 'Impostazioni',
+                            icon: Icons.settings_outlined,
+                            onTap: () => Navigator.of(context).pushNamed('/settings'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: PillButton(
+                            label: 'Profilo',
+                            icon: Icons.person_outline_rounded,
+                            onTap: () => Navigator.of(context).pushNamed('/profile'),
                           ),
                         ),
                       ],
@@ -197,50 +132,116 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
-            // Nota: il pulsante "+" di allegato è stato rimosso su richiesta,
-            // resta solo il campo di testo, il microfono e l'invio.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _controller,
-                          decoration: const InputDecoration(hintText: 'Scrivi un messaggio...'),
-                          onSubmitted: (_) => _send(),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      SizedBox(
-                        width: 60,
-                        height: 60,
-                        child: FloatingActionButton(
-                          heroTag: 'mic',
-                          onPressed: () {},
-                          backgroundColor: cs.primaryContainer,
-                          child: Icon(Icons.mic_rounded, color: cs.onPrimaryContainer),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      SizedBox(
-                        width: 60,
-                        height: 60,
-                        child: FloatingActionButton(
-                          heroTag: 'send',
-                          onPressed: chat.isSending ? null : _send,
-                          backgroundColor: cs.primary,
-                          child: Icon(Icons.send_rounded, color: cs.onPrimary),
-                        ),
-                      ),
-                    ],
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: chat.hasMessages
+                        ? ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                            // +1: bolla di caricamento mentre si aspetta la risposta
+                            itemCount: chat.messages.length + (chat.isSending ? 1 : 0),
+                            itemBuilder: (context, index) {
+                              if (index == chat.messages.length) {
+                                return _bubble(
+                                  theme: theme,
+                                  isUser: false,
+                                  child: const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                );
+                              }
+                              final message = chat.messages[index];
+                              return _bubble(
+                                theme: theme,
+                                isUser: message.isUser,
+                                child: Text(
+                                  message.text,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: message.isUser ? cs.onPrimary : cs.onSurface,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : _ChatGreeting(greeting: _greeting),
                   ),
                 ),
               ),
-            ),
-          ],
+              // "Nuova chat": compare solo quando il contesto sta per esaurirsi
+              // (>= 80% dello storico massimo), come promemoria discreto sopra
+              // l'input. Logica del reset da aggiungere dopo.
+              if (chat.hasMessages && chat.messages.length >= (chat.maxHistory * 0.8).round())
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () {}, // TODO: logica nuova sessione
+                            icon: const Icon(Icons.add_comment_outlined, size: 18),
+                            label: const Text('Nuova chat'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.accent,
+                              visualDensity: VisualDensity.compact,
+                              textStyle: theme.textTheme.labelMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              // Barra di inserimento messaggio, microfono e invio.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            decoration: const InputDecoration(hintText: 'Scrivi un messaggio...'),
+                            onSubmitted: (_) => _send(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 60,
+                          height: 60,
+                          child: FloatingActionButton(
+                            heroTag: 'mic',
+                            onPressed: () {},
+                            backgroundColor: cs.primaryContainer,
+                            child: Icon(Icons.mic_rounded, color: cs.onPrimaryContainer),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 60,
+                          height: 60,
+                          child: FloatingActionButton(
+                            heroTag: 'send',
+                            onPressed: chat.isSending ? null : _send,
+                            backgroundColor: cs.primary,
+                            child: Icon(Icons.send_rounded, color: cs.onPrimary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: const AppBottomNavBar(currentIndex: 0),
@@ -248,17 +249,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-/// Stato vuoto della chat: sfondo animato con orbs sfumati, onde morbide e
-/// saluto casuale con icona pulsante. Solo visuale, nessuna logica chat.
-class _ChatEmptyState extends StatefulWidget {
-  final String greeting;
-  const _ChatEmptyState({required this.greeting});
+/// Sfondo animato a tutto schermo che copre l'intera schermata della chat:
+/// lavaggio di gradiente orbitante, orbs sfumati e onde morbide sul fondo.
+/// Avvolge la SafeArea e tutti i controlli (bottoni in alto e barra di input in basso).
+class _AnimatedChatBackground extends StatefulWidget {
+  final Widget child;
+  const _AnimatedChatBackground({required this.child});
 
   @override
-  State<_ChatEmptyState> createState() => _ChatEmptyStateState();
+  State<_AnimatedChatBackground> createState() => _AnimatedChatBackgroundState();
 }
 
-class _ChatEmptyStateState extends State<_ChatEmptyState>
+class _AnimatedChatBackgroundState extends State<_AnimatedChatBackground>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -288,7 +290,6 @@ class _ChatEmptyStateState extends State<_ChatEmptyState>
       animation: _controller,
       builder: (context, _) {
         final t = disableAnimations ? 0.0 : _controller.value * 2 * math.pi;
-        final pulse = 0.5 + 0.5 * math.sin(t * 2);
 
         return Stack(
           fit: StackFit.expand,
@@ -296,68 +297,7 @@ class _ChatEmptyStateState extends State<_ChatEmptyState>
             CustomPaint(
               painter: _OrbBackgroundPainter(t: t, isDark: isDark, cs: cs),
             ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Alone morbido che "respira" attorno all'icona principale
-                    SizedBox(
-                      width: 96,
-                      height: 96,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Transform.scale(
-                            scale: 0.92 + pulse * 0.22,
-                            child: Container(
-                              width: 84,
-                              height: 84,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: cs.primary.withValues(
-                                  alpha: (isDark ? 0.18 : 0.14) * (1.15 - pulse * 0.35),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            width: 68,
-                            height: 68,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isDark
-                                  ? cs.primaryContainer.withValues(alpha: 0.35)
-                                  : AppColors.lightPeach,
-                              border: Border.all(
-                                color: cs.primary.withValues(alpha: 0.3),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.auto_awesome_rounded,
-                              size: 36,
-                              color: cs.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      widget.greeting,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: cs.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            widget.child,
           ],
         );
       },
@@ -365,7 +305,112 @@ class _ChatEmptyStateState extends State<_ChatEmptyState>
   }
 }
 
-/// Sfondo animato della chat vuota: lavaggio di gradiente che orbita, quattro
+/// Contenuto centrale dello stato vuoto della chat: icona pulsante che "respira"
+/// e messaggio di saluto casuale.
+class _ChatGreeting extends StatefulWidget {
+  final String greeting;
+  const _ChatGreeting({required this.greeting});
+
+  @override
+  State<_ChatGreeting> createState() => _ChatGreetingState();
+}
+
+class _ChatGreetingState extends State<_ChatGreeting>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final pulse = _controller.value;
+                return SizedBox(
+                  width: 96,
+                  height: 96,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Transform.scale(
+                        scale: 0.92 + pulse * 0.22,
+                        child: Container(
+                          width: 84,
+                          height: 84,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: cs.primary.withValues(
+                              alpha: (isDark ? 0.18 : 0.14) * (1.15 - pulse * 0.35),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark
+                              ? cs.primaryContainer.withValues(alpha: 0.35)
+                              : AppColors.lightPeach,
+                          border: Border.all(
+                            color: cs.primary.withValues(alpha: 0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 36,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            Text(
+              widget.greeting,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: cs.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sfondo animato della chat: lavaggio di gradiente che orbita, quattro
 /// orbs sfumati con effetto respiro e due onde sinusoidali morbide sul fondo.
 /// Tutte le armoniche usano multipli interi di `t` (0..2π) per un loop continuo
 /// senza alcuno scatto.
@@ -381,6 +426,9 @@ class _OrbBackgroundPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
     final shortest = math.min(w, h);
+
+    // 0. Base uniforme del canvas con il colore della superficie.
+    canvas.drawRect(Offset.zero & size, Paint()..color = cs.surface);
 
     // 1. Lavaggio di colore di fondo che si muove dolcemente.
     final washCenter = Offset(

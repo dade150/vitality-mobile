@@ -210,18 +210,30 @@ class _AppWithTheme extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Solo ThemeProvider qui: AuthProvider non deve più far ricostruire
-    // MaterialApp a ogni cambio di stato (loading, errore, ecc.) — ci pensa
-    // interamente _AuthRedirector alla navigazione legata all'autenticazione.
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, _) {
+    // ThemeProvider e SettingsProvider (per darkMode e textScaler scalati da DB)
+    return Consumer2<ThemeProvider, SettingsProvider>(
+      builder: (context, themeProvider, settingsProvider, _) {
+        final themeMode = settingsProvider.hasLoaded
+            ? (settingsProvider.darkMode ? ThemeMode.dark : ThemeMode.light)
+            : themeProvider.themeMode;
+
+        final fontScale = settingsProvider.fontSize.scale;
+
         return MaterialApp(
           navigatorKey: navigatorKey,
           title: 'Vitality Assist',
           debugShowCheckedModeBanner: false,
-          themeMode: themeProvider.themeMode,
+          themeMode: themeMode,
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
+          builder: (context, child) {
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(fontScale),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
           initialRoute: '/login',
           routes: {
             '/login': (context) => const LoginScreen(),
