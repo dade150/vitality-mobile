@@ -93,6 +93,7 @@ class MealEntry {
   final MealType type;
   final String description;
   final int calories;
+  final int? carbsGrams;
   final bool isEstimated;
 
   MealEntry({
@@ -101,6 +102,7 @@ class MealEntry {
     required this.type,
     required this.description,
     required this.calories,
+    this.carbsGrams,
     this.isEstimated = false,
   });
 

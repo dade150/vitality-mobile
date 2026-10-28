@@ -1,10 +1,17 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/proposed_entry.dart';
+import '../../providers/appointments_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/clinical_provider.dart';
+import '../../providers/health_provider.dart';
+import '../../providers/profile_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
+import '../../widgets/clinical_proposal_card.dart';
 import '../../widgets/pill_button.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -65,6 +72,42 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToEnd();
     if (!ok && chat.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(chat.errorMessage!)));
+    }
+  }
+
+  /// Predisposizione per l'input vocale Speech-to-Text (STT) futuro.
+  void onVoiceTranscriptReceived(String transcript, {bool autoSend = false}) {
+    final text = transcript.trim();
+    if (text.isEmpty) return;
+    if (autoSend) {
+      _controller.text = text;
+      _send();
+    } else {
+      setState(() {
+        _controller.text = text;
+        _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+      });
+    }
+  }
+
+  void _refreshDomainProvider(TargetTable table) {
+    switch (table) {
+      case TargetTable.diabetesData:
+        unawaited(context.read<HealthProvider>().refresh());
+        unawaited(context.read<ClinicalProvider>().refresh());
+        break;
+      case TargetTable.meals:
+      case TargetTable.physicalActivities:
+      case TargetTable.therapyLogs:
+      case TargetTable.therapies:
+        unawaited(context.read<HealthProvider>().refresh());
+        break;
+      case TargetTable.appointments:
+        unawaited(context.read<AppointmentsProvider>().refresh());
+        break;
+      case TargetTable.profile:
+        unawaited(context.read<ProfileProvider>().refresh());
+        break;
     }
   }
 
@@ -155,15 +198,66 @@ class _ChatScreenState extends State<ChatScreen> {
                                 );
                               }
                               final message = chat.messages[index];
-                              return _bubble(
-                                theme: theme,
-                                isUser: message.isUser,
-                                child: Text(
-                                  message.text,
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: message.isUser ? cs.onPrimary : cs.onSurface,
+                              if (message.isUser) {
+                                return _bubble(
+                                  theme: theme,
+                                  isUser: true,
+                                  child: Text(
+                                    message.text,
+                                    style: theme.textTheme.bodyLarge?.copyWith(
+                                      color: cs.onPrimary,
+                                    ),
                                   ),
-                                ),
+                                );
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _bubble(
+                                    theme: theme,
+                                    isUser: false,
+                                    child: Text(
+                                      message.text,
+                                      style: theme.textTheme.bodyLarge?.copyWith(
+                                        color: cs.onSurface,
+                                      ),
+                                    ),
+                                  ),
+                                  if (message.visibleProposals.isNotEmpty)
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Container(
+                                        constraints: const BoxConstraints(maxWidth: 480),
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            for (final proposal in message.visibleProposals)
+                                              ClinicalProposalCard(
+                                                key: ValueKey('${message.id}_${proposal.proposalId}'),
+                                                messageId: message.id,
+                                                proposal: proposal,
+                                                onDismiss: () => chat.dismissProposal(message.id, proposal.proposalId),
+                                                onConfirm: (finalData) async {
+                                                  final ok = await chat.confirmProposal(
+                                                    message.id,
+                                                    proposal.proposalId,
+                                                    finalData,
+                                                  );
+                                                  if (ok && mounted) {
+                                                    _refreshDomainProvider(proposal.targetTable);
+                                                  }
+                                                  return ok;
+                                                },
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               );
                             },
                           )
@@ -219,7 +313,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           height: 60,
                           child: FloatingActionButton(
                             heroTag: 'mic',
-                            onPressed: () {},
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Supporto vocale predisposto: tocca e parla (STT).'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
                             backgroundColor: cs.primaryContainer,
                             child: Icon(Icons.mic_rounded, color: cs.onPrimaryContainer),
                           ),

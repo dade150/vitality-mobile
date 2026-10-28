@@ -222,7 +222,7 @@ class HealthService {
   Future<List<MealEntry>> fetchMeals(DateTime since) async {
     final rows = await _db
         .from('meals')
-        .select('id, meal_type, description, calories, is_estimated, meal_at')
+        .select('id, meal_type, description, calories, carbs_grams, is_estimated, meal_at')
         .gte('meal_at', _iso(since))
         .order('meal_at', ascending: true);
 
@@ -238,6 +238,7 @@ class HealthService {
         type: MealTypeLabel.fromDb(dbType, date),
         description: _str(r['description']) ?? '',
         calories: _int(r['calories']),
+        carbsGrams: r['carbs_grams'] != null ? _int(r['carbs_grams']) : null,
         isEstimated: _bool(r['is_estimated']),
       ));
     }
@@ -250,6 +251,7 @@ class HealthService {
       'meal_type': e.type.dbValue,
       'description': e.description.trim(),
       'calories': e.calories,
+      if (e.carbsGrams != null) 'carbs_grams': e.carbsGrams,
       'is_estimated': e.isEstimated,
       'meal_at': _iso(e.date),
     });

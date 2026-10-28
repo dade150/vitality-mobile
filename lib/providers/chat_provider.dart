@@ -3,15 +3,23 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../models/chat_message.dart';
+import '../models/proposed_entry.dart';
 import '../services/api_services.dart';
+import '../services/proposal_service.dart';
 import 'error_provider.dart';
 
 /// Stato della chat con il coach. Le risposte arrivano dal backend (`/chat`);
 /// la cronologia viene rimandata a ogni richiesta, il BE non salva nulla.
+///
+/// Gestisce inoltre le proposte di salvataggio clinico Human-in-the-Loop (`proposed_entries`).
 class ChatProvider extends ChangeNotifier with ErrorReporting {
+  ChatProvider({ProposalService? proposalService})
+      : _proposalService = proposalService ?? ProposalService();
+
   static const _maxHistory = 30; // = MAX_MESSAGES del BE
   static const _requestTimeout = Duration(seconds: 60);
 
+  final ProposalService _proposalService;
   final List<ChatMessage> messages = [];
   bool isSending = false;
 
@@ -44,8 +52,25 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
       // userebbe latin1 e storpierebbe gli accenti.
       final json = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       if (epoch != _epoch) return; // logout avvenuto nel frattempo
+
+      final rawProposals = json['proposed_entries'];
+      final proposals = <ProposedEntry>[];
+      if (rawProposals is List) {
+        for (final p in rawProposals) {
+          if (p is Map<String, dynamic>) {
+            final entry = ProposedEntry.fromJson(p);
+            if (entry != null) proposals.add(entry);
+          }
+        }
+      }
+
       messages.add(
-        ChatMessage(text: json['reply'] as String, isUser: false, time: DateTime.now()),
+        ChatMessage(
+          text: (json['reply'] ?? '') as String,
+          isUser: false,
+          time: DateTime.now(),
+          proposedEntries: proposals,
+        ),
       );
     }, where: 'ChatProvider.sendMessage');
 
@@ -54,6 +79,88 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
       notifyListeners();
     }
     return ok;
+  }
+
+  /// Aggiorna i dati in bozza modificati dall'utente (previene la perdita di dati durante lo scroll)
+  void updateProposalDraft(String messageId, String proposalId, Map<String, dynamic> updatedData) {
+    final msg = _findMessage(messageId);
+    if (msg == null) return;
+
+    for (final p in msg.proposedEntries) {
+      if (p.proposalId == proposalId) {
+        p.data.addAll(updatedData);
+        notifyListeners();
+        return;
+      }
+    }
+  }
+
+  /// Annulla / ignora la proposta rimuovendola dalla visualizzazione
+  void dismissProposal(String messageId, String proposalId) {
+    final msg = _findMessage(messageId);
+    if (msg == null) return;
+
+    for (final p in msg.proposedEntries) {
+      if (p.proposalId == proposalId) {
+        p.status = ProposalStatus.dismissed;
+        notifyListeners();
+        return;
+      }
+    }
+  }
+
+  /// Conferma e salva la proposta direttamente su Supabase
+  Future<bool> confirmProposal(
+    String messageId,
+    String proposalId,
+    Map<String, dynamic> finalData,
+  ) async {
+    final msg = _findMessage(messageId);
+    if (msg == null) return false;
+
+    ProposedEntry? targetProposal;
+    for (final p in msg.proposedEntries) {
+      if (p.proposalId == proposalId) {
+        targetProposal = p;
+        break;
+      }
+    }
+
+    if (targetProposal == null ||
+        targetProposal.status == ProposalStatus.saving ||
+        targetProposal.status == ProposalStatus.saved) {
+      return false;
+    }
+
+    final epoch = _epoch;
+    targetProposal.status = ProposalStatus.saving;
+    targetProposal.saveError = null;
+    notifyListeners();
+
+    try {
+      await _proposalService.saveProposal(targetProposal.targetTable, finalData);
+      if (epoch != _epoch) return false;
+
+      targetProposal.data.clear();
+      targetProposal.data.addAll(finalData);
+      targetProposal.status = ProposalStatus.saved;
+      targetProposal.saveError = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      if (epoch != _epoch) return false;
+      targetProposal.status = ProposalStatus.pending;
+      targetProposal.saveError = e is ArgumentError ? e.message?.toString() : e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  ChatMessage? _findMessage(String messageId) {
+    for (final m in messages) {
+      if (m.id == messageId) return m;
+    }
+    return null;
   }
 
   /// Da chiamare al logout: sono dati sanitari, non devono restare in memoria

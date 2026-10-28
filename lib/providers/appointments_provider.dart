@@ -126,7 +126,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
     }
     if (dt == null) return null;
 
-    final location = (r['location'] ?? '').toString().trim();
+    final location = (r['location'] ?? r['doctor_name'] ?? '').toString().trim();
     final notes = (r['notes'] ?? '').toString().trim();
 
     return Appointment(
