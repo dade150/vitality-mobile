@@ -54,3 +54,5 @@ app.*.map.json
 .env.*
 !.env.example
 config/env.json
+
+docs/
