@@ -15,6 +15,7 @@ import 'providers/auth_provider.dart';
 
 import 'services/error_handler.dart';
 import 'services/supabase_client.dart';
+import 'services/voice_service.dart';
 
 import 'theme/app_theme.dart';
 
@@ -26,6 +27,7 @@ import 'screens/error/error_screen.dart';
 import 'screens/history/history_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/chat/chat_screen.dart';
+import 'screens/chat/chat_history_screen.dart';
 import 'screens/reports/clinical_screen.dart';
 import 'screens/reports/clinical_history_screen.dart';
 import 'screens/reports/add_report_screen.dart';
@@ -134,6 +136,7 @@ class VitalityAssistApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ClinicalProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => VoiceService()),
       ],
       child: const _AuthRedirector(
         child: _AppWithTheme(),
@@ -241,6 +244,7 @@ class _AppWithTheme extends StatelessWidget {
             '/history': (context) => const HistoryScreen(),
             '/profile': (context) => const ProfileScreen(),
             '/chat': (context) => const ChatScreen(),
+            '/chat/history': (context) => const ChatHistoryScreen(),
             '/reports': (context) => const ClinicalParametersScreen(),
             '/reports/history': (context) => const ClinicalHistoryScreen(),
             '/reports/add': (context) => const AddReportScreen(),

@@ -107,7 +107,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
     final id = r['id']?.toString();
     if (id == null || id.isEmpty || id == 'null') return null;
 
-    final type = (r['visit_type'] ?? r['type'] ?? r['title'] ?? '').toString().trim();
+    final type = (r['title'] ?? r['visit_type'] ?? r['type'] ?? '').toString().trim();
     if (type.isEmpty) return null;
 
     DateTime? dt;
@@ -126,7 +126,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
     }
     if (dt == null) return null;
 
-    final location = (r['location'] ?? r['doctor_name'] ?? '').toString().trim();
+    final location = (r['doctor_name'] ?? r['location'] ?? '').toString().trim();
     final notes = (r['notes'] ?? '').toString().trim();
 
     return Appointment(
@@ -219,9 +219,9 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
         () async {
           _validate(appointment);
           await _db.from(_table).insert({
-            'visit_type': appointment.type.trim(),
+            'title': appointment.type.trim(),
             'appointment_at': appointment.dateTime.toUtc().toIso8601String(),
-            'location': appointment.location.trim().isEmpty ? null : appointment.location.trim(),
+            'doctor_name': appointment.location.trim().isEmpty ? null : appointment.location.trim(),
             'notes': appointment.notes.trim().isEmpty ? null : appointment.notes.trim(),
           });
         },
@@ -235,9 +235,9 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
           final rows = await _db
               .from(_table)
               .update({
-                'visit_type': appointment.type.trim(),
+                'title': appointment.type.trim(),
                 'appointment_at': appointment.dateTime.toUtc().toIso8601String(),
-                'location':
+                'doctor_name':
                     appointment.location.trim().isEmpty ? null : appointment.location.trim(),
                 'notes': appointment.notes.trim().isEmpty ? null : appointment.notes.trim(),
               })

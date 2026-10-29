@@ -44,6 +44,7 @@ class SettingsProvider extends ChangeNotifier with ErrorReporting {
 
   AppFontSize get fontSize => _settings?.fontSize ?? AppFontSize.grande;
   bool get darkMode => _settings?.darkMode ?? false;
+  bool get autoTts => _settings?.autoTts ?? false;
   bool get notifyTherapy => _settings?.notifyTherapy ?? true;
   bool get notifyAppointments => _settings?.notifyAppointments ?? true;
 
@@ -199,6 +200,28 @@ class SettingsProvider extends ChangeNotifier with ErrorReporting {
     final ok = await guard(
       () => _service.update(uid, notifyAppointments: value),
       where: 'SettingsProvider.setNotifyAppointments',
+    );
+
+    if (!ok) {
+      _settings = previous;
+      notifyListeners();
+      return false;
+    }
+    return true;
+  }
+
+  Future<bool> setAutoTts(bool value) async {
+    final uid = _userId;
+    if (uid == null) return false;
+    if (_settings != null && _settings!.autoTts == value) return true;
+
+    final previous = _settings;
+    _settings = (_settings ?? UserSettings.defaults(uid)).copyWith(autoTts: value);
+    notifyListeners();
+
+    final ok = await guard(
+      () => _service.update(uid, autoTts: value),
+      where: 'SettingsProvider.setAutoTts',
     );
 
     if (!ok) {

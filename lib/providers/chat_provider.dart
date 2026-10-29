@@ -1,27 +1,36 @@
-import 'dart:convert';
-
+// lib/providers/chat_provider.dart
 import 'package:flutter/material.dart';
 
 import '../models/chat_message.dart';
+import '../models/chat_models.dart';
 import '../models/proposed_entry.dart';
-import '../services/api_services.dart';
+import '../services/chat_service.dart';
 import '../services/proposal_service.dart';
 import 'error_provider.dart';
 
-/// Stato della chat con il coach. Le risposte arrivano dal backend (`/chat`);
-/// la cronologia viene rimandata a ogni richiesta, il BE non salva nulla.
-///
+/// Stato della chat con il coach. Le risposte e la persistenza arrivano dal backend (`/api/chat`).
 /// Gestisce inoltre le proposte di salvataggio clinico Human-in-the-Loop (`proposed_entries`).
 class ChatProvider extends ChangeNotifier with ErrorReporting {
-  ChatProvider({ProposalService? proposalService})
-      : _proposalService = proposalService ?? ProposalService();
+  ChatProvider({
+    ProposalService? proposalService,
+    ChatService? chatService,
+  })  : _proposalService = proposalService ?? ProposalService(),
+        _chatService = chatService ?? ChatService();
 
-  static const _maxHistory = 30; // = MAX_MESSAGES del BE
-  static const _requestTimeout = Duration(seconds: 60);
+  static const _maxHistory = 30;
 
   final ProposalService _proposalService;
+  final ChatService _chatService;
   final List<ChatMessage> messages = [];
   bool isSending = false;
+
+  /// Identificatore della sessione corrente di chat. Null se nuova sessione.
+  int? currentSessionId;
+  int? get sessionId => currentSessionId;
+
+  List<ChatSessionItem> sessions = [];
+  bool isLoadingSessions = false;
+  bool isLoadingSessionDetail = false;
 
   /// Si incrementa a ogni [clear]: una risposta che arriva dopo un logout
   /// non deve finire nella conversazione del prossimo utente.
@@ -29,47 +38,62 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
 
   bool get hasMessages => messages.isNotEmpty;
 
-  /// Massimo numero di messaggi di storico inviati al BE: quando la
-  /// conversazione si avvicina a questo limite la UI suggerisce una nuova chat.
+  /// Massimo numero di messaggi di storico: quando la conversazione si avvicina a questo
+  /// limite la UI suggerisce una nuova chat.
   int get maxHistory => _maxHistory;
 
-  Future<bool> sendMessage(String text) async {
+  Future<bool> sendMessage(
+    String text, {
+    ChatAttachmentIn? attachment,
+    String? attachmentFileName,
+  }) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty || isSending) return false;
+    if ((trimmed.isEmpty && attachment == null) || isSending) return false;
 
     final epoch = _epoch;
-    messages.add(ChatMessage(text: trimmed, isUser: true, time: DateTime.now()));
+    messages.add(
+      ChatMessage(
+        text: trimmed,
+        isUser: true,
+        time: DateTime.now(),
+        attachmentKind: attachment?.kind,
+        attachmentFileName: attachmentFileName,
+      ),
+    );
     isSending = true;
     notifyListeners();
 
     final ok = await guard(() async {
-      final res = await ApiService.post(
-        '/chat',
-        jsonEncode({'messages': _history()}),
-        timeout: _requestTimeout,
+      final request = ChatRequest(
+        sessionId: currentSessionId,
+        message: trimmed.isNotEmpty ? trimmed : null,
+        attachment: attachment,
       );
-      // utf8.decode sui bytes: `res.body` senza charset nell'header
-      // userebbe latin1 e storpierebbe gli accenti.
-      final json = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      if (epoch != _epoch) return; // logout avvenuto nel frattempo
 
-      final rawProposals = json['proposed_entries'];
+      final response = await _chatService.sendMessage(request);
+      if (epoch != _epoch) return;
+
+      if (response.sessionId != null) {
+        currentSessionId = response.sessionId;
+      }
+
+      final rawProposals = response.proposedEntries;
       final proposals = <ProposedEntry>[];
-      if (rawProposals is List) {
-        for (final p in rawProposals) {
-          if (p is Map<String, dynamic>) {
-            final entry = ProposedEntry.fromJson(p);
-            if (entry != null) proposals.add(entry);
-          }
+      for (final p in rawProposals) {
+        if (p is Map<String, dynamic>) {
+          final entry = ProposedEntry.fromJson(p);
+          if (entry != null) proposals.add(entry);
         }
       }
 
       messages.add(
         ChatMessage(
-          text: (json['reply'] ?? '') as String,
+          id: response.assistantMessageId?.toString(),
+          text: response.reply,
           isUser: false,
           time: DateTime.now(),
           proposedEntries: proposals,
+          attachmentKind: response.attachmentInfo?['kind']?.toString(),
         ),
       );
     }, where: 'ChatProvider.sendMessage');
@@ -78,6 +102,60 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
       isSending = false;
       notifyListeners();
     }
+    return ok;
+  }
+
+  /// Carica le sessioni di chat passate dall'API
+  Future<void> loadSessions({int limit = 30, int offset = 0}) async {
+    isLoadingSessions = true;
+    notifyListeners();
+
+    await guard(() async {
+      sessions = await _chatService.getSessions(limit: limit, offset: offset);
+    }, where: 'ChatProvider.loadSessions');
+
+    isLoadingSessions = false;
+    notifyListeners();
+  }
+
+  /// Carica i dettagli di una sessione specifica e ripristina la cronologia a schermo
+  Future<bool> loadSession(int targetSessionId) async {
+    isLoadingSessionDetail = true;
+    notifyListeners();
+    final epoch = _epoch;
+
+    final ok = await guard(() async {
+      final detail = await _chatService.getSessionDetail(targetSessionId);
+      if (epoch != _epoch) return;
+
+      messages.clear();
+      final rawMsgs = detail['messages'] as List<dynamic>? ?? [];
+      for (final m in rawMsgs) {
+        if (m is Map<String, dynamic>) {
+          messages.add(ChatMessage.fromBackend(m));
+        }
+      }
+      currentSessionId = targetSessionId;
+    }, where: 'ChatProvider.loadSession');
+
+    if (epoch == _epoch) {
+      isLoadingSessionDetail = false;
+      notifyListeners();
+    }
+    return ok;
+  }
+
+  /// Elimina una sessione specifica sia da backend che dallo stato locale
+  Future<bool> deleteSession(int targetSessionId) async {
+    final ok = await guard(() async {
+      await _chatService.deleteSession(targetSessionId);
+      sessions.removeWhere((s) => s.id == targetSessionId);
+      if (currentSessionId == targetSessionId) {
+        newChat();
+      }
+    }, where: 'ChatProvider.deleteSession');
+
+    notifyListeners();
     return ok;
   }
 
@@ -150,7 +228,8 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
     } catch (e) {
       if (epoch != _epoch) return false;
       targetProposal.status = ProposalStatus.pending;
-      targetProposal.saveError = e is ArgumentError ? e.message?.toString() : e.toString().replaceFirst('Exception: ', '');
+      targetProposal.saveError =
+          e is ArgumentError ? e.message?.toString() : e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
       return false;
     }
@@ -163,22 +242,19 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
     return null;
   }
 
-  /// Da chiamare al logout: sono dati sanitari, non devono restare in memoria
-  /// per l'utente successivo.
+  /// Avvia una nuova sessione di chat: imposta [currentSessionId] a null e cancella la cronologia a schermo.
+  void newChat() {
+    currentSessionId = null;
+    clear();
+  }
+
+  /// Da chiamare al logout: sono dati sanitari, non devono restare in memoria per l'utente successivo.
   void clear() {
     _epoch++;
+    currentSessionId = null;
     messages.clear();
     isSending = false;
     errorMessage = null;
     notifyListeners();
-  }
-
-  List<Map<String, String>> _history() {
-    final recent = messages.length > _maxHistory
-        ? messages.sublist(messages.length - _maxHistory)
-        : messages;
-    return [
-      for (final m in recent) {'role': m.isUser ? 'user' : 'assistant', 'content': m.text},
-    ];
   }
 }

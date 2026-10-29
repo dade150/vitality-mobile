@@ -955,7 +955,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
   Widget _buildActionFooter(ThemeData theme, ColorScheme cs, bool isSaved, bool isSaving) {
     if (isSaved) {
       return Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         decoration: BoxDecoration(
           color: AppColors.lightGreenContainer.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(12),
@@ -965,11 +965,14 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
           children: [
             const Icon(Icons.done_all_rounded, color: AppColors.secondarySeed, size: 20),
             const SizedBox(width: 8),
-            Text(
-              'Dato registrato con successo nel diario',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.secondarySeed,
-                fontWeight: FontWeight.w700,
+            Flexible(
+              child: Text(
+                'Dato registrato con successo nel diario',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.secondarySeed,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -985,7 +988,10 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
           child: OutlinedButton.icon(
             onPressed: isSaving ? null : widget.onDismiss,
             icon: const Icon(Icons.close_rounded, size: 18),
-            label: const Text('Ignora'),
+            label: const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('Ignora'),
+            ),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1007,7 +1013,10 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.check_rounded, size: 18),
-            label: Text(isSaving ? 'Salvataggio...' : 'Conferma e Salva'),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(isSaving ? 'Salvataggio...' : 'Conferma e Salva'),
+            ),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.accent,
               foregroundColor: Colors.white,

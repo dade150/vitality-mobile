@@ -26,6 +26,7 @@ class UserSettings {
   final String userId;
   final AppFontSize fontSize;
   final bool darkMode;
+  final bool autoTts;
   final bool notifyTherapy;
   final bool notifyAppointments;
   final bool showMeals;
@@ -40,6 +41,7 @@ class UserSettings {
     required this.userId,
     this.fontSize = AppFontSize.grande,
     this.darkMode = false,
+    this.autoTts = false,
     this.notifyTherapy = true,
     this.notifyAppointments = true,
     this.showMeals = true,
@@ -58,6 +60,7 @@ class UserSettings {
       userId: map['user_id']?.toString() ?? '',
       fontSize: AppFontSize.fromDb(map['font_size'] as String?),
       darkMode: map['dark_mode'] as bool? ?? false,
+      autoTts: map['auto_tts'] as bool? ?? false,
       notifyTherapy: map['notify_therapy'] as bool? ?? true,
       notifyAppointments: map['notify_appointments'] as bool? ?? true,
       showMeals: map['show_meals'] as bool? ?? true,
@@ -74,6 +77,7 @@ class UserSettings {
       'user_id': userId,
       'font_size': fontSize.dbCode,
       'dark_mode': darkMode,
+      'auto_tts': autoTts,
       'notify_therapy': notifyTherapy,
       'notify_appointments': notifyAppointments,
       'show_meals': showMeals,
@@ -88,6 +92,7 @@ class UserSettings {
     String? userId,
     AppFontSize? fontSize,
     bool? darkMode,
+    bool? autoTts,
     bool? notifyTherapy,
     bool? notifyAppointments,
     bool? showMeals,
@@ -102,6 +107,7 @@ class UserSettings {
       userId: userId ?? this.userId,
       fontSize: fontSize ?? this.fontSize,
       darkMode: darkMode ?? this.darkMode,
+      autoTts: autoTts ?? this.autoTts,
       notifyTherapy: notifyTherapy ?? this.notifyTherapy,
       notifyAppointments: notifyAppointments ?? this.notifyAppointments,
       showMeals: showMeals ?? this.showMeals,

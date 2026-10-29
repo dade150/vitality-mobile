@@ -84,6 +84,21 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 28),
+                Text('Assistente Vocale', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 12),
+                SectionCard(
+                  padding: EdgeInsets.zero,
+                  child: SwitchListTile(
+                    secondary: const Icon(Icons.record_voice_over_outlined),
+                    title: const Text('Lettura automatica risposte'),
+                    subtitle: const Text('Leggi ad alta voce le risposte dell\'assistente in chat'),
+                    value: settings.autoTts,
+                    onChanged: (value) {
+                      context.read<SettingsProvider>().setAutoTts(value);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 28),
                 Text('Notifiche', style: theme.textTheme.titleLarge),
                 const SizedBox(height: 12),
                 SectionCard(

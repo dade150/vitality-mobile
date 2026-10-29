@@ -38,6 +38,7 @@ class ErrorHandler {
 
   static bool _screenVisible = false;
   static bool _remoteLogging = false;
+  static bool _remoteLogDisabled = false;
 
   // ---------------------------------------------------------------------
   // Classificazione
@@ -132,7 +133,7 @@ class ErrorHandler {
   /// tabella `app_logs` non esiste. Il flag _remoteLogging taglia comunque
   /// la ricorsione.
   static Future<void> _remoteLog(AppFailure f, String? where) async {
-    if (_remoteLogging) return;
+    if (_remoteLogging || _remoteLogDisabled) return;
     final client = Supabase.instance.client;
     if (client.auth.currentSession == null) return; // RLS: serve auth.uid()
     _remoteLogging = true;
@@ -146,6 +147,9 @@ class ErrorHandler {
         'stacktrace': stack.length > 4000 ? stack.substring(0, 4000) : stack,
       });
     } catch (e) {
+      if (e is PostgrestException && e.code == 'PGRST205') {
+        _remoteLogDisabled = true;
+      }
       debugPrint('[ErrorHandler] log remoto fallito: $e');
     } finally {
       _remoteLogging = false;

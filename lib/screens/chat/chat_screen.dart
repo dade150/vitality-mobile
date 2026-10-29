@@ -1,18 +1,42 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../models/chat_models.dart';
 import '../../models/proposed_entry.dart';
 import '../../providers/appointments_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/clinical_provider.dart';
 import '../../providers/health_provider.dart';
 import '../../providers/profile_provider.dart';
+import '../../providers/settings_provider.dart';
+import '../../services/voice_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/clinical_proposal_card.dart';
-import '../../widgets/pill_button.dart';
+import 'chat_drawer.dart';
+
+class _PendingAttachment {
+  final String fileName;
+  final String kind;
+  final String mimeType;
+  final Uint8List bytes;
+
+  _PendingAttachment({
+    required this.fileName,
+    required this.kind,
+    required this.mimeType,
+    required this.bytes,
+  });
+
+  bool get isPdf => mimeType == 'application/pdf';
+}
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -34,6 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  String _textBeforeListening = '';
 
   // Lazy: con l'hot reload initState non viene ri-eseguito sugli stati già
   // vivi, un late assegnato lì andrebbe in LateInitializationError.
@@ -43,6 +68,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    try {
+      context.read<VoiceService>().stopSpeaking();
+      context.read<VoiceService>().stopListening();
+    } catch (_) {}
     super.dispose();
   }
 
@@ -58,20 +87,232 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  _PendingAttachment? _pendingAttachment;
+
+  Future<void> _pickImage(ImageSource source, {required String kind}) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+      if (pickedFile == null) return;
+
+      final bytes = await pickedFile.readAsBytes();
+      final name = pickedFile.name;
+      final ext = name.split('.').last.toLowerCase();
+      String mimeType = 'image/jpeg';
+      if (ext == 'png') mimeType = 'image/png';
+      if (ext == 'webp') mimeType = 'image/webp';
+
+      setState(() {
+        _pendingAttachment = _PendingAttachment(
+          fileName: name,
+          kind: kind,
+          mimeType: mimeType,
+          bytes: bytes,
+        );
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossibile selezionare l\'immagine: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickPdf() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      Uint8List? bytes = file.bytes;
+      if (bytes == null && file.path != null) {
+        final f = File(file.path!);
+        if (await f.exists()) {
+          bytes = await f.readAsBytes();
+        }
+      }
+      if (bytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Impossibile leggere il file selezionato')),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _pendingAttachment = _PendingAttachment(
+          fileName: file.name,
+          kind: 'medical_report',
+          mimeType: 'application/pdf',
+          bytes: bytes!,
+        );
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossibile selezionare il PDF: $e')),
+        );
+      }
+    }
+  }
+
+  void _showAttachmentModal() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (modalContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: cs.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.lightPeach,
+                    child: Icon(Icons.camera_alt_rounded, color: AppColors.accent),
+                  ),
+                  title: const Text('Fotocamera', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(modalContext);
+                    _pickImage(ImageSource.camera, kind: 'generic_image');
+                  },
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.lightPeach,
+                    child: Icon(Icons.photo_library_rounded, color: AppColors.accent),
+                  ),
+                  title: const Text('Galleria', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(modalContext);
+                    _pickImage(ImageSource.gallery, kind: 'generic_image');
+                  },
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.lightPeach,
+                    child: Icon(Icons.picture_as_pdf_rounded, color: AppColors.accent),
+                  ),
+                  title: const Text('Documento PDF', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(modalContext);
+                    _pickPdf();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _send() async {
     final chat = context.read<ChatProvider>();
+    final voice = context.read<VoiceService>();
     final text = _controller.text;
-    if (text.trim().isEmpty || chat.isSending) return;
-    _controller.clear();
+    final att = _pendingAttachment;
+    if ((text.trim().isEmpty && att == null) || chat.isSending) return;
 
-    // La parte sincrona di sendMessage aggiunge già il messaggio utente.
-    final pending = chat.sendMessage(text);
+    if (voice.isListening) {
+      await voice.stopListening();
+    }
+    if (voice.isSpeaking) {
+      await voice.stopSpeaking();
+    }
+
+    ChatAttachmentIn? attachmentIn;
+    String? attachmentFileName;
+
+    if (att != null) {
+      attachmentIn = ChatAttachmentIn(
+        kind: att.kind,
+        mimeType: att.mimeType,
+        dataBase64: base64Encode(att.bytes),
+      );
+      attachmentFileName = att.fileName;
+    }
+
+    _controller.clear();
+    setState(() {
+      _pendingAttachment = null;
+    });
+
+    final pending = chat.sendMessage(
+      text,
+      attachment: attachmentIn,
+      attachmentFileName: attachmentFileName,
+    );
     _scrollToEnd();
     final ok = await pending;
     if (!mounted) return;
     _scrollToEnd();
     if (!ok && chat.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(chat.errorMessage!)));
+    } else if (ok) {
+      final settings = context.read<SettingsProvider>();
+      if (settings.autoTts && chat.messages.isNotEmpty) {
+        final lastMsg = chat.messages.last;
+        if (!lastMsg.isUser && lastMsg.text.isNotEmpty) {
+          final msgKey = lastMsg.id ?? '${lastMsg.time.millisecondsSinceEpoch}';
+          unawaited(voice.speak(lastMsg.text, messageKey: msgKey));
+        }
+      }
+    }
+  }
+
+  Future<void> _toggleListening() async {
+    final voice = context.read<VoiceService>();
+    if (voice.isListening) {
+      await voice.stopListening();
+      return;
+    }
+
+    _textBeforeListening = _controller.text.trimRight();
+    final started = await voice.startListening(
+      onResult: (words) {
+        if (!mounted) return;
+        final newText = _textBeforeListening.isEmpty
+            ? words
+            : '$_textBeforeListening $words';
+        setState(() {
+          _controller.text = newText;
+          _controller.selection = TextSelection.collapsed(offset: newText.length);
+        });
+      },
+    );
+
+    if (!started && mounted && voice.lastError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(voice.lastError!)),
+      );
     }
   }
 
@@ -111,6 +352,119 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Widget _buildAttachmentPreview(ThemeData theme, ColorScheme cs) {
+    if (_pendingAttachment == null) return const SizedBox.shrink();
+
+    final att = _pendingAttachment!;
+    final isPdf = att.isPdf;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: isPdf
+                ? Container(
+                    width: 44,
+                    height: 44,
+                    color: Colors.red.withValues(alpha: 0.15),
+                    child: const Icon(
+                      Icons.picture_as_pdf_rounded,
+                      color: Colors.redAccent,
+                      size: 26,
+                    ),
+                  )
+                : Image.memory(
+                    att.bytes,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                  ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  att.fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${(att.bytes.lengthInBytes / 1024).toStringAsFixed(1)} KB',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 20),
+            tooltip: 'Rimuovi allegato',
+            onPressed: () => setState(() => _pendingAttachment = null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttachmentBadge(
+    ThemeData theme,
+    bool isUser,
+    String kind,
+    String? fileName,
+  ) {
+    final cs = theme.colorScheme;
+    final isPdf = kind == 'medical_report' || kind == 'pdf_document';
+
+    final String label = fileName ?? (isPdf ? 'Documento PDF' : 'Foto allegata');
+    final IconData icon = isPdf ? Icons.picture_as_pdf_rounded : Icons.photo_rounded;
+
+    final chipColor = isUser ? Colors.white.withValues(alpha: 0.22) : cs.surfaceContainerHighest;
+    final textColor = isUser ? cs.onPrimary : cs.onSurface;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: chipColor,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: textColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _bubble({
     required ThemeData theme,
     required bool isUser,
@@ -142,39 +496,68 @@ class _ChatScreenState extends State<ChatScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final chat = context.watch<ChatProvider>();
+    final voice = context.watch<VoiceService>();
 
-    return Scaffold(
-      body: _AnimatedChatBackground(
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
+    return _AnimatedChatBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leadingWidth: 125,
+          leading: Builder(
+            builder: (scaffoldContext) {
+              return Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  splashColor: AppColors.accent.withValues(alpha: 0.2),
+                  highlightColor: AppColors.accent.withValues(alpha: 0.1),
+                  onTap: () => Scaffold.of(scaffoldContext).openDrawer(),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: PillButton(
-                            label: 'Impostazioni',
-                            icon: Icons.settings_outlined,
-                            onTap: () => Navigator.of(context).pushNamed('/settings'),
-                          ),
+                        const Icon(
+                          Icons.menu_rounded,
+                          color: AppColors.accent,
+                          size: 24,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: PillButton(
-                            label: 'Profilo',
-                            icon: Icons.person_outline_rounded,
-                            onTap: () => Navigator.of(context).pushNamed('/profile'),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Menu',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 17,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
+              );
+            },
+          ),
+          actions: [
+            if (chat.hasMessages)
+              IconButton(
+                icon: const Icon(Icons.add_comment_outlined, color: AppColors.accent),
+                tooltip: 'Nuova chat',
+                onPressed: () {
+                  voice.stopSpeaking();
+                  chat.newChat();
+                },
               ),
+          ],
+        ),
+        drawer: const ChatDrawer(),
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
               Expanded(
                 child: Center(
                   child: ConstrainedBox(
@@ -202,14 +585,32 @@ class _ChatScreenState extends State<ChatScreen> {
                                 return _bubble(
                                   theme: theme,
                                   isUser: true,
-                                  child: Text(
-                                    message.text,
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      color: cs.onPrimary,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (message.attachmentKind != null)
+                                        _buildAttachmentBadge(
+                                          theme,
+                                          true,
+                                          message.attachmentKind!,
+                                          message.attachmentFileName,
+                                        ),
+                                      if (message.text.isNotEmpty)
+                                        Text(
+                                          message.text,
+                                          style: theme.textTheme.bodyLarge?.copyWith(
+                                            color: cs.onPrimary,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 );
                               }
+
+                              final msgKey = message.id ?? '${message.time.millisecondsSinceEpoch}';
+                              final isCurrentSpeaking =
+                                  voice.isSpeaking && voice.speakingMessageKey == msgKey;
 
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,11 +619,68 @@ class _ChatScreenState extends State<ChatScreen> {
                                   _bubble(
                                     theme: theme,
                                     isUser: false,
-                                    child: Text(
-                                      message.text,
-                                      style: theme.textTheme.bodyLarge?.copyWith(
-                                        color: cs.onSurface,
-                                      ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (message.attachmentKind != null)
+                                          _buildAttachmentBadge(
+                                            theme,
+                                            false,
+                                            message.attachmentKind!,
+                                            message.attachmentFileName,
+                                          ),
+                                        if (message.text.isNotEmpty)
+                                          Text(
+                                            message.text,
+                                            style: theme.textTheme.bodyLarge?.copyWith(
+                                              color: cs.onSurface,
+                                            ),
+                                          ),
+                                        if (message.text.isNotEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Align(
+                                            alignment: Alignment.bottomRight,
+                                            child: InkWell(
+                                              borderRadius: BorderRadius.circular(16),
+                                              onTap: () => voice.toggleSpeak(
+                                                message.text,
+                                                messageKey: msgKey,
+                                              ),
+                                              child: Padding(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      isCurrentSpeaking
+                                                          ? Icons.stop_circle_rounded
+                                                          : Icons.volume_up_rounded,
+                                                      size: 18,
+                                                      color: isCurrentSpeaking
+                                                          ? AppColors.accent
+                                                          : cs.onSurfaceVariant.withValues(alpha: 0.8),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      isCurrentSpeaking ? 'Ferma' : 'Ascolta',
+                                                      style: theme.textTheme.labelSmall?.copyWith(
+                                                        color: isCurrentSpeaking
+                                                            ? AppColors.accent
+                                                            : cs.onSurfaceVariant.withValues(alpha: 0.8),
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ),
                                   if (message.visibleProposals.isNotEmpty)
@@ -278,7 +736,10 @@ class _ChatScreenState extends State<ChatScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton.icon(
-                            onPressed: () {}, // TODO: logica nuova sessione
+                            onPressed: () {
+                              voice.stopSpeaking();
+                              chat.newChat();
+                            },
                             icon: const Icon(Icons.add_comment_outlined, size: 18),
                             label: const Text('Nuova chat'),
                             style: TextButton.styleFrom(
@@ -292,49 +753,65 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
-              // Barra di inserimento messaggio, microfono e invio.
+              // Barra di inserimento messaggio, allegato, microfono e invio.
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 720),
-                    child: Row(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            decoration: const InputDecoration(hintText: 'Scrivi un messaggio...'),
-                            onSubmitted: (_) => _send(),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        SizedBox(
-                          width: 60,
-                          height: 60,
-                          child: FloatingActionButton(
-                            heroTag: 'mic',
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Supporto vocale predisposto: tocca e parla (STT).'),
-                                  duration: Duration(seconds: 2),
+                        if (_pendingAttachment != null)
+                          _buildAttachmentPreview(theme, cs),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _controller,
+                                decoration: InputDecoration(
+                                  hintText: 'Scrivi un messaggio...',
+                                  prefixIcon: IconButton(
+                                    icon: const Icon(Icons.attach_file_rounded),
+                                    tooltip: 'Allega file',
+                                    onPressed: _showAttachmentModal,
+                                  ),
                                 ),
-                              );
-                            },
-                            backgroundColor: cs.primaryContainer,
-                            child: Icon(Icons.mic_rounded, color: cs.onPrimaryContainer),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        SizedBox(
-                          width: 60,
-                          height: 60,
-                          child: FloatingActionButton(
-                            heroTag: 'send',
-                            onPressed: chat.isSending ? null : _send,
-                            backgroundColor: cs.primary,
-                            child: Icon(Icons.send_rounded, color: cs.onPrimary),
-                          ),
+                                onSubmitted: (_) => _send(),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            SizedBox(
+                              width: 60,
+                              height: 60,
+                              child: FloatingActionButton(
+                                heroTag: 'mic',
+                                tooltip: voice.isListening ? 'Ferma ascolto' : 'Parla al microfono',
+                                onPressed: _toggleListening,
+                                backgroundColor: voice.isListening
+                                    ? AppColors.accent
+                                    : cs.primaryContainer,
+                                child: Icon(
+                                  voice.isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                                  color: voice.isListening
+                                      ? Colors.white
+                                      : cs.onPrimaryContainer,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            SizedBox(
+                              width: 60,
+                              height: 60,
+                              child: FloatingActionButton(
+                                heroTag: 'send',
+                                onPressed: chat.isSending ? null : _send,
+                                backgroundColor: cs.primary,
+                                child: Icon(Icons.send_rounded, color: cs.onPrimary),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -344,8 +821,8 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
         ),
+        bottomNavigationBar: const AppBottomNavBar(currentIndex: 0),
       ),
-      bottomNavigationBar: const AppBottomNavBar(currentIndex: 0),
     );
   }
 }

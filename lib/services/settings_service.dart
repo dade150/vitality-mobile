@@ -1,7 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/user_settings.dart';
-import 'error_handler.dart';
 
 /// Accesso a Supabase per le preferenze utente nella tabella `public.user_settings`.
 ///
@@ -60,6 +59,7 @@ class SettingsService {
     String userId, {
     AppFontSize? fontSize,
     bool? darkMode,
+    bool? autoTts,
     bool? notifyTherapy,
     bool? notifyAppointments,
   }) async {
@@ -67,30 +67,60 @@ class SettingsService {
       'updated_at': DateTime.now().toUtc().toIso8601String(),
       if (fontSize != null) 'font_size': fontSize.dbCode,
       if (darkMode != null) 'dark_mode': darkMode,
+      if (autoTts != null) 'auto_tts': autoTts,
       if (notifyTherapy != null) 'notify_therapy': notifyTherapy,
       if (notifyAppointments != null) 'notify_appointments': notifyAppointments,
     };
 
-    final rows = await _db
-        .from(_table)
-        .update(payload)
-        .eq('user_id', userId)
-        .select('id');
+    try {
+      final rows = await _db
+          .from(_table)
+          .update(payload)
+          .eq('user_id', userId)
+          .select('id');
 
-    if (rows.isEmpty) {
-      // Se non c'era ancora una riga associata, inseriscila.
-      await _db.from(_table).insert({
-        'user_id': userId,
-        'font_size': fontSize?.dbCode ?? 'GRANDE',
-        'dark_mode': darkMode ?? false,
-        'notify_therapy': notifyTherapy ?? true,
-        'notify_appointments': notifyAppointments ?? true,
-        'show_meals': true,
-        'show_activities': true,
-        'show_reports': true,
-        'show_appointments': true,
-        ...payload,
-      });
+      if (rows.isEmpty) {
+        // Se non c'era ancora una riga associata, inseriscila.
+        final insertPayload = <String, dynamic>{
+          'user_id': userId,
+          'font_size': fontSize?.dbCode ?? 'GRANDE',
+          'dark_mode': darkMode ?? false,
+          if (autoTts != null) 'auto_tts': autoTts,
+          'notify_therapy': notifyTherapy ?? true,
+          'notify_appointments': notifyAppointments ?? true,
+          'show_meals': true,
+          'show_activities': true,
+          'show_reports': true,
+          'show_appointments': true,
+          ...payload,
+        };
+        try {
+          await _db.from(_table).insert(insertPayload);
+        } on PostgrestException catch (e) {
+          final isMissingCol = e.code == 'PGRST204' ||
+              e.code == '42703' ||
+              e.message.toLowerCase().contains('auto_tts');
+          if (isMissingCol && autoTts != null) {
+            insertPayload.remove('auto_tts');
+            await _db.from(_table).insert(insertPayload);
+            return;
+          }
+          rethrow;
+        }
+      }
+    } on PostgrestException catch (e) {
+      final isMissingCol = e.code == 'PGRST204' ||
+          e.code == '42703' ||
+          e.message.toLowerCase().contains('auto_tts');
+      if (isMissingCol && autoTts != null) {
+        payload.remove('auto_tts');
+        // Se restavano solo updated_at o altri campi, aggiorna senza auto_tts
+        if (payload.keys.any((k) => k != 'updated_at')) {
+          await _db.from(_table).update(payload).eq('user_id', userId);
+        }
+        return;
+      }
+      rethrow;
     }
   }
 }

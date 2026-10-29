@@ -28,7 +28,12 @@ class ApiService {
         'API_BASE_URL mancante: lancia con --dart-define-from-file=config/env.json',
       );
     }
-    return Uri.parse('$baseUrl$endpoint');
+    final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    String cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
+    if (cleanBase.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
+      cleanEndpoint = cleanEndpoint.substring(4);
+    }
+    return Uri.parse('$cleanBase$cleanEndpoint');
   }
 
   static Future<Map<String, String>> _getHeaders() async {
@@ -53,6 +58,14 @@ class ApiService {
     final headers = await _getHeaders();
     final r = await http
         .post(_uri(endpoint), headers: headers, body: body)
+        .timeout(timeout ?? ApiService.timeout);
+    return _ensure(r);
+  }
+
+  static Future<http.Response> delete(String endpoint, {Duration? timeout}) async {
+    final headers = await _getHeaders();
+    final r = await http
+        .delete(_uri(endpoint), headers: headers)
         .timeout(timeout ?? ApiService.timeout);
     return _ensure(r);
   }
