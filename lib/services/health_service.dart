@@ -100,11 +100,14 @@ class HealthService {
     }
   }
 
-  static void _checkMeal(String description, int calories) {
+  static void _checkMeal(String description, int calories, [int? carbsGrams]) {
     if (description.trim().isEmpty || description.length > 500) {
       throw ArgumentError('descrizione pasto non valida');
     }
     if (calories < 0 || calories > 10000) throw ArgumentError('calorie fuori range');
+    if (carbsGrams != null && (carbsGrams < 0 || carbsGrams > 2000)) {
+      throw ArgumentError('carboidrati fuori range');
+    }
   }
 
   static void _checkActivity(int minutes, int steps) {
@@ -246,7 +249,7 @@ class HealthService {
   }
 
   Future<void> insertMeal(MealEntry e) async {
-    _checkMeal(e.description, e.calories);
+    _checkMeal(e.description, e.calories, e.carbsGrams);
     await _db.from('meals').insert({
       'meal_type': e.type.dbValue,
       'description': e.description.trim(),
@@ -261,14 +264,16 @@ class HealthService {
     String id, {
     required String description,
     required int calories,
+    int? carbsGrams,
     required bool isEstimated,
     DateTime? at,
   }) async {
-    _checkMeal(description, calories);
+    _checkMeal(description, calories, carbsGrams);
     final data = <String, dynamic>{
       'description': description.trim(),
       'calories': calories,
       'is_estimated': isEstimated,
+      if (carbsGrams != null) 'carbs_grams': carbsGrams,
       if (at != null) 'meal_at': _iso(at),
     };
     final rows = await _db

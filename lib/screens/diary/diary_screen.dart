@@ -373,8 +373,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
             id: m.id!,
             title: m.type.label,
             subtitle: m.hasExplicitTime
-                ? 'Ore ${_hhmm(m.date)} · ${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal'
-                : '${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal',
+                ? 'Ore ${_hhmm(m.date)} · ${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams}g carb' : ''}'
+                : '${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams}g carb' : ''}',
             initialDateTime: m.date,
             whenLabel: 'Giorno del pasto',
             showTimeInWhen: false,
@@ -386,6 +386,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
                 maxLines: 3,
               ),
               EntryField(label: 'Calorie (kcal)', initialValue: '${m.calories}'),
+              EntryField(
+                label: 'Carboidrati (g, opzionale)',
+                initialValue: m.carbsGrams != null ? '${m.carbsGrams}' : '',
+                keyboardType: TextInputType.number,
+              ),
               EntryField(
                 label: m.type == MealType.fuoriPasto
                     ? 'Orario fuori pasto (es. 17:30)'
@@ -401,7 +406,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
         if (v[0].length > 500) return 'Descrizione troppo lunga (massimo 500 caratteri)';
         final kcal = int.tryParse(v[1]);
         if (kcal == null || kcal < 0 || kcal > 10000) return 'Calorie: valore tra 0 e 10000';
-        if (v[2].isNotEmpty && HealthService.normalizeTime(v[2]) == null) {
+        if (v[2].isNotEmpty) {
+          final carbs = int.tryParse(v[2]);
+          if (carbs == null || carbs < 0 || carbs > 2000) return 'Carboidrati: valore tra 0 e 2000 g';
+        }
+        if (v[3].isNotEmpty && HealthService.normalizeTime(v[3]) == null) {
           return 'Orario non valido: usa il formato HH:MM (es. 13:30)';
         }
         return null;
@@ -409,7 +418,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
       onSave: (e, v, when) {
         final meal = items.firstWhere((m) => m.id == e.id);
         final day = when ?? meal.date;
-        final rawTime = v[2].trim();
+        final rawCarbs = v[2].trim();
+        final carbs = rawCarbs.isNotEmpty ? int.tryParse(rawCarbs) : null;
+        final rawTime = v[3].trim();
         DateTime finalAt;
         if (rawTime.isNotEmpty) {
           final norm = HealthService.normalizeTime(rawTime)!;
@@ -423,6 +434,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
           e.id,
           description: v[0],
           calories: int.parse(v[1]),
+          carbsGrams: carbs,
           at: finalAt,
         );
       },
@@ -1457,8 +1469,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text('${m.isEstimated ? '~' : ''}${m.calories} kcal',
-                        style: theme.textTheme.bodySmall),
+                    Text(
+                      '${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams}g carb' : ''}',
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ),

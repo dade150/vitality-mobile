@@ -79,6 +79,11 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
     return _meals.where((m) => _sameDay(m.date, now)).fold<int>(0, (s, m) => s + m.calories);
   }
 
+  int get todayCarbsGrams {
+    final now = DateTime.now();
+    return _meals.where((m) => _sameDay(m.date, now)).fold<int>(0, (s, m) => s + (m.carbsGrams ?? 0));
+  }
+
   /// La terapia [therapyId] risulta presa nel giorno [day]?
   bool isTherapyTaken(String therapyId, DateTime day) =>
       _therapyLogs.any((l) => l.therapyId == therapyId && _sameDay(l.takenAt, day));
@@ -339,15 +344,20 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
     String id, {
     required String description,
     required int calories,
+    int? carbsGrams,
     DateTime? at,
   }) {
     final existing = _meals.where((m) => m.id == id).firstOrNull;
-    final stillEstimated = existing != null && existing.isEstimated && existing.calories == calories;
+    final stillEstimated = existing != null &&
+        existing.isEstimated &&
+        existing.calories == calories &&
+        (carbsGrams == null || existing.carbsGrams == carbsGrams);
     return _write(
       () => _service.updateMeal(
         id,
         description: description,
         calories: calories,
+        carbsGrams: carbsGrams,
         isEstimated: stillEstimated,
         at: at,
       ),
