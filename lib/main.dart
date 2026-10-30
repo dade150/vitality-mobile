@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -16,6 +17,7 @@ import 'providers/auth_provider.dart';
 import 'services/error_handler.dart';
 import 'services/supabase_client.dart';
 import 'services/voice_service.dart';
+import 'services/notification_service.dart';
 
 import 'theme/app_theme.dart';
 
@@ -39,6 +41,7 @@ import 'screens/diary/meals_history_screen.dart';
 import 'screens/diary/activity_history_screen.dart';
 import 'screens/appointments/appointments_screen.dart';
 import 'screens/appointments/add_visit_screen.dart';
+import 'screens/appointments/all_appointments_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/therapy_config_screen.dart';
 import 'utils/navigation.dart';
@@ -47,6 +50,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseConfig.initialize();
   await initializeDateFormatting('it_IT', null);
+  await NotificationService.instance.initialize();
 
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
@@ -169,35 +173,90 @@ class _AuthRedirector extends StatefulWidget {
 
 class _AuthRedirectorState extends State<_AuthRedirector> {
   bool _wasAuthenticated = false;
+  AuthProvider? _authProvider;
+  SettingsProvider? _settingsProvider;
+  HealthProvider? _healthProvider;
+  AppointmentsProvider? _appointmentsProvider;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final auth = context.read<AuthProvider>();
+      _authProvider = context.read<AuthProvider>();
+      _settingsProvider = context.read<SettingsProvider>();
+      _healthProvider = context.read<HealthProvider>();
+      _appointmentsProvider = context.read<AppointmentsProvider>();
 
-      // Avvio a freddo con sessione già valida: si parte comunque da
-      // /login per un frame, poi si salta subito a /chat.
+      NotificationService.instance.onTherapyMarkedTaken = () {
+        if (!mounted) return;
+        _healthProvider?.refresh();
+      };
+
+      _authProvider?.addListener(_onAuthChanged);
+      _settingsProvider?.addListener(_syncNotifications);
+      _healthProvider?.addListener(_syncNotifications);
+      _appointmentsProvider?.addListener(_syncNotifications);
+
+      final auth = _authProvider!;
       if (auth.isAuthenticated) {
+        NotificationService.instance.requestPermissions();
+        final pending = NotificationService.instance.consumePendingRoute();
         navigatorKey.currentState?.pushNamedAndRemoveUntil('/chat', (route) => false);
+        if (pending != null && pending != '/chat') {
+          navigatorKey.currentState?.pushNamed(pending);
+        }
+        _syncNotifications();
       }
 
       _wasAuthenticated = auth.isAuthenticated;
-      auth.addListener(_onAuthChanged);
     });
   }
 
+  void _syncNotifications() {
+    if (!mounted) return;
+    final auth = _authProvider;
+    if (auth == null || !auth.isAuthenticated) return;
+
+    final settings = _settingsProvider;
+    final health = _healthProvider;
+    final appointments = _appointmentsProvider;
+    if (settings == null || health == null || appointments == null) return;
+
+    if (health.hasLoaded) {
+      NotificationService.instance.syncTherapies(
+        therapies: health.therapyItems,
+        enabled: settings.notifyTherapy,
+      );
+      NotificationService.instance.resetInactivityTimer(
+        enabled: settings.notifyTherapy || settings.notifyAppointments,
+      );
+    }
+
+    if (appointments.hasLoaded) {
+      NotificationService.instance.syncAppointments(
+        appointments: appointments.appointments,
+        enabled: settings.notifyAppointments,
+      );
+    }
+  }
+
   void _onAuthChanged() {
-    final auth = context.read<AuthProvider>();
+    final auth = _authProvider;
+    if (auth == null) return;
     final isAuthenticated = auth.isAuthenticated;
 
     if (isAuthenticated && !_wasAuthenticated) {
+      NotificationService.instance.requestPermissions();
+      final pending = NotificationService.instance.consumePendingRoute();
       navigatorKey.currentState?.pushNamedAndRemoveUntil('/chat', (route) => false);
+      if (pending != null && pending != '/chat') {
+        navigatorKey.currentState?.pushNamed(pending);
+      }
+      _syncNotifications();
     } else if (!isAuthenticated && _wasAuthenticated) {
-      navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
-    } else if (!isAuthenticated && _wasAuthenticated) {
-      context.read<ChatProvider>().clear();   // <- nuova riga
+      context.read<ChatProvider>().clear();
+      unawaited(NotificationService.instance.cancelAll());
       navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
     }
 
@@ -206,7 +265,10 @@ class _AuthRedirectorState extends State<_AuthRedirector> {
 
   @override
   void dispose() {
-    context.read<AuthProvider>().removeListener(_onAuthChanged);
+    _authProvider?.removeListener(_onAuthChanged);
+    _settingsProvider?.removeListener(_syncNotifications);
+    _healthProvider?.removeListener(_syncNotifications);
+    _appointmentsProvider?.removeListener(_syncNotifications);
     super.dispose();
   }
 
@@ -262,6 +324,7 @@ class _AppWithTheme extends StatelessWidget {
             '/diary/history/activity': (context) => const ActivityHistoryScreen(),
             '/appointments': (context) => const AppointmentsScreen(),
             '/appointments/add': (context) => const AddVisitScreen(),
+            '/appointments/all': (context) => const AllAppointmentsScreen(),
             '/diary/add-activity': (context) => const AddActivityScreen(),
             '/diary/add-meal': (context) => const AddMealScreen(),
             '/settings': (context) => const SettingsScreen(),

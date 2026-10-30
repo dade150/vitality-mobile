@@ -8,8 +8,10 @@ import '../services/error_handler.dart';
 import 'error_provider.dart';
 
 /// Stato dei referti medici caricati dall'utente, collegato alla tabella
-/// `reports` di Supabase (nessun dato mockato).
+/// `patient_reports` di Supabase (nessun dato mockato).
 class ReportsProvider extends ChangeNotifier with ErrorReporting {
+  static const _table = 'patient_reports';
+
   ReportsProvider([SupabaseClient? client]) : _db = client ?? Supabase.instance.client {
     final auth = _db.auth;
     _authSub = auth.onAuthStateChange.listen(_onAuthChange);
@@ -65,7 +67,7 @@ class ReportsProvider extends ChangeNotifier with ErrorReporting {
 
     try {
       final rows = await _db
-          .from('reports')
+          .from(_table)
           .select()
           .order('created_at', ascending: false)
           .limit(200);
@@ -126,7 +128,7 @@ class ReportsProvider extends ChangeNotifier with ErrorReporting {
   Future<bool> deleteReport(String id) async {
     final ok = await guard(
       () async {
-        await _db.from('reports').delete().eq('id', id);
+        await _db.from(_table).delete().eq('id', id);
       },
       where: 'ReportsProvider.deleteReport',
     );

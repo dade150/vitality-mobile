@@ -616,6 +616,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
   static const _weekLabels = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
   Widget _buildViewAllButton({VoidCallback? onPressed}) {
+    final theme = Theme.of(context);
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
@@ -624,6 +625,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         label: const Text('Visualizza tutto'),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.accent,
+          minimumSize: const Size.fromHeight(42),
           side: BorderSide(
             color: AppColors.accent.withValues(alpha: 0.45),
             width: 1.3,
@@ -631,7 +633,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          textStyle: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
         ),
       ),
     );
@@ -1200,6 +1205,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     required VoidCallback onAdd,
     IconData icon = Icons.add_rounded,
   }) {
+    final theme = Theme.of(context);
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
@@ -1208,6 +1214,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         label: Text(label),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.accent,
+          minimumSize: const Size.fromHeight(42),
           side: BorderSide(
             color: AppColors.accent.withValues(alpha: 0.45),
             width: 1.3,
@@ -1215,7 +1222,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          textStyle: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
         ),
       ),
     );

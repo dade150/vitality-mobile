@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/user_settings.dart';
 import '../../providers/settings_provider.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/section_card.dart';
 
@@ -133,8 +134,13 @@ class SettingsScreen extends StatelessWidget {
                         secondary: const Icon(Icons.notifications_active_outlined),
                         title: const Text('Promemoria assunzione farmaci'),
                         value: settings.notifyTherapy,
-                        onChanged: (value) {
-                          context.read<SettingsProvider>().setNotifyTherapy(value);
+                        onChanged: (value) async {
+                          if (value) {
+                            await NotificationService.instance.requestPermissions();
+                          }
+                          if (context.mounted) {
+                            context.read<SettingsProvider>().setNotifyTherapy(value);
+                          }
                         },
                       ),
                       const Divider(height: 1),
@@ -142,8 +148,13 @@ class SettingsScreen extends StatelessWidget {
                         secondary: const Icon(Icons.calendar_month_outlined),
                         title: const Text('Promemoria visite mediche'),
                         value: settings.notifyAppointments,
-                        onChanged: (value) {
-                          context.read<SettingsProvider>().setNotifyAppointments(value);
+                        onChanged: (value) async {
+                          if (value) {
+                            await NotificationService.instance.requestPermissions();
+                          }
+                          if (context.mounted) {
+                            context.read<SettingsProvider>().setNotifyAppointments(value);
+                          }
                         },
                       ),
                     ],

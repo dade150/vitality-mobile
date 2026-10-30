@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/clinical_parameter.dart';
 import '../../providers/clinical_provider.dart';
 import '../../providers/reports_provider.dart';
+import '../../services/voice_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/date_format.dart';
 import '../../widgets/app_scaffold.dart';
@@ -11,11 +12,13 @@ import '../../widgets/clinical_entry_sheet.dart';
 import '../../widgets/pill_button.dart';
 import '../../widgets/section_card.dart';
 
-/// Parametri clinici "poco frequenti", divisi in tre profili
-/// (glicemico, renale, lipidico). Ogni valore ha Aggiungi / Modifica,
-/// navigazione `<` `>` tra le rilevazioni del singolo parametro e
-/// un tasto Storico per il confronto visivo degli ultimi 3 esami e l'archivio referti.
-/// Nessun dato fisso: tutto arriva da [ClinicalProvider] e [ReportsProvider].
+enum ClinicalScreenView {
+  valori,
+  referti,
+}
+
+/// Schermata Esami: divisa tra "Valori clinici" (parametri di laboratorio)
+/// e "Referti caricati" (archivio documenti PDF / immagini).
 class ClinicalParametersScreen extends StatefulWidget {
   const ClinicalParametersScreen({super.key});
 
@@ -24,6 +27,8 @@ class ClinicalParametersScreen extends StatefulWidget {
 }
 
 class _ClinicalParametersScreenState extends State<ClinicalParametersScreen> {
+  ClinicalScreenView _currentView = ClinicalScreenView.valori;
+
   @override
   void initState() {
     super.initState();
@@ -40,9 +45,39 @@ class _ClinicalParametersScreenState extends State<ClinicalParametersScreen> {
     Navigator.of(context).pushNamed('/reports/history');
   }
 
+  Widget _viewButton(String label, ClinicalScreenView value) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final selected = _currentView == value;
+    return GestureDetector(
+      onTap: () {
+        if (_currentView == value) return;
+        setState(() => _currentView = value);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? Colors.white : cs.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+            fontSize: 14.5,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final clinical = context.watch<ClinicalProvider>();
 
     return AppScaffold(
@@ -50,26 +85,41 @@ class _ClinicalParametersScreenState extends State<ClinicalParametersScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _ReportsSection(
-            onAdd: () => Navigator.of(context).pushNamed('/reports/add'),
-            onOpenAll: () => Navigator.of(context).pushNamed('/reports/all'),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              children: [
+                Expanded(child: _viewButton('Valori clinici', ClinicalScreenView.valori)),
+                Expanded(child: _viewButton('Referti caricati', ClinicalScreenView.referti)),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
-          if (clinical.loadFailed) ...[
-            _LoadErrorBanner(onRetry: clinical.refresh),
-            const SizedBox(height: 16),
-          ],
-          if (!clinical.hasLoaded)
-            if (clinical.isLoading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator()),
-              )
+          if (_currentView == ClinicalScreenView.valori) ...[
+            if (clinical.loadFailed) ...[
+              _LoadErrorBanner(onRetry: clinical.refresh),
+              const SizedBox(height: 16),
+            ],
+            if (!clinical.hasLoaded)
+              if (clinical.isLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                const SizedBox.shrink()
             else
-              const SizedBox.shrink()
-          else
-            for (final profile in ClinicalProfile.values)
-              _ProfileSection(profile: profile, clinical: clinical),
+              for (final profile in ClinicalProfile.values)
+                _ProfileSection(profile: profile, clinical: clinical),
+          ] else ...[
+            _ReportsTabSection(
+              onAdd: () => Navigator.of(context).pushNamed('/reports/add'),
+            ),
+          ],
         ],
       ),
     );
@@ -368,6 +418,7 @@ class _ParameterCardState extends State<_ParameterCard> {
               label: const Text('Aggiungi misurazione'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.accent,
+                minimumSize: const Size.fromHeight(42),
                 side: BorderSide(
                   color: AppColors.accent.withValues(alpha: 0.45),
                   width: 1.3,
@@ -375,7 +426,10 @@ class _ParameterCardState extends State<_ParameterCard> {
                 backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
                 padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                textStyle: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -444,21 +498,65 @@ class _ParameterCardState extends State<_ParameterCard> {
 
 /// Sezione Referti della tab: mostra in anteprima gli ultimi 3 referti caricati
 /// con tasto Aggiungi rapido nell'intestazione e link allo storico completo.
-class _ReportsSection extends StatelessWidget {
+class _ReportsTabSection extends StatefulWidget {
   final VoidCallback onAdd;
-  final VoidCallback onOpenAll;
 
-  const _ReportsSection({
+  const _ReportsTabSection({
     required this.onAdd,
-    required this.onOpenAll,
   });
+
+  @override
+  State<_ReportsTabSection> createState() => _ReportsTabSectionState();
+}
+
+class _ReportsTabSectionState extends State<_ReportsTabSection> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleVoiceListening() async {
+    final voice = context.read<VoiceService>();
+    if (voice.isListening) {
+      await voice.stopListening();
+      return;
+    }
+
+    final started = await voice.startListening(
+      onResult: (words) {
+        if (!mounted) return;
+        final clean = words.trim();
+        setState(() {
+          _searchController.text = clean;
+          _searchQuery = clean.toLowerCase();
+        });
+      },
+    );
+
+    if (!started && mounted && voice.lastError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(voice.lastError!)),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final reports = context.watch<ReportsProvider>().reports;
-    final recentReports = reports.take(3).toList();
+    final reportsProvider = context.watch<ReportsProvider>();
+    final voice = context.watch<VoiceService>();
+    final reports = reportsProvider.reports;
+
+    // Filtra per titolo e limita agli ultimi 10
+    final filteredReports = reports.where((r) {
+      if (_searchQuery.isEmpty) return true;
+      return r.title.toLowerCase().contains(_searchQuery);
+    }).take(10).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,7 +581,7 @@ class _ReportsSection extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Ultimi referti',
+                'I miei referti',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: cs.onSurface,
@@ -503,7 +601,7 @@ class _ReportsSection extends StatelessWidget {
                 ),
               ),
               child: InkWell(
-                onTap: onAdd,
+                onTap: widget.onAdd,
                 borderRadius: BorderRadius.circular(8),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -528,29 +626,120 @@ class _ReportsSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        if (reports.isEmpty)
+        const SizedBox(height: 12),
+        // Barra di ricerca con microfono vocale
+        Container(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHigh.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: voice.isListening
+                  ? AppColors.accent
+                  : cs.outlineVariant.withValues(alpha: 0.4),
+              width: voice.isListening ? 1.5 : 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(Icons.search_rounded, size: 20, color: cs.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                  decoration: InputDecoration(
+                    hintText: voice.isListening ? 'Ascolto in corso...' : 'Cerca referto per titolo...',
+                    hintStyle: TextStyle(
+                      color: voice.isListening ? AppColors.accent : cs.onSurfaceVariant,
+                      fontWeight: voice.isListening ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ),
+              if (_searchQuery.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  tooltip: 'Cancella ricerca',
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                ),
+              IconButton(
+                icon: Icon(
+                  voice.isListening ? Icons.stop_circle_rounded : Icons.mic_rounded,
+                  color: voice.isListening ? AppColors.accent : cs.onSurfaceVariant,
+                ),
+                tooltip: voice.isListening ? 'Ferma ascolto' : 'Cerca con la voce',
+                onPressed: _toggleVoiceListening,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (reportsProvider.isLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (reports.isEmpty)
           SectionCard(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Icon(Icons.info_outline_rounded, size: 18, color: cs.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Text('Nessun referto caricato.', style: theme.textTheme.bodyMedium),
+                Icon(Icons.info_outline_rounded, size: 20, color: cs.onSurfaceVariant),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Nessun referto presente. Puoi caricare un nuovo referto PDF o immagine con il pulsante "Aggiungi".',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
               ],
             ),
           )
-        else ...[
-          for (final report in recentReports)
+        else if (filteredReports.isEmpty)
+          SectionCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(Icons.search_off_rounded, size: 20, color: cs.onSurfaceVariant),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Nessun referto trovato per "$_searchQuery".',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                  child: const Text('Annulla filtro'),
+                ),
+              ],
+            ),
+          )
+        else
+          for (int i = 0; i < filteredReports.length; i++)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: EdgeInsets.only(bottom: i < filteredReports.length - 1 ? 10 : 0),
               child: SectionCard(
                 padding: const EdgeInsets.all(14),
                 child: Row(
                   children: [
                     Container(
-                      width: 32,
-                      height: 32,
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
                         color: AppColors.lightPeach,
                         borderRadius: BorderRadius.circular(8),
@@ -560,7 +749,7 @@ class _ReportsSection extends StatelessWidget {
                         ),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.description_outlined, color: AppColors.accent, size: 17),
+                      child: const Icon(Icons.description_outlined, color: AppColors.accent, size: 19),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -568,15 +757,16 @@ class _ReportsSection extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            report.title,
+                            filteredReports[i].title,
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w700,
                               color: cs.onSurface,
+                              fontSize: 15,
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            AppDateFormat.dayMonthYear(report.date),
+                            AppDateFormat.dayMonthYear(filteredReports[i].date),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: cs.onSurfaceVariant,
                             ),
@@ -589,27 +779,6 @@ class _ReportsSection extends StatelessWidget {
                 ),
               ),
             ),
-          if (reports.length > 3)
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onOpenAll,
-                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                label: const Text('Visualizza tutto'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  side: BorderSide(
-                    color: AppColors.accent.withValues(alpha: 0.45),
-                    width: 1.3,
-                  ),
-                  backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-              ),
-            ),
-        ],
       ],
     );
   }

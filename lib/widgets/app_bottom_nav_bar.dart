@@ -37,9 +37,9 @@ class AppBottomNavBar extends StatelessWidget {
       route: '/diary',
     ),
     _NavItemData(
-      label: 'Referti',
-      icon: Icons.description_outlined,
-      activeIcon: Icons.description_rounded,
+      label: 'Esami',
+      icon: Icons.assignment_outlined,
+      activeIcon: Icons.assignment_rounded,
       route: '/reports',
     ),
     _NavItemData(
