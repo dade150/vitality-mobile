@@ -9,6 +9,7 @@ class ChatMessage {
   final List<ProposedEntry> proposedEntries;
   final String? attachmentKind;
   final String? attachmentFileName;
+  final bool isStreaming;
 
   ChatMessage({
     String? id,
@@ -18,7 +19,30 @@ class ChatMessage {
     this.proposedEntries = const [],
     this.attachmentKind,
     this.attachmentFileName,
+    this.isStreaming = false,
   }) : id = id ?? 'msg_${DateTime.now().microsecondsSinceEpoch}';
+
+  ChatMessage copyWith({
+    String? id,
+    String? text,
+    bool? isUser,
+    DateTime? time,
+    List<ProposedEntry>? proposedEntries,
+    String? attachmentKind,
+    String? attachmentFileName,
+    bool? isStreaming,
+  }) {
+    return ChatMessage(
+      id: id ?? this.id,
+      text: text ?? this.text,
+      isUser: isUser ?? this.isUser,
+      time: time ?? this.time,
+      proposedEntries: proposedEntries ?? this.proposedEntries,
+      attachmentKind: attachmentKind ?? this.attachmentKind,
+      attachmentFileName: attachmentFileName ?? this.attachmentFileName,
+      isStreaming: isStreaming ?? this.isStreaming,
+    );
+  }
 
   List<ProposedEntry> get visibleProposals =>
       proposedEntries.where((p) => p.status != ProposalStatus.dismissed).toList();

@@ -63,24 +63,49 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text('Dimensione testo', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const SizedBox(height: 24),
+                Text('Dimensione testo', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 12),
                 SectionCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<AppFontSize>(
-                      segments: const [
-                        ButtonSegment(value: AppFontSize.piccolo, label: Text('Piccolo')),
-                        ButtonSegment(value: AppFontSize.medio, label: Text('Medio')),
-                        ButtonSegment(value: AppFontSize.grande, label: Text('Grande')),
-                      ],
-                      selected: {settings.fontSize},
-                      onSelectionChanged: (selected) {
-                        context.read<SettingsProvider>().setFontSize(selected.first);
-                      },
-                    ),
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      RadioListTile<AppFontSize>(
+                        secondary: const Icon(Icons.format_size_rounded, size: 18),
+                        title: const Text('Piccolo'),
+                        value: AppFontSize.piccolo,
+                        groupValue: settings.fontSize,
+                        onChanged: (val) {
+                          if (val != null) {
+                            context.read<SettingsProvider>().setFontSize(val);
+                          }
+                        },
+                      ),
+                      const Divider(height: 1),
+                      RadioListTile<AppFontSize>(
+                        secondary: const Icon(Icons.format_size_rounded, size: 22),
+                        title: const Text('Medio'),
+                        value: AppFontSize.medio,
+                        groupValue: settings.fontSize,
+                        onChanged: (val) {
+                          if (val != null) {
+                            context.read<SettingsProvider>().setFontSize(val);
+                          }
+                        },
+                      ),
+                      const Divider(height: 1),
+                      RadioListTile<AppFontSize>(
+                        secondary: const Icon(Icons.format_size_rounded, size: 26),
+                        title: const Text('Grande'),
+                        value: AppFontSize.grande,
+                        groupValue: settings.fontSize,
+                        onChanged: (val) {
+                          if (val != null) {
+                            context.read<SettingsProvider>().setFontSize(val);
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 28),
@@ -90,8 +115,7 @@ class SettingsScreen extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   child: SwitchListTile(
                     secondary: const Icon(Icons.record_voice_over_outlined),
-                    title: const Text('Lettura automatica risposte'),
-                    subtitle: const Text('Leggi ad alta voce le risposte dell\'assistente in chat'),
+                    title: const Text('Leggi ad alta voce le risposte in chat'),
                     value: settings.autoTts,
                     onChanged: (value) {
                       context.read<SettingsProvider>().setAutoTts(value);
@@ -107,8 +131,7 @@ class SettingsScreen extends StatelessWidget {
                     children: [
                       SwitchListTile(
                         secondary: const Icon(Icons.notifications_active_outlined),
-                        title: const Text('Promemoria terapia'),
-                        subtitle: const Text('Ricevi un avviso agli orari di assunzione dei farmaci'),
+                        title: const Text('Promemoria assunzione farmaci'),
                         value: settings.notifyTherapy,
                         onChanged: (value) {
                           context.read<SettingsProvider>().setNotifyTherapy(value);
@@ -117,27 +140,13 @@ class SettingsScreen extends StatelessWidget {
                       const Divider(height: 1),
                       SwitchListTile(
                         secondary: const Icon(Icons.calendar_month_outlined),
-                        title: const Text('Promemoria appuntamenti'),
-                        subtitle: const Text('Ricevi un promemoria prima delle visite mediche'),
+                        title: const Text('Promemoria visite mediche'),
                         value: settings.notifyAppointments,
                         onChanged: (value) {
                           context.read<SettingsProvider>().setNotifyAppointments(value);
                         },
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 28),
-                Text('Terapia', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 12),
-                SectionCard(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.tune_rounded),
-                    title: const Text('Configura terapia e notifiche'),
-                    subtitle: const Text('Gestisci farmaci, orari e promemoria'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => Navigator.of(context).pushNamed('/settings/therapy'),
                   ),
                 ),
               ],

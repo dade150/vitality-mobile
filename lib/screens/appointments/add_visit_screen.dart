@@ -17,6 +17,7 @@ class AddVisitScreen extends StatefulWidget {
 
 class _AddVisitScreenState extends State<AddVisitScreen> {
   final _typeController = TextEditingController();
+  final _doctorController = TextEditingController();
   final _locationController = TextEditingController();
   final _notesController = TextEditingController();
   DateTime? _date;
@@ -38,6 +39,7 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
     if (existing != null) {
       _editing = existing;
       _typeController.text = existing.type;
+      _doctorController.text = existing.doctorName;
       _locationController.text = existing.location;
       _notesController.text = existing.notes;
       _date = existing.date;
@@ -48,6 +50,7 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
   @override
   void dispose() {
     _typeController.dispose();
+    _doctorController.dispose();
     _locationController.dispose();
     _notesController.dispose();
     super.dispose();
@@ -114,6 +117,7 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
       type: type,
       date: _date!,
       time: _time!,
+      doctorName: _doctorController.text.trim(),
       location: _locationController.text.trim(),
       notes: _notesController.text.trim(),
     );
@@ -271,13 +275,25 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        Text('Luogo / Studio Medico', style: theme.textTheme.labelLarge),
+                        Text('Medico / Specialista (Opzionale)', style: theme.textTheme.labelLarge),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _doctorController,
+                          enabled: !_busy,
+                          decoration: const InputDecoration(
+                            hintText: 'es. Dott. Rossi',
+                            prefixIcon: Icon(Icons.person_outline_rounded),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text('Luogo / Studio Medico (Opzionale)', style: theme.textTheme.labelLarge),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _locationController,
                           enabled: !_busy,
                           decoration: const InputDecoration(
                             hintText: 'es. Ospedale San Raffaele',
+                            prefixIcon: Icon(Icons.location_on_outlined),
                           ),
                         ),
                         const SizedBox(height: 20),

@@ -20,6 +20,7 @@ import '../../services/voice_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/clinical_proposal_card.dart';
+import '../../widgets/formatted_chat_message.dart';
 import 'chat_drawer.dart';
 
 class _PendingAttachment {
@@ -471,12 +472,15 @@ class _ChatScreenState extends State<ChatScreen> {
     required Widget child,
   }) {
     final cs = theme.colorScheme;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final bubbleMaxWidth = screenWidth > 640 ? 540.0 : (screenWidth * (isUser ? 0.80 : 0.86));
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.all(14),
-        constraints: const BoxConstraints(maxWidth: 320),
+        constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
         decoration: BoxDecoration(
           color: isUser ? cs.primary : cs.surfaceContainerHigh,
           borderRadius: BorderRadius.only(
@@ -566,20 +570,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         ? ListView.builder(
                             controller: _scrollController,
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                            // +1: bolla di caricamento mentre si aspetta la risposta
-                            itemCount: chat.messages.length + (chat.isSending ? 1 : 0),
+                            itemCount: chat.messages.length,
                             itemBuilder: (context, index) {
-                              if (index == chat.messages.length) {
-                                return _bubble(
-                                  theme: theme,
-                                  isUser: false,
-                                  child: const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  ),
-                                );
-                              }
                               final message = chat.messages[index];
                               if (message.isUser) {
                                 return _bubble(
@@ -597,8 +589,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                           message.attachmentFileName,
                                         ),
                                       if (message.text.isNotEmpty)
-                                        Text(
-                                          message.text,
+                                        FormattedChatMessage(
+                                          text: message.text,
+                                          isUser: true,
                                           style: theme.textTheme.bodyLarge?.copyWith(
                                             color: cs.onPrimary,
                                           ),
@@ -630,14 +623,21 @@ class _ChatScreenState extends State<ChatScreen> {
                                             message.attachmentKind!,
                                             message.attachmentFileName,
                                           ),
-                                        if (message.text.isNotEmpty)
-                                          Text(
-                                            message.text,
+                                        if (message.isStreaming && message.text.isEmpty)
+                                          const SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        else if (message.text.isNotEmpty)
+                                          FormattedChatMessage(
+                                            text: message.text,
+                                            isUser: false,
                                             style: theme.textTheme.bodyLarge?.copyWith(
                                               color: cs.onSurface,
                                             ),
                                           ),
-                                        if (message.text.isNotEmpty) ...[
+                                        if (!message.isStreaming && message.text.isNotEmpty) ...[
                                           const SizedBox(height: 6),
                                           Align(
                                             alignment: Alignment.bottomRight,

@@ -126,7 +126,8 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
     }
     if (dt == null) return null;
 
-    final location = (r['doctor_name'] ?? r['location'] ?? '').toString().trim();
+    final doctorName = (r['doctor_name'] ?? '').toString().trim();
+    final location = (r['location'] ?? '').toString().trim();
     final notes = (r['notes'] ?? '').toString().trim();
 
     return Appointment(
@@ -134,6 +135,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
       type: type,
       date: DateTime(dt.year, dt.month, dt.day),
       time: TimeOfDay(hour: dt.hour, minute: dt.minute),
+      doctorName: doctorName,
       location: location,
       notes: notes,
     );
@@ -205,6 +207,9 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
     if (a.type.trim().isEmpty || a.type.trim().length > 150) {
       throw ArgumentError('tipo visita non valido');
     }
+    if (a.doctorName.trim().length > 200) {
+      throw ArgumentError('nome medico troppo lungo');
+    }
     if (a.location.trim().length > 200) {
       throw ArgumentError('luogo troppo lungo');
     }
@@ -218,12 +223,43 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
   Future<bool> addAppointment(Appointment appointment) => _write(
         () async {
           _validate(appointment);
-          await _db.from(_table).insert({
+          final uid = _userId ?? _db.auth.currentUser?.id;
+          if (uid == null) {
+            throw const AppFailure('Sessione scaduta. Effettua di nuovo l\'accesso.');
+          }
+
+          final payload = <String, dynamic>{
+            'user_id': uid,
             'title': appointment.type.trim(),
             'appointment_at': appointment.dateTime.toUtc().toIso8601String(),
-            'doctor_name': appointment.location.trim().isEmpty ? null : appointment.location.trim(),
+            'doctor_name':
+                appointment.doctorName.trim().isEmpty ? null : appointment.doctorName.trim(),
             'notes': appointment.notes.trim().isEmpty ? null : appointment.notes.trim(),
-          });
+          };
+
+          if (appointment.location.trim().isNotEmpty) {
+            payload['location'] = appointment.location.trim();
+          }
+
+          try {
+            await _db.from(_table).insert(payload);
+          } on PostgrestException catch (e) {
+            // Se la colonna 'location' non esiste ancora sul DB di Supabase,
+            // ritenta salvando senza la colonna separata (fallback sicuro).
+            if (e.message.contains('location') || e.code == 'PGRST204' || e.code == '42703') {
+              final fallback = Map<String, dynamic>.from(payload)..remove('location');
+              if (fallback['doctor_name'] == null && appointment.location.trim().isNotEmpty) {
+                fallback['doctor_name'] = appointment.location.trim();
+              } else if (appointment.location.trim().isNotEmpty) {
+                final cur = fallback['notes']?.toString() ?? '';
+                final locNote = 'Luogo: ${appointment.location.trim()}';
+                fallback['notes'] = cur.isEmpty ? locNote : '$cur\n$locNote';
+              }
+              await _db.from(_table).insert(fallback);
+            } else {
+              rethrow;
+            }
+          }
         },
         where: 'addAppointment',
       );
@@ -232,22 +268,52 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
         () async {
           _validate(appointment);
           final Object id = int.tryParse(appointment.id) ?? appointment.id;
-          final rows = await _db
-              .from(_table)
-              .update({
-                'title': appointment.type.trim(),
-                'appointment_at': appointment.dateTime.toUtc().toIso8601String(),
-                'doctor_name':
-                    appointment.location.trim().isEmpty ? null : appointment.location.trim(),
-                'notes': appointment.notes.trim().isEmpty ? null : appointment.notes.trim(),
-              })
-              .eq('id', id)
-              .select('id');
-          if (rows.isEmpty) {
-            throw const AppFailure(
-              'La visita non esiste più o non puoi modificarla.',
-              cause: 'nessuna riga interessata in appointments.update',
-            );
+          final payload = <String, dynamic>{
+            'title': appointment.type.trim(),
+            'appointment_at': appointment.dateTime.toUtc().toIso8601String(),
+            'doctor_name':
+                appointment.doctorName.trim().isEmpty ? null : appointment.doctorName.trim(),
+            'notes': appointment.notes.trim().isEmpty ? null : appointment.notes.trim(),
+          };
+
+          if (appointment.location.trim().isNotEmpty) {
+            payload['location'] = appointment.location.trim();
+          } else {
+            payload['location'] = null;
+          }
+
+          try {
+            final rows = await _db
+                .from(_table)
+                .update(payload)
+                .eq('id', id)
+                .select('id');
+            if (rows.isEmpty) {
+              throw const AppFailure(
+                'La visita non esiste più o non puoi modificarla.',
+                cause: 'nessuna riga interessata in appointments.update',
+              );
+            }
+          } on PostgrestException catch (e) {
+            if (e.message.contains('location') || e.code == 'PGRST204' || e.code == '42703') {
+              final fallback = Map<String, dynamic>.from(payload)..remove('location');
+              if (fallback['doctor_name'] == null && appointment.location.trim().isNotEmpty) {
+                fallback['doctor_name'] = appointment.location.trim();
+              }
+              final rows = await _db
+                  .from(_table)
+                  .update(fallback)
+                  .eq('id', id)
+                  .select('id');
+              if (rows.isEmpty) {
+                throw const AppFailure(
+                  'La visita non esiste più o non puoi modificarla.',
+                  cause: 'nessuna riga interessata in appointments.update fallback',
+                );
+              }
+            } else {
+              rethrow;
+            }
           }
         },
         where: 'updateAppointment',

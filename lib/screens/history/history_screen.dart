@@ -160,17 +160,46 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Widget _buildViewAllButton({VoidCallback? onPressed}) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed ?? () {},
+        icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+        label: const Text('Visualizza tutto'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.accent,
+          side: BorderSide(
+            color: AppColors.accent.withValues(alpha: 0.45),
+            width: 1.3,
+          ),
+          backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTerapiaCard(BuildContext context, HealthProvider health) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final therapyCount = health.therapyItems.length;
     final expected = therapyCount * 7;
     int taken = 0;
-    final dailyValues = List<double?>.filled(7, null);
+    final dailyRatios = List<double?>.filled(7, null);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
     if (therapyCount > 0) {
       for (int i = 0; i < 7; i++) {
         final day = _periodStart.add(Duration(days: i));
+        final dayDate = DateTime(day.year, day.month, day.day);
+        if (dayDate.isAfter(today)) {
+          dailyRatios[i] = null;
+          continue;
+        }
         int dayTaken = 0;
         for (final item in health.therapyItems) {
           if (health.isTherapyTaken(item.id, day)) {
@@ -178,7 +207,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             taken++;
           }
         }
-        dailyValues[i] = dayTaken == 0 ? null : ((dayTaken / therapyCount) * 100).roundToDouble();
+        dailyRatios[i] = dayTaken / therapyCount;
       }
     }
     final pct = expected == 0 ? 0 : ((taken / expected) * 100).round();
@@ -192,22 +221,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
             icon: Icons.medication_outlined,
             title: 'Terapia',
             value: therapyCount == 0 ? '-' : '$pct%',
-            unit: 'Aderenza Sett.',
+            unit: 'Aderenza',
             color: cs.tertiary,
           ),
           const SizedBox(height: 8),
           if (therapyCount == 0)
             Text('Nessuna terapia registrata.', style: theme.textTheme.bodyMedium)
           else ...[
-            Text('$taken di $expected assunzioni registrate', style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 16),
-            SimpleBarChart(
+            const SizedBox(height: 8),
+            WeeklyTherapyTracker(
               labels: _weekLabels,
-              values: dailyValues,
-              maxValue: 100,
-              color: cs.tertiary,
-              valueSuffix: '%',
+              completionRatios: dailyRatios,
             ),
+            const SizedBox(height: 12),
+            _buildViewAllButton(),
           ],
         ],
       ),
@@ -220,22 +247,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final readings = health.glucoseReadings.where((r) => _inPeriod(r.time)).toList();
 
     final dailyValues = List<double?>.filled(7, null);
-    final dailyColors = List<Color?>.filled(7, null);
     for (int i = 0; i < 7; i++) {
       final day = _periodStart.add(Duration(days: i));
       final dayReadings = readings.where((r) => _sameDay(r.time, day)).toList();
       if (dayReadings.isNotEmpty) {
         final avg = dayReadings.map((r) => r.value).reduce((a, b) => a + b) / dayReadings.length;
-        final hasOutOfRange =
-            avg < 70 || avg > 180 || dayReadings.any((r) => r.value < 70 || r.value > 180);
         dailyValues[i] = avg.roundToDouble();
-        dailyColors[i] = hasOutOfRange ? cs.error : AppColors.accent;
       }
     }
 
     final hypoCount = readings.where((r) => r.value < 70).length;
     final hyperCount = readings.where((r) => r.value > 180).length;
-    final maxDaily = dailyValues.whereType<double>().fold<double>(180.0, math.max);
     final avgWeek = readings.isEmpty
         ? '-'
         : _fmtNum(readings.map((r) => r.value).reduce((a, b) => a + b) / readings.length);
@@ -250,19 +272,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
             icon: Icons.water_drop_outlined,
             title: 'Glicemia',
             value: avgWeek,
-            unit: 'mg/dL · Media Sett.',
+            unit: 'mg/dL · Media',
             color: AppColors.accent,
           ),
           const SizedBox(height: 8),
           if (readings.isEmpty)
             Text('Nessuna misurazione nel periodo.', style: theme.textTheme.bodyMedium)
           else ...[
-            Text(
-              'Min ${_fmtNum(readings.map((r) => r.value).reduce(math.min))} · '
-              'Max ${_fmtNum(readings.map((r) => r.value).reduce(math.max))} · '
-              '${readings.length} misurazioni',
-              style: theme.textTheme.bodyMedium,
-            ),
             if (hypoCount > 0 || hyperCount > 0) ...[
               const SizedBox(height: 8),
               Container(
@@ -292,13 +308,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ],
             const SizedBox(height: 16),
-            SimpleBarChart(
+            GlucoseTrendChart(
               labels: _weekLabels,
               values: dailyValues,
-              maxValue: maxDaily,
-              color: AppColors.accent,
-              barColors: dailyColors,
             ),
+            const SizedBox(height: 12),
+            _buildViewAllButton(),
           ],
         ],
       ),
@@ -337,16 +352,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
             icon: Icons.favorite_outline_rounded,
             title: 'Pressione Arteriosa',
             value: avgLabel,
-            unit: 'mmHg · Media Sett.',
+            unit: 'mmHg · Media',
             color: cs.secondary,
           ),
           const SizedBox(height: 8),
           if (readings.isEmpty)
             Text('Nessuna misurazione nel periodo.', style: theme.textTheme.bodyMedium)
           else ...[
-            Text('${readings.length} misurazioni', style: theme.textTheme.bodyMedium),
             const SizedBox(height: 16),
-            BloodPressureChart(
+            BloodPressureGroupedBarChart(
               labels: _weekLabels,
               systolic: dailySys,
               diastolic: dailyDia,
@@ -357,10 +371,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
               spacing: 16,
               runSpacing: 6,
               children: [
-                _legendDot(context, cs.tertiaryContainer, 'Sistolica (Massima)'),
-                _legendDot(context, cs.tertiary, 'Diastolica (Minima)'),
+                _legendDot(context, const Color(0xFFE53935), 'Massima (Sistolica)'),
+                _legendDot(context, const Color(0xFF1E88E5), 'Minima (Diastolica)'),
               ],
             ),
+            const SizedBox(height: 12),
+            _buildViewAllButton(),
           ],
         ],
       ),
@@ -374,18 +390,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final totalKcal = meals.fold<int>(0, (s, m) => s + m.calories);
 
     final dailyKcal = List<double?>.filled(7, null);
-    int daysWithMeals = 0;
     for (int i = 0; i < 7; i++) {
       final day = _periodStart.add(Duration(days: i));
       final dayMeals = meals.where((m) => _sameDay(m.date, day)).toList();
       if (dayMeals.isNotEmpty) {
-        daysWithMeals++;
         dailyKcal[i] = dayMeals.fold<int>(0, (s, m) => s + m.calories).toDouble();
       }
     }
-    final avgKcal = daysWithMeals == 0 ? 0 : (totalKcal / daysWithMeals).round();
     final maxDailyKcal = dailyKcal.whereType<double>().fold<double>(2000.0, math.max);
-    final recentMeals = meals.reversed.take(5).toList();
 
     return SectionCard(
       child: Column(
@@ -403,10 +415,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
           if (meals.isEmpty)
             Text('Nessun pasto registrato nel periodo.', style: theme.textTheme.bodyMedium)
           else ...[
-            Text(
-              '~$avgKcal kcal/giorno ($daysWithMeals ${daysWithMeals == 1 ? 'giorno' : 'giorni'}) · ${meals.length} pasti',
-              style: theme.textTheme.bodyMedium,
-            ),
             const SizedBox(height: 16),
             SimpleBarChart(
               labels: _weekLabels,
@@ -415,31 +423,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               color: cs.secondary,
             ),
             const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 6),
-            for (final meal in recentMeals)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Icon(Icons.circle, size: 8, color: cs.secondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${AppDateFormat.weekdayShort(meal.date)} · ${meal.type.label}: ${meal.description}',
-                        style: theme.textTheme.bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${meal.isEstimated ? '~' : ''}${meal.calories} kcal',
-                      style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
+            _buildViewAllButton(),
           ],
         ],
       ),
@@ -452,10 +436,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final entries = health.activityEntries.where((a) => _inPeriod(a.date)).toList();
     final steps = entries.fold<int>(0, (s, a) => s + a.steps);
     final minutes = entries.fold<int>(0, (s, a) => s + a.minutes);
-
-    const targetMinutes = 150;
-    final progress = (minutes / targetMinutes).clamp(0.0, 1.0);
-    final pctGoal = ((minutes / targetMinutes) * 100).round();
 
     final dailyMinutes = List<double?>.filled(7, null);
     for (int i = 0; i < 7; i++) {
@@ -488,22 +468,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             if (steps > 0)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text('$steps passi totali nella settimana', style: theme.textTheme.bodyMedium),
+                child: Text('$steps passi totali', style: theme.textTheme.bodyMedium),
               ),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 12,
-                backgroundColor: cs.surfaceContainerHigh,
-                color: cs.tertiary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '$pctGoal% obiettivo settimanale ($minutes / $targetMinutes min ADA/SID-AMD)',
-              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-            ),
             const SizedBox(height: 16),
             SimpleBarChart(
               labels: _weekLabels,
@@ -512,6 +478,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               color: cs.tertiary,
               valueSuffix: 'm',
             ),
+            const SizedBox(height: 12),
+            _buildViewAllButton(),
           ],
         ],
       ),
@@ -527,6 +495,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     required Color color,
   }) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Row(
       children: [
         CircleAvatar(
@@ -535,12 +504,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
           child: Icon(icon, color: color),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
+        Expanded(
+          child: Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+        ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(value, style: theme.textTheme.headlineSmall?.copyWith(color: color)),
-            Text(unit, style: theme.textTheme.bodySmall, textAlign: TextAlign.end),
+            Text(
+              value,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: cs.onSurface,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+            Text(
+              unit,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.end,
+            ),
           ],
         ),
       ],

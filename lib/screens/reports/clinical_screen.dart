@@ -50,42 +50,11 @@ class _ClinicalParametersScreenState extends State<ClinicalParametersScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              IconButton(
-                tooltip: 'Indietro',
-                onPressed: () => Navigator.of(context).maybePop(),
-                icon: const Icon(Icons.arrow_back_rounded),
-              ),
-              Expanded(
-                child: Text(
-                  'Parametri Clinici',
-                  style: theme.textTheme.headlineLarge?.copyWith(color: AppColors.accent),
-                ),
-              ),
-            ],
+          _ReportsSection(
+            onAdd: () => Navigator.of(context).pushNamed('/reports/add'),
+            onOpenAll: () => Navigator.of(context).pushNamed('/reports/all'),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => Navigator.of(context).pushNamed('/reports/add'),
-              icon: const Icon(Icons.upload_file_rounded),
-              label: const Text('Aggiungi Referto'),
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _openHistory(context),
-              icon: const Icon(Icons.history_rounded),
-              label: const Text('Storico e Confronto Esami'),
-            ),
-          ),
-          const SizedBox(height: 24),
-          _ReportsSection(onOpenAll: () => _openHistory(context)),
-          const SizedBox(height: 24),
           if (clinical.loadFailed) ...[
             _LoadErrorBanner(onRetry: clinical.refresh),
             const SizedBox(height: 16),
@@ -117,36 +86,50 @@ class _ProfileSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final types = ClinicalParameterType.values.where((t) => t.profile == profile);
+    final types = ClinicalParameterType.values.where((t) => t.profile == profile).toList();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Semantics(
-            header: true,
-            child: Row(
-              children: [
-                Icon(profile.icon, size: 32, color: cs.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(profile.title, style: theme.textTheme.titleLarge),
-                      Text(profile.subtitle, style: theme.textTheme.bodySmall),
-                    ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.lightPeach,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.accent.withValues(alpha: 0.25),
+                    width: 1,
                   ),
                 ),
-              ],
-            ),
+                alignment: Alignment.center,
+                child: Icon(profile.icon, color: AppColors.accent, size: 17),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  profile.title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                    fontSize: 18,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          for (final type in types)
+          const SizedBox(height: 10),
+          for (int i = 0; i < types.length; i++)
             Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _ParameterCard(type: type, readings: clinical.history(type)),
+              padding: EdgeInsets.only(bottom: i < types.length - 1 ? 10 : 0),
+              child: _ParameterCard(type: types[i], readings: clinical.history(types[i])),
             ),
         ],
       ),
@@ -217,36 +200,71 @@ class _ParameterCardState extends State<_ParameterCard> {
     final canGoNewer = safeIndex > 0;
 
     return SectionCard(
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: cs.primaryContainer.withValues(alpha: 0.5),
-                child: Icon(type.icon, color: cs.primary),
-              ),
-              const SizedBox(width: 14),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(type.label, style: theme.textTheme.titleMedium),
-                    Text(type.description, style: theme.textTheme.bodySmall),
-                  ],
+                child: Text(
+                  type.label,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                    fontSize: 18,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (reading != null) ...[
+                const SizedBox(width: 8),
+                Material(
+                  color: cs.surfaceContainerLowest,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(
+                      color: AppColors.accent.withValues(alpha: 0.55),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: InkWell(
+                    onTap: () => _edit(context, reading),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.edit_outlined, size: 14, color: AppColors.accent),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Modifica',
+                            style: TextStyle(
+                              color: AppColors.accent,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                              height: 1.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           if (reading != null) ...[
             if (readings.length > 1) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 decoration: BoxDecoration(
-                  color: cs.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(12),
+                  color: cs.surfaceContainerHigh.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -261,17 +279,20 @@ class _ParameterCardState extends State<_ParameterCard> {
                             : cs.onSurfaceVariant.withValues(alpha: 0.35),
                       ),
                     ),
-                    Expanded(
-                      child: Text(
-                        safeIndex == 0
-                            ? 'Ultimo esame (1 di ${readings.length})'
-                            : 'Esame precedente (${safeIndex + 1} di ${readings.length})',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: safeIndex == 0 ? AppColors.accent : cs.onSurface,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.accent),
+                        const SizedBox(width: 6),
+                        Text(
+                          AppDateFormat.dayMonthYear(reading.measuredOn),
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                     IconButton(
                       tooltip: 'Esame successivo',
@@ -286,52 +307,77 @@ class _ParameterCardState extends State<_ParameterCard> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
             ],
             Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  type.format(reading.value),
-                  style: theme.textTheme.displaySmall?.copyWith(color: cs.primary),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      type.format(reading.value),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      type.unit,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Flexible(child: Text(type.unit, style: theme.textTheme.titleSmall)),
+                if (olderReading != null)
+                  _buildInlineDelta(context, type, reading, olderReading),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Misurato il ${AppDateFormat.dayMonthYear(reading.measuredOn)}',
-              style: theme.textTheme.bodyMedium,
-            ),
-            if (olderReading != null) ...[
+            if (readings.length == 1) ...[
               const SizedBox(height: 6),
-              _buildInlineDelta(context, type, reading, olderReading),
+              Row(
+                children: [
+                  Icon(Icons.calendar_today_rounded, size: 14, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text(
+                    AppDateFormat.dayMonthYear(reading.measuredOn),
+                    style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ],
+              ),
             ],
           ] else
             Text(
               'Nessun valore inserito',
               style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
             ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              PillButton(
-                label: 'Aggiungi',
-                icon: Icons.add_rounded,
-                filled: true,
-                onTap: () => _add(context),
-              ),
-              if (reading != null)
-                PillButton(
-                  label: 'Modifica',
-                  icon: Icons.edit_outlined,
-                  onTap: () => _edit(context, reading),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _add(context),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Aggiungi misurazione'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accent,
+                side: BorderSide(
+                  color: AppColors.accent.withValues(alpha: 0.45),
+                  width: 1.3,
                 ),
-            ],
+                backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+            ),
           ),
         ],
       ),
@@ -348,39 +394,64 @@ class _ParameterCardState extends State<_ParameterCard> {
     final cs = theme.colorScheme;
     final diff = type.round(current.value - previous.value);
     final sign = diff > 0 ? '+' : '';
-    final label = diff == 0
-        ? 'Invariato rispetto al ${AppDateFormat.dayMonthYear(previous.measuredOn)} (${type.format(previous.value)} ${type.unit})'
-        : 'Rispetto al ${AppDateFormat.dayMonthYear(previous.measuredOn)}: $sign${type.format(diff)} ${type.unit} (era ${type.format(previous.value)} ${type.unit})';
 
-    return Row(
-      children: [
-        Icon(
-          diff == 0
-              ? Icons.trending_flat_rounded
-              : (diff > 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded),
-          size: 18,
-          color: AppColors.accent,
+    final IconData icon;
+    final Color iconColor;
+    final String text;
+
+    if (diff == 0) {
+      icon = Icons.trending_flat_rounded;
+      iconColor = cs.onSurfaceVariant;
+      text = 'Invariato';
+    } else if (diff > 0) {
+      icon = Icons.trending_up_rounded;
+      iconColor = AppColors.accent;
+      text = '$sign${type.format(diff)} ${type.unit}';
+    } else {
+      icon = Icons.trending_down_rounded;
+      iconColor = const Color(0xFF2E7D32);
+      text = '$sign${type.format(diff)} ${type.unit}';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: cs.outlineVariant.withValues(alpha: 0.35),
+          width: 1,
         ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: cs.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: iconColor),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: cs.onSurface,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 /// Sezione Referti della tab: mostra in anteprima gli ultimi 3 referti caricati
-/// e permette di aprire l'archivio completo.
+/// con tasto Aggiungi rapido nell'intestazione e link allo storico completo.
 class _ReportsSection extends StatelessWidget {
+  final VoidCallback onAdd;
   final VoidCallback onOpenAll;
-  const _ReportsSection({required this.onOpenAll});
+
+  const _ReportsSection({
+    required this.onAdd,
+    required this.onOpenAll,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -393,50 +464,127 @@ class _ReportsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              'I Miei Referti',
-              style: theme.textTheme.titleLarge?.copyWith(color: AppColors.accent),
-            ),
-            if (reports.length > 3)
-              TextButton.icon(
-                onPressed: onOpenAll,
-                icon: const Icon(Icons.folder_open_rounded, size: 18),
-                label: Text('Vedi tutti (${reports.length})'),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.lightPeach,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.accent.withValues(alpha: 0.25),
+                  width: 1,
+                ),
               ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.description_outlined, color: AppColors.accent, size: 17),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Ultimi referti',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                  fontSize: 18,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Material(
+              color: cs.surfaceContainerLowest,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(
+                  color: AppColors.accent.withValues(alpha: 0.55),
+                  width: 1.2,
+                ),
+              ),
+              child: InkWell(
+                onTap: onAdd,
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_rounded, size: 14, color: AppColors.accent),
+                      SizedBox(width: 4),
+                      Text(
+                        'Aggiungi',
+                        style: TextStyle(
+                          color: AppColors.accent,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         if (reports.isEmpty)
-          Text('Nessun referto caricato.', style: theme.textTheme.bodyMedium)
+          SectionCard(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 18, color: cs.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Text('Nessun referto caricato.', style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          )
         else ...[
           for (final report in recentReports)
             Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 10),
               child: SectionCard(
                 padding: const EdgeInsets.all(14),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: cs.primaryContainer.withValues(alpha: 0.4),
-                      child: Icon(Icons.description_outlined, color: cs.primary),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.lightPeach,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.accent.withValues(alpha: 0.25),
+                          width: 1,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.description_outlined, color: AppColors.accent, size: 17),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(report.title, style: theme.textTheme.titleSmall),
+                          Text(
+                            report.title,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
                           Text(
                             AppDateFormat.dayMonthYear(report.date),
-                            style: theme.textTheme.bodySmall,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    Icon(Icons.check_circle_rounded, color: cs.secondary),
+                    Icon(Icons.check_circle_rounded, color: cs.secondary, size: 20),
                   ],
                 ),
               ),
@@ -446,8 +594,19 @@ class _ReportsSection extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: onOpenAll,
-                icon: const Icon(Icons.list_alt_rounded),
-                label: Text('Mostra tutti i ${reports.length} referti'),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: const Text('Visualizza tutto'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: BorderSide(
+                    color: AppColors.accent.withValues(alpha: 0.45),
+                    width: 1.3,
+                  ),
+                  backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
               ),
             ),
         ],
@@ -465,6 +624,7 @@ class _LoadErrorBanner extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     return SectionCard(
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

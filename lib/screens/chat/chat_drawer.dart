@@ -132,6 +132,12 @@ class ChatDrawer extends StatelessWidget {
                 ),
                 _buildMenuItem(
                   context: context,
+                  icon: Icons.medication_outlined,
+                  title: 'Terapia e Farmaci',
+                  onTap: () => Navigator.of(context).pushNamed('/settings/therapy'),
+                ),
+                _buildMenuItem(
+                  context: context,
                   icon: Icons.picture_as_pdf_outlined,
                   title: 'PDF Riepilogativo',
                   onTap: () {

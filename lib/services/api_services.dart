@@ -62,6 +62,28 @@ class ApiService {
     return _ensure(r);
   }
 
+  /// POST in streaming (es. Server-Sent Events).
+  /// Restituisce [http.StreamedResponse] una volta verificato che lo status code è 2xx.
+  static Future<http.StreamedResponse> postStream(
+    String endpoint,
+    String body, {
+    Duration? timeout,
+  }) async {
+    final headers = await _getHeaders();
+    headers['Accept'] = 'text/event-stream';
+    final request = http.Request('POST', _uri(endpoint))
+      ..headers.addAll(headers)
+      ..body = body;
+
+    final streamed = await request.send().timeout(timeout ?? ApiService.timeout);
+    if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
+      return streamed;
+    }
+
+    final resp = await http.Response.fromStream(streamed);
+    throw _failureFrom(resp);
+  }
+
   static Future<http.Response> delete(String endpoint, {Duration? timeout}) async {
     final headers = await _getHeaders();
     final r = await http

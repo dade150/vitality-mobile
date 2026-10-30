@@ -8,6 +8,8 @@ class AppDateFormat {
 
   static final DateFormat _dayMonth = DateFormat('d MMMM', 'it_IT');
   static final DateFormat _dayMonthYear = DateFormat('d MMMM yyyy', 'it_IT');
+  static final DateFormat _dayMonthYearTime = DateFormat('d MMMM yyyy, HH:mm', 'it_IT');
+  static final DateFormat _time = DateFormat('HH:mm', 'it_IT');
   static final DateFormat _weekdayShort = DateFormat('E', 'it_IT');
   static final DateFormat _monthYear = DateFormat('MMMM yyyy', 'it_IT');
   static final DateFormat _daySmall = DateFormat('d', 'it_IT');
@@ -20,6 +22,12 @@ class AppDateFormat {
 
   /// "12 maggio 2025"
   static String dayMonthYear(DateTime date) => _dayMonthYear.format(date);
+
+  /// "12 maggio 2025, 14:30"
+  static String dayMonthYearTime(DateTime date) => _dayMonthYearTime.format(date);
+
+  /// "14:30"
+  static String time(DateTime date) => _time.format(date);
 
   static String weekdayShort(DateTime date) =>
       _capitalize(_weekdayShort.format(date));

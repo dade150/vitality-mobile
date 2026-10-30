@@ -192,19 +192,40 @@ class ProposalService {
 
   // -------------------------------------------------------------- Appointments
   Future<void> _saveAppointment(Map<String, dynamic> data) async {
+    final user = _db.auth.currentUser;
+    if (user == null) {
+      throw const AppFailure('Sessione non valida. Accedi di nuovo.', cause: 'ProposalService.save');
+    }
     final title = (data['title'] ?? data['visit_type'] ?? '').toString().trim();
     if (title.isEmpty) throw ArgumentError('Il tipo o titolo della visita è obbligatorio');
 
-    final doctor = (data['doctor_name'] ?? data['location'] ?? '').toString().trim();
+    final doctor = (data['doctor_name'] ?? '').toString().trim();
+    final location = (data['location'] ?? '').toString().trim();
     final notes = (data['notes'] ?? '').toString().trim();
     final when = _parseDate(data['appointment_at'] ?? data['date']);
 
-    await _db.from('appointments').insert({
+    final payload = <String, dynamic>{
+      'user_id': user.id,
       'title': title,
       if (doctor.isNotEmpty) 'doctor_name': doctor,
       'appointment_at': _iso(when),
       if (notes.isNotEmpty) 'notes': notes,
-    });
+    };
+    if (location.isNotEmpty) payload['location'] = location;
+
+    try {
+      await _db.from('appointments').insert(payload);
+    } on PostgrestException catch (e) {
+      if (e.message.contains('location') || e.code == 'PGRST204' || e.code == '42703') {
+        payload.remove('location');
+        if (!payload.containsKey('doctor_name') && location.isNotEmpty) {
+          payload['doctor_name'] = location;
+        }
+        await _db.from('appointments').insert(payload);
+      } else {
+        rethrow;
+      }
+    }
   }
 
   // -------------------------------------------------------------- Therapy Logs

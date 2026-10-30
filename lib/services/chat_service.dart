@@ -17,6 +17,37 @@ class ChatService {
     return ChatResponse.fromJson(json);
   }
 
+  /// POST /api/chat/stream con Server-Sent Events (SSE).
+  /// Emette eventi parsed: delta (`{"type": "delta", "text": "..."}`) e done (`{"type": "done", ...}`).
+  Stream<Map<String, dynamic>> streamMessage(ChatRequest request) async* {
+    final streamed = await ApiService.postStream(
+      '/api/chat/stream',
+      jsonEncode(request.toJson()),
+      timeout: _chatTimeout,
+    );
+
+    final lines = streamed.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+
+    await for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('data:')) {
+        final jsonStr = trimmed.substring(5).trim();
+        if (jsonStr.isNotEmpty) {
+          try {
+            final parsed = jsonDecode(jsonStr);
+            if (parsed is Map<String, dynamic>) {
+              yield parsed;
+            }
+          } catch (_) {
+            // Ignora eventuali righe malformate o commenti SSE
+          }
+        }
+      }
+    }
+  }
+
   /// GET /api/chat/sessions?limit=$limit&offset=$offset
   /// Restituisce la lista da json['sessions'].
   Future<List<ChatSessionItem>> getSessions({int limit = 30, int offset = 0}) async {

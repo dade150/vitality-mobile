@@ -31,6 +31,12 @@ import 'screens/chat/chat_history_screen.dart';
 import 'screens/reports/clinical_screen.dart';
 import 'screens/reports/clinical_history_screen.dart';
 import 'screens/reports/add_report_screen.dart';
+import 'screens/reports/all_reports_screen.dart';
+import 'screens/diary/therapy_history_screen.dart';
+import 'screens/diary/glucose_history_screen.dart';
+import 'screens/diary/blood_pressure_history_screen.dart';
+import 'screens/diary/meals_history_screen.dart';
+import 'screens/diary/activity_history_screen.dart';
 import 'screens/appointments/appointments_screen.dart';
 import 'screens/appointments/add_visit_screen.dart';
 import 'screens/settings/settings_screen.dart';
@@ -248,6 +254,12 @@ class _AppWithTheme extends StatelessWidget {
             '/reports': (context) => const ClinicalParametersScreen(),
             '/reports/history': (context) => const ClinicalHistoryScreen(),
             '/reports/add': (context) => const AddReportScreen(),
+            '/reports/all': (context) => const AllReportsScreen(),
+            '/diary/history/therapy': (context) => const TherapyHistoryScreen(),
+            '/diary/history/glucose': (context) => const GlucoseHistoryScreen(),
+            '/diary/history/blood-pressure': (context) => const BloodPressureHistoryScreen(),
+            '/diary/history/meals': (context) => const MealsHistoryScreen(),
+            '/diary/history/activity': (context) => const ActivityHistoryScreen(),
             '/appointments': (context) => const AppointmentsScreen(),
             '/appointments/add': (context) => const AddVisitScreen(),
             '/diary/add-activity': (context) => const AddActivityScreen(),

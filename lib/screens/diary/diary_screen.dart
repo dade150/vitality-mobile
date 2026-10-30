@@ -494,9 +494,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Il mio Diario',
-              style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
@@ -618,6 +615,28 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   static const _weekLabels = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
+  Widget _buildViewAllButton({VoidCallback? onPressed}) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed ?? () {},
+        icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+        label: const Text('Visualizza tutto'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.accent,
+          side: BorderSide(
+            color: AppColors.accent.withValues(alpha: 0.45),
+            width: 1.3,
+          ),
+          backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+        ),
+      ),
+    );
+  }
+
   Widget _legendDot(BuildContext context, Color color, String label) {
     final theme = Theme.of(context);
     return Row(
@@ -640,11 +659,18 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final therapyCount = health.therapyItems.length;
     final expected = therapyCount * _periodDays;
     int taken = 0;
-    final dailyValues = List<double?>.filled(7, null);
+    final dailyRatios = List<double?>.filled(7, null);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
     if (therapyCount > 0) {
       for (int i = 0; i < 7; i++) {
         final day = _periodStart.add(Duration(days: i));
+        final dayDate = DateTime(day.year, day.month, day.day);
+        if (dayDate.isAfter(today)) {
+          dailyRatios[i] = null;
+          continue;
+        }
         int dayTaken = 0;
         for (final item in health.therapyItems) {
           if (health.isTherapyTaken(item.id, day)) {
@@ -652,7 +678,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
             taken++;
           }
         }
-        dailyValues[i] = dayTaken == 0 ? null : ((dayTaken / therapyCount) * 100).roundToDouble();
+        dailyRatios[i] = dayTaken / therapyCount;
       }
     }
 
@@ -672,16 +698,15 @@ class _DiaryScreenState extends State<DiaryScreen> {
           if (health.therapyItems.isEmpty)
             Text('Nessuna terapia registrata.', style: theme.textTheme.bodyMedium)
           else ...[
-            _ValueLine(value: '$pct%', unit: 'aderenza', color: cs.tertiary),
-            const SizedBox(height: 4),
-            Text('$taken di $expected assunzioni registrate', style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 16),
-            SimpleBarChart(
+            _ValueLine(label: 'Aderenza:', value: '$pct%', color: cs.onSurface),
+            const SizedBox(height: 14),
+            WeeklyTherapyTracker(
               labels: _weekLabels,
-              values: dailyValues,
-              maxValue: 100,
-              color: cs.tertiary,
-              valueSuffix: '%',
+              completionRatios: dailyRatios,
+            ),
+            const SizedBox(height: 12),
+            _buildViewAllButton(
+              onPressed: () => Navigator.of(context).pushNamed('/diary/history/therapy'),
             ),
           ],
         ],
@@ -695,22 +720,17 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final readings = health.glucoseReadings.where((r) => _inPeriod(r.time)).toList();
 
     final dailyValues = List<double?>.filled(7, null);
-    final dailyColors = List<Color?>.filled(7, null);
     for (int i = 0; i < 7; i++) {
       final day = _periodStart.add(Duration(days: i));
       final dayReadings = readings.where((r) => _sameDay(r.time, day)).toList();
       if (dayReadings.isNotEmpty) {
         final avg = dayReadings.map((r) => r.value).reduce((a, b) => a + b) / dayReadings.length;
-        final hasOutOfRange =
-            avg < 70 || avg > 180 || dayReadings.any((r) => r.value < 70 || r.value > 180);
         dailyValues[i] = avg.roundToDouble();
-        dailyColors[i] = hasOutOfRange ? cs.error : AppColors.accent;
       }
     }
 
     final hypoCount = readings.where((r) => r.value < 70).length;
     final hyperCount = readings.where((r) => r.value > 180).length;
-    final maxDaily = dailyValues.whereType<double>().fold<double>(180.0, math.max);
 
     return SectionCard(
       highlight: true,
@@ -728,19 +748,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
             Text('Nessuna misurazione nel periodo.', style: theme.textTheme.bodyMedium)
           else ...[
             _ValueLine(
+              label: 'Media:',
               value: _fmtNum(readings.map((r) => r.value).reduce((a, b) => a + b) / readings.length),
-              unit: 'mg/dL · media',
-              color: AppColors.accent,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Min ${_fmtNum(readings.map((r) => r.value).reduce(math.min))} · '
-              'Max ${_fmtNum(readings.map((r) => r.value).reduce(math.max))} · '
-              '${readings.length} misurazioni',
-              style: theme.textTheme.bodyMedium,
+              unit: 'mg/dL',
+              color: cs.onSurface,
             ),
             if (hypoCount > 0 || hyperCount > 0) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
@@ -768,24 +782,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
               ),
             ],
             const SizedBox(height: 16),
-            SimpleBarChart(
+            GlucoseTrendChart(
               labels: _weekLabels,
               values: dailyValues,
-              maxValue: maxDaily,
-              color: AppColors.accent,
-              barColors: dailyColors,
             ),
-            if (hypoCount > 0 || hyperCount > 0) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 16,
-                runSpacing: 6,
-                children: [
-                  _legendDot(context, AppColors.accent, 'Nel range (70-180)'),
-                  _legendDot(context, cs.error, 'Fuori range (<70 o >180)'),
-                ],
-              ),
-            ],
+            const SizedBox(height: 12),
+            _buildViewAllButton(
+              onPressed: () => Navigator.of(context).pushNamed('/diary/history/glucose'),
+            ),
           ],
         ],
       ),
@@ -819,24 +823,23 @@ class _DiaryScreenState extends State<DiaryScreen> {
             icon: Icons.favorite_outline_rounded,
             iconColor: cs.secondary,
             iconBg: cs.secondaryContainer,
-            title: 'Pressione Arteriosa',
+            title: 'Pressione',
           ),
           const SizedBox(height: 12),
           if (readings.isEmpty)
             Text('Nessuna misurazione nel periodo.', style: theme.textTheme.bodyMedium)
           else ...[
             _ValueLine(
+              label: 'Media:',
               value:
                   '${(readings.map((r) => r.systolic).reduce((a, b) => a + b) / readings.length).round()}'
                   ' / '
                   '${(readings.map((r) => r.diastolic).reduce((a, b) => a + b) / readings.length).round()}',
-              unit: 'mmHg · media',
+              unit: 'mmHg',
               color: cs.onSurface,
             ),
-            const SizedBox(height: 4),
-            Text('${readings.length} misurazioni', style: theme.textTheme.bodyMedium),
             const SizedBox(height: 16),
-            BloodPressureChart(
+            BloodPressureGroupedBarChart(
               labels: _weekLabels,
               systolic: dailySys,
               diastolic: dailyDia,
@@ -847,9 +850,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
               spacing: 16,
               runSpacing: 6,
               children: [
-                _legendDot(context, cs.tertiaryContainer, 'Sistolica (Massima)'),
-                _legendDot(context, cs.tertiary, 'Diastolica (Minima)'),
+                _legendDot(context, const Color(0xFFE53935), 'Massima (Sistolica)'),
+                _legendDot(context, const Color(0xFF1E88E5), 'Minima (Diastolica)'),
               ],
+            ),
+            const SizedBox(height: 12),
+            _buildViewAllButton(
+              onPressed: () => Navigator.of(context).pushNamed('/diary/history/blood-pressure'),
             ),
           ],
         ],
@@ -864,19 +871,15 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final totalKcal = meals.fold<int>(0, (s, m) => s + m.calories);
 
     final dailyKcal = List<double?>.filled(7, null);
-    int daysWithMeals = 0;
     for (int i = 0; i < 7; i++) {
       final day = _periodStart.add(Duration(days: i));
       final dayMeals = meals.where((m) => _sameDay(m.date, day)).toList();
       if (dayMeals.isNotEmpty) {
-        daysWithMeals++;
         dailyKcal[i] = dayMeals.fold<int>(0, (s, m) => s + m.calories).toDouble();
       }
     }
 
-    final avgKcal = daysWithMeals == 0 ? 0 : (totalKcal / daysWithMeals).round();
     final maxDailyKcal = dailyKcal.whereType<double>().fold<double>(2000.0, math.max);
-    final recentMeals = meals.reversed.take(5).toList();
 
     return SectionCard(
       child: Column(
@@ -892,12 +895,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
           if (meals.isEmpty)
             Text('Nessun pasto registrato nel periodo.', style: theme.textTheme.bodyMedium)
           else ...[
-            _ValueLine(value: '$totalKcal', unit: 'kcal totali', color: cs.secondary),
-            const SizedBox(height: 4),
-            Text(
-              '~$avgKcal kcal/giorno ($daysWithMeals ${daysWithMeals == 1 ? 'giorno' : 'giorni'}) · ${meals.length} pasti',
-              style: theme.textTheme.bodyMedium,
-            ),
+            _ValueLine(label: 'Totale:', value: '$totalKcal', unit: 'kcal', color: cs.onSurface),
             const SizedBox(height: 16),
             SimpleBarChart(
               labels: _weekLabels,
@@ -906,31 +904,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
               color: cs.secondary,
             ),
             const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 6),
-            for (final meal in recentMeals)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Icon(Icons.circle, size: 8, color: cs.secondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${AppDateFormat.weekdayShort(meal.date)} · ${meal.type.label}: ${meal.description}',
-                        style: theme.textTheme.bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${meal.isEstimated ? '~' : ''}${meal.calories} kcal',
-                      style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
+            _buildViewAllButton(
+              onPressed: () => Navigator.of(context).pushNamed('/diary/history/meals'),
+            ),
           ],
         ],
       ),
@@ -943,10 +919,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final entries = health.activityEntries.where((a) => _inPeriod(a.date)).toList();
     final steps = entries.fold<int>(0, (s, a) => s + a.steps);
     final minutes = entries.fold<int>(0, (s, a) => s + a.minutes);
-
-    const targetMinutes = 150;
-    final progress = (minutes / targetMinutes).clamp(0.0, 1.0);
-    final pctGoal = ((minutes / targetMinutes) * 100).round();
 
     final dailyMinutes = List<double?>.filled(7, null);
     for (int i = 0; i < 7; i++) {
@@ -974,26 +946,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
           if (entries.isEmpty)
             Text('Nessuna attività registrata nel periodo.', style: theme.textTheme.bodyMedium)
           else ...[
-            _ValueLine(value: '$minutes', unit: 'minuti totali', color: cs.tertiary),
+            _ValueLine(label: 'Totale:', value: '$minutes', unit: 'minuti', color: cs.onSurface),
             if (steps > 0) ...[
               const SizedBox(height: 4),
-              Text('$steps passi totali nella settimana', style: theme.textTheme.bodyMedium),
+              Text('$steps passi totali', style: theme.textTheme.bodyMedium),
             ],
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 12,
-                backgroundColor: cs.surfaceContainerHigh,
-                color: cs.tertiary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '$pctGoal% obiettivo settimanale ($minutes / $targetMinutes min ADA/SID-AMD)',
-              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-            ),
             const SizedBox(height: 16),
             SimpleBarChart(
               labels: _weekLabels,
@@ -1001,6 +958,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
               maxValue: maxDailyMin,
               color: cs.tertiary,
               valueSuffix: 'm',
+            ),
+            const SizedBox(height: 12),
+            _buildViewAllButton(
+              onPressed: () => Navigator.of(context).pushNamed('/diary/history/activity'),
             ),
           ],
         ],
@@ -1055,15 +1016,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
     Widget? trailing;
     if (_isToday && !taken) {
       final busy = health.isTherapyToggling(item.id);
-      trailing = ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 140),
-        child: FilledButton(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 48),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            shape: const StadiumBorder(),
-          ),
-          onPressed: busy
+      trailing = Material(
+        color: AppColors.accent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        child: InkWell(
+          onTap: busy
               ? null
               : () async {
                   final provider = context.read<HealthProvider>();
@@ -1072,62 +1029,193 @@ class _DiaryScreenState extends State<DiaryScreen> {
                     _showMessage(provider.errorMessage ?? 'Salvataggio non riuscito. Riprova.');
                   }
                 },
-          child: const Text('Segna come presa', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (busy)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                else ...[
+                  const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'Prendi',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       );
     } else if (_isToday && taken) {
       final busy = health.isTherapyToggling(item.id);
-      trailing = TextButton(
-        onPressed: busy
-            ? null
-            : () async {
-                final provider = context.read<HealthProvider>();
-                final ok = await provider.toggleTherapyTaken(item.id);
-                if (!ok && mounted && !provider.isTherapyToggling(item.id)) {
-                  _showMessage(provider.errorMessage ?? 'Operazione non riuscita. Riprova.');
-                }
-              },
-        child: const Text('Annulla'),
+      trailing = Material(
+        color: cs.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: cs.outlineVariant, width: 1.2),
+        ),
+        child: InkWell(
+          onTap: busy
+              ? null
+              : () async {
+                  final provider = context.read<HealthProvider>();
+                  final ok = await provider.toggleTherapyTaken(item.id);
+                  if (!ok && mounted && !provider.isTherapyToggling(item.id)) {
+                    _showMessage(provider.errorMessage ?? 'Operazione non riuscita. Riprova.');
+                  }
+                },
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (busy)
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: cs.onSurfaceVariant),
+                  )
+                else ...[
+                  Icon(Icons.undo_rounded, size: 14, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Annulla',
+                    style: TextStyle(
+                      color: cs.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       );
     }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
-          color: taken || isPast ? cs.surfaceContainerHigh : cs.primaryContainer.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(14),
+          color: cs.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: taken || isPast ? cs.outlineVariant : cs.primary.withValues(alpha: 0.4),
-            width: 2,
+            color: taken
+                ? Colors.green.withValues(alpha: 0.35)
+                : AppColors.accent.withValues(alpha: 0.3),
+            width: 1.3,
           ),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(
-              taken ? Icons.check_circle_rounded : Icons.schedule_rounded,
-              size: 32,
-              color: taken ? cs.secondary : cs.onSurfaceVariant,
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: taken
+                    ? Colors.green.withValues(alpha: 0.12)
+                    : AppColors.lightPeach,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                taken ? Icons.check_circle_rounded : Icons.medication_outlined,
+                size: 20,
+                color: taken ? Colors.green.shade700 : AppColors.accent,
+              ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.name, style: theme.textTheme.titleSmall),
                   Text(
-                    statusText,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: (taken || isPast) ? cs.onSurfaceVariant : AppColors.accent,
-                      fontWeight: (taken || isPast) ? FontWeight.w400 : FontWeight.w700,
+                    item.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
                     ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time_rounded,
+                        size: 13,
+                        color: taken ? Colors.green.shade700 : AppColors.accent,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          taken
+                              ? '${item.time} · Presa'
+                              : isPast
+                                  ? '${item.time} · Non registrata'
+                                  : '${item.time} · Da assumere',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: taken
+                                ? Colors.green.shade700
+                                : isPast
+                                    ? cs.onSurfaceVariant
+                                    : AppColors.accent,
+                            fontWeight: taken ? FontWeight.w600 : FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             if (trailing != null) ...[const SizedBox(width: 8), trailing],
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardAddButton({
+    required String label,
+    required VoidCallback onAdd,
+    IconData icon = Icons.add_rounded,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onAdd,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.accent,
+          side: BorderSide(
+            color: AppColors.accent.withValues(alpha: 0.45),
+            width: 1.3,
+          ),
+          backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
         ),
       ),
     );
@@ -1154,25 +1242,34 @@ class _DiaryScreenState extends State<DiaryScreen> {
             iconColor: cs.primary,
             iconBg: cs.primaryContainer,
             title: 'Glicemia',
-            onEdit: _editGlucose,
-            onAdd: _addGlucose,
+            onEdit: reading != null ? _editGlucose : null,
           ),
           const SizedBox(height: 12),
-          if (reading == null)
-            Text('Non è presente alcuna misurazione', style: theme.textTheme.bodyMedium)
-          else ...[
+          if (reading == null) ...[
+            Text('Non è presente alcuna misurazione', style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 12),
+            _buildCardAddButton(
+              label: 'Aggiungi misurazione',
+              onAdd: _addGlucose,
+            ),
+          ] else ...[
             _ValueLine(
               value: _fmtNum(reading.value),
               unit: 'mg/dL',
-              color: (reading.value < 70 || reading.value > 180) ? cs.error : AppColors.accent,
+              color: cs.onSurface,
             ),
             const SizedBox(height: 4),
             Text(
               'Ultima misurazione: ${_formatWhen(reading.time)}',
               style: theme.textTheme.bodyMedium,
             ),
+            const SizedBox(height: 12),
+            _buildCardAddButton(
+              label: 'Aggiungi misurazione',
+              onAdd: _addGlucose,
+            ),
             if (dayReadings.length > 1) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               const Divider(),
               const SizedBox(height: 6),
               Text(
@@ -1244,14 +1341,18 @@ class _DiaryScreenState extends State<DiaryScreen> {
             icon: Icons.favorite_outline_rounded,
             iconColor: cs.secondary,
             iconBg: cs.secondaryContainer,
-            title: 'Pressione Arteriosa',
-            onEdit: _editPressure,
-            onAdd: _addPressure,
+            title: 'Pressione',
+            onEdit: reading != null ? _editPressure : null,
           ),
           const SizedBox(height: 12),
-          if (reading == null)
-            Text('Non è presente alcuna misurazione', style: theme.textTheme.bodyMedium)
-          else ...[
+          if (reading == null) ...[
+            Text('Non è presente alcuna misurazione', style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 12),
+            _buildCardAddButton(
+              label: 'Aggiungi misurazione',
+              onAdd: _addPressure,
+            ),
+          ] else ...[
             _ValueLine(
               value: '${reading.systolic} / ${reading.diastolic}',
               unit: 'mmHg',
@@ -1262,8 +1363,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
               'Ultima misurazione: ${_formatWhen(reading.time)}',
               style: theme.textTheme.bodyMedium,
             ),
+            const SizedBox(height: 12),
+            _buildCardAddButton(
+              label: 'Aggiungi misurazione',
+              onAdd: _addPressure,
+            ),
             if (dayReadings.length > 1) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               const Divider(),
               const SizedBox(height: 6),
               Text(
@@ -1310,8 +1416,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
             iconColor: cs.secondary,
             iconBg: cs.secondaryContainer,
             title: 'Pasti',
-            onEdit: _editMeals,
-            onAdd: _addMeal,
+            onEdit: meals.isNotEmpty ? _editMeals : null,
           ),
           const SizedBox(height: 12),
           if (meals.isEmpty)
@@ -1347,6 +1452,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   ],
                 ),
               ),
+          const SizedBox(height: 12),
+          _buildCardAddButton(
+            label: 'Aggiungi pasto',
+            onAdd: _addMeal,
+          ),
         ],
       ),
     );
@@ -1370,8 +1480,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
             iconColor: cs.tertiary,
             iconBg: cs.tertiaryContainer,
             title: 'Attività',
-            onEdit: _editActivities,
-            onAdd: _addActivity,
+            onEdit: entries.isNotEmpty ? _editActivities : null,
           ),
           const SizedBox(height: 12),
           if (entries.isEmpty)
@@ -1390,75 +1499,106 @@ class _DiaryScreenState extends State<DiaryScreen> {
                 ),
               ),
           ],
+          const SizedBox(height: 12),
+          _buildCardAddButton(
+            label: 'Aggiungi attività',
+            onAdd: _addActivity,
+          ),
         ],
       ),
     );
   }
 }
 
-/// Intestazione di card: icona, titolo, link "Modifica" e pill "Aggiungi".
+/// Intestazione di card: icona discreta, titolo ed eventuale bottone "Modifica" a destra (stile Visite).
 class _CardHeader extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final Color iconBg;
   final String title;
   final VoidCallback? onEdit;
-  final VoidCallback? onAdd;
 
   const _CardHeader({
     required this.icon,
-    required this.iconColor,
-    required this.iconBg,
+    this.iconColor = AppColors.accent,
+    this.iconBg = AppColors.lightPeach,
     required this.title,
     this.onEdit,
-    this.onAdd,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        CircleAvatar(
-          radius: 24,
-          backgroundColor: iconBg,
-          child: Icon(icon, color: iconColor, size: 26),
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: AppColors.lightPeach,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: AppColors.accent.withValues(alpha: 0.25),
+              width: 1,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, color: AppColors.accent, size: 17),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
-          child: Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            children: [
-              Text(title, style: theme.textTheme.titleMedium),
-              if (onEdit != null)
-                TextButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('Modifica'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.accent,
-                    minimumSize: const Size(0, 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    textStyle: theme.textTheme.labelLarge?.copyWith(fontSize: 17),
-                  ),
-                ),
-            ],
+          child: Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+              fontSize: 18,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (onAdd != null) ...[
+        if (onEdit != null) ...[
           const SizedBox(width: 8),
-          FilledButton(
-            onPressed: onAdd,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 44),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              shape: const StadiumBorder(),
-              textStyle: theme.textTheme.labelLarge?.copyWith(fontSize: 17),
+          Material(
+            color: cs.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(
+                color: AppColors.accent.withValues(alpha: 0.55),
+                width: 1.2,
+              ),
             ),
-            child: const Text('Aggiungi'),
+            child: InkWell(
+              onTap: onEdit,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 14,
+                      color: AppColors.accent,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Modifica',
+                      style: TextStyle(
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ],
@@ -1466,26 +1606,63 @@ class _CardHeader extends StatelessWidget {
   }
 }
 
-/// Valore grande con unità di misura più piccola sulla stessa linea di base.
+/// Valore con eventuale etichetta (es. "Media:", "Aderenza:", "Totale:")
+/// e unità di misura sulla stessa linea di base.
 class _ValueLine extends StatelessWidget {
+  final String? label;
   final String value;
   final String unit;
   final Color color;
 
-  const _ValueLine({required this.value, required this.unit, required this.color});
+  const _ValueLine({
+    this.label,
+    required this.value,
+    this.unit = '',
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
       children: [
-        Text(value,
-            style: theme.textTheme.displaySmall?.copyWith(color: color, fontWeight: FontWeight.w800)),
-        const SizedBox(width: 8),
-        Text(unit,
-            style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        if (label != null) ...[
+          Text(
+            label!,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Text(
+          value,
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+          ),
+        ),
+        if (unit.isNotEmpty) ...[
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              unit,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: cs.onSurface,
+                fontWeight: FontWeight.w600,
+                fontSize: 18,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ],
     );
   }

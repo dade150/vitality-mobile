@@ -440,8 +440,8 @@ class _DeltaComparisonBanner extends StatelessWidget {
     final diff = type.round(latest.value - previous.value);
     final sign = diff > 0 ? '+' : '';
     final diffText = diff == 0
-        ? 'Invariato rispetto al ${AppDateFormat.dayMonthYear(previous.measuredOn)}'
-        : 'Variazione: $sign${type.format(diff)} ${type.unit} rispetto al ${AppDateFormat.dayMonthYear(previous.measuredOn)} (${type.format(previous.value)} ${type.unit})';
+        ? 'Invariato rispetto all\'esame del ${AppDateFormat.dayMonthYear(previous.measuredOn)}'
+        : '$sign${type.format(diff)} ${type.unit} vs esame del ${AppDateFormat.dayMonthYear(previous.measuredOn)} (era ${type.format(previous.value)} ${type.unit})';
 
     final IconData trendIcon;
     if (diff == 0) {

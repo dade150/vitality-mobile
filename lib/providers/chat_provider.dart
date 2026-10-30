@@ -70,32 +70,87 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
         attachment: attachment,
       );
 
-      final response = await _chatService.sendMessage(request);
-      if (epoch != _epoch) return;
-
-      if (response.sessionId != null) {
-        currentSessionId = response.sessionId;
-      }
-
-      final rawProposals = response.proposedEntries;
-      final proposals = <ProposedEntry>[];
-      for (final p in rawProposals) {
-        if (p is Map<String, dynamic>) {
-          final entry = ProposedEntry.fromJson(p);
-          if (entry != null) proposals.add(entry);
-        }
-      }
-
+      // Crea subito un segnaposto per la bolla dell'assistente con stato isStreaming
+      final assistantIndex = messages.length;
       messages.add(
         ChatMessage(
-          id: response.assistantMessageId?.toString(),
-          text: response.reply,
+          text: '',
           isUser: false,
           time: DateTime.now(),
-          proposedEntries: proposals,
-          attachmentKind: response.attachmentInfo?['kind']?.toString(),
+          isStreaming: true,
         ),
       );
+      notifyListeners();
+
+      var accumulatedText = '';
+      String? assistantMsgId;
+      var proposals = <ProposedEntry>[];
+      String? attKind;
+
+      try {
+        final stream = _chatService.streamMessage(request);
+        await for (final event in stream) {
+          if (epoch != _epoch) return;
+
+          final type = event['type']?.toString();
+          if (type == 'delta') {
+            final deltaText = event['text']?.toString() ?? '';
+            accumulatedText += deltaText;
+            if (assistantIndex < messages.length) {
+              messages[assistantIndex] = messages[assistantIndex].copyWith(
+                text: accumulatedText,
+                isStreaming: true,
+              );
+              notifyListeners();
+            }
+          } else if (type == 'done') {
+            final sessId = event['session_id'];
+            if (sessId is int) {
+              currentSessionId = sessId;
+            }
+            if (event['assistant_message_id'] != null) {
+              assistantMsgId = event['assistant_message_id'].toString();
+            }
+
+            final rawProposals = event['proposed_entries'];
+            if (rawProposals is List) {
+              for (final p in rawProposals) {
+                if (p is Map<String, dynamic>) {
+                  final entry = ProposedEntry.fromJson(p);
+                  if (entry != null) proposals.add(entry);
+                }
+              }
+            }
+
+            if (event['attachment_info'] is Map) {
+              attKind = (event['attachment_info'] as Map)['kind']?.toString();
+            }
+
+            if (assistantIndex < messages.length) {
+              messages[assistantIndex] = messages[assistantIndex].copyWith(
+                id: assistantMsgId,
+                text: accumulatedText,
+                isStreaming: false,
+                proposedEntries: proposals,
+                attachmentKind: attKind,
+              );
+              notifyListeners();
+            }
+          } else if (type == 'error') {
+            throw Exception(event['message']?.toString() ?? 'Errore durante la generazione della risposta.');
+          }
+        }
+      } catch (e) {
+        // Se si verifica un errore e non avevamo ricevuto testo, rimuoviamo la bolla vuota
+        if (assistantIndex < messages.length && accumulatedText.isEmpty) {
+          messages.removeAt(assistantIndex);
+          notifyListeners();
+        } else if (assistantIndex < messages.length) {
+          messages[assistantIndex] = messages[assistantIndex].copyWith(isStreaming: false);
+          notifyListeners();
+        }
+        rethrow;
+      }
     }, where: 'ChatProvider.sendMessage');
 
     if (epoch == _epoch) {
