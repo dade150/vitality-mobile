@@ -20,37 +20,28 @@ class ReportUploadResult {
   final String id;
   final String? filePath;
   final List<ExtractedValue> extracted;
+  final String? cleanSummary;
+  final String? reportType;
+  final DateTime? reportDate;
+  final String? extractionMethod;
 
   const ReportUploadResult({
     required this.id,
     required this.filePath,
     required this.extracted,
+    this.cleanSummary,
+    this.reportType,
+    this.reportDate,
+    this.extractionMethod,
   });
 }
 
 /// Caricamento di un referto al backend Python (`/api/reports`).
 ///
 /// Il backend riceve il file, lo salva su Supabase Storage (bucket privato,
-/// cartella dell'utente), crea la riga in `reports` ed estrae i valori con
-/// l'LLM; questa classe si limita a inviare la richiesta e a tradurre la
-/// risposta, così l'app è già pronta appena l'endpoint esiste.
-///
-/// Contratto atteso (multipart, `Authorization: Bearer <token Supabase>`):
-///
-///   POST /api/reports
-///   campi:  title (testo), report_date (YYYY-MM-DD)
-///   file:   file (bytes del PDF)
-///   risposta 2xx:
-///   {
-///     "id": "uuid",
-///     "file_path": "<user_id>/<uuid>.pdf",
-///     "extracted": [ {"type": "HBA1C", "value": 6.8}, ... ]
-///   }
-///
-/// `type` usa lo stesso codice di `ClinicalParameterType.dbCode`: un codice
-/// sconosciuto o un valore non numerico viene scartato invece di far
-/// fallire l'intero caricamento (potrebbe arrivare un parametro che
-/// l'applicazione ancora non gestisce).
+/// cartella dell'utente), crea la riga in `patient_reports`, estrae i valori con
+/// l'LLM, rimuove PII e genera l'embedding semantico; questa classe si limita a
+/// inviare la richiesta e a tradurre la risposta.
 class ReportService {
   static const _endpoint = '/reports';
 
@@ -69,6 +60,7 @@ class ReportService {
         'report_date': _isoDay(date),
       },
       files: [http.MultipartFile.fromBytes('file', bytes, filename: filename)],
+      timeout: const Duration(seconds: 45),
     );
 
     return _parse(response.body);
@@ -103,10 +95,20 @@ class ReportService {
       }
     }
 
+    final rawDate = decoded['report_date'] ?? decoded['report_at'];
+    DateTime? parsedDate;
+    if (rawDate != null) {
+      parsedDate = DateTime.tryParse(rawDate.toString());
+    }
+
     return ReportUploadResult(
       id: id,
       filePath: decoded['file_path']?.toString(),
       extracted: extracted,
+      cleanSummary: decoded['clean_summary']?.toString(),
+      reportType: decoded['report_type']?.toString(),
+      reportDate: parsedDate,
+      extractionMethod: decoded['extraction_method']?.toString(),
     );
   }
 

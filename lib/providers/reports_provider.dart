@@ -78,8 +78,8 @@ class ReportsProvider extends ChangeNotifier with ErrorReporting {
       for (final r in rows) {
         final id = r['id']?.toString();
         if (id == null || id.isEmpty) continue;
-        final rawTitle = (r['title'] ?? r['file_name'] ?? 'Referto medico').toString().trim();
-        final rawDate = (r['report_date'] ?? r['created_at'])?.toString() ?? '';
+        final rawTitle = (r['source_name'] ?? r['title'] ?? r['file_name'] ?? 'Referto medico').toString().trim();
+        final rawDate = (r['report_at'] ?? r['report_date'] ?? r['created_at'])?.toString() ?? '';
         final parsedDate = DateTime.tryParse(rawDate)?.toLocal() ?? DateTime.now();
 
         final extractedMap = <String, String>{};
@@ -90,6 +90,9 @@ class ReportsProvider extends ChangeNotifier with ErrorReporting {
           }
         }
 
+        final cleanSummary = (r['clean_summary'] ?? r['summary'])?.toString();
+        final filePath = r['file_path']?.toString();
+
         // Preserva i parametri estratti in memoria se il referto è appena stato caricato
         final existing = _reports.where((e) => e.id == id).firstOrNull;
         loaded.add(
@@ -97,6 +100,8 @@ class ReportsProvider extends ChangeNotifier with ErrorReporting {
             id: id,
             title: rawTitle.isEmpty ? 'Referto medico' : rawTitle,
             date: parsedDate,
+            cleanSummary: cleanSummary ?? existing?.cleanSummary,
+            filePath: filePath ?? existing?.filePath,
             extractedParams: extractedMap.isNotEmpty
                 ? extractedMap
                 : (existing?.extractedParams ?? const {}),

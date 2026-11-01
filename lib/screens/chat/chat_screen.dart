@@ -15,6 +15,7 @@ import '../../providers/chat_provider.dart';
 import '../../providers/clinical_provider.dart';
 import '../../providers/health_provider.dart';
 import '../../providers/profile_provider.dart';
+import '../../providers/reports_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/voice_service.dart';
 import '../../theme/app_colors.dart';
@@ -278,6 +279,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!ok && chat.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(chat.errorMessage!)));
     } else if (ok) {
+      if (attachmentIn != null && attachmentIn.kind == 'medical_report') {
+        unawaited(context.read<ReportsProvider>().refresh());
+      }
       final settings = context.read<SettingsProvider>();
       if (settings.autoTts && chat.messages.isNotEmpty) {
         final lastMsg = chat.messages.last;

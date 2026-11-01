@@ -63,7 +63,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
     FocusScope.of(context).unfocus();
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
       withData: true,
     );
     if (picked == null || picked.files.isEmpty || !mounted) return;
@@ -98,7 +98,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
       _error = null;
     });
 
-    final title = filename.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+    final title = filename.replaceAll(RegExp(r'\.(pdf|png|jpg|jpeg|webp)$', caseSensitive: false), '');
     final ReportUploadResult result;
     try {
       result = await ReportService.upload(bytes: bytes, filename: filename, title: title);
@@ -118,7 +118,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
     setState(() {
       _uploading = false;
       _result = result;
-      _setExamDate(DateTime.now());
+      _setExamDate(result.reportDate ?? DateTime.now());
       _selected
         ..clear()
         ..addAll(result.extracted.map((e) => e.type));
@@ -132,7 +132,9 @@ class _AddReportScreenState extends State<AddReportScreen> {
           MedicalReport(
             id: result.id,
             title: title,
-            date: DateTime.now(),
+            date: result.reportDate ?? DateTime.now(),
+            cleanSummary: result.cleanSummary,
+            filePath: result.filePath,
             extractedParams: {
               for (final v in result.extracted)
                 v.type.label: '${v.type.format(v.value)} ${v.type.unit}',
@@ -232,7 +234,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
             OutlinedButton.icon(
               onPressed: _uploading ? null : _pickFile,
               icon: const Icon(Icons.attach_file_rounded),
-              label: Text(_filename ?? 'Scegli il documento (PDF)'),
+              label: Text(_filename ?? 'Scegli il documento (PDF o immagine)'),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -242,10 +244,32 @@ class _AddReportScreenState extends State<AddReportScreen> {
                 icon: _uploading
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.upload_file_rounded),
-                label: Text(_uploading ? 'Caricamento...' : 'Carica Documento'),
+                label: Text(_uploading ? 'Caricamento ed analisi...' : 'Carica ed Analizza Documento'),
               ),
             ),
           ] else ...[
+            if (result.cleanSummary != null && result.cleanSummary!.trim().isNotEmpty) ...[
+              SectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.summarize_outlined, size: 20, color: cs.primary),
+                        const SizedBox(width: 8),
+                        Text('Sintesi Clinica Oggettiva', style: theme.textTheme.titleSmall),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      result.cleanSummary!,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Text('Parametri Clinici Estratti', style: theme.textTheme.titleLarge),
             const SizedBox(height: 4),
             Text(
