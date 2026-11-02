@@ -52,6 +52,8 @@ class ChatResponse {
   final int? assistantMessageId;
   final List<dynamic> proposedEntries;
   final Map<String, dynamic>? attachmentInfo;
+  final bool isEmergency;
+  final String? guardrailCategory;
 
   ChatResponse({
     required this.reply,
@@ -60,6 +62,8 @@ class ChatResponse {
     this.assistantMessageId,
     this.proposedEntries = const [],
     this.attachmentInfo,
+    this.isEmergency = false,
+    this.guardrailCategory,
   });
 
   factory ChatResponse.fromJson(Map<String, dynamic> json) => ChatResponse(
@@ -71,6 +75,8 @@ class ChatResponse {
     attachmentInfo: json['attachment_info'] != null
         ? Map<String, dynamic>.from(json['attachment_info'] as Map)
         : null,
+    isEmergency: json['is_emergency'] == true,
+    guardrailCategory: json['guardrail_category']?.toString(),
   );
 }
 

@@ -126,6 +126,13 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
               attKind = (event['attachment_info'] as Map)['kind']?.toString();
             }
 
+            final isEmergency = event['is_emergency'] == true;
+            final guardrailCategory = event['guardrail_category']?.toString();
+            final sanitizedReply = event['reply']?.toString();
+            if (sanitizedReply != null && sanitizedReply.isNotEmpty) {
+              accumulatedText = sanitizedReply;
+            }
+
             if (assistantIndex < messages.length) {
               messages[assistantIndex] = messages[assistantIndex].copyWith(
                 id: assistantMsgId,
@@ -133,6 +140,8 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
                 isStreaming: false,
                 proposedEntries: proposals,
                 attachmentKind: attKind,
+                isEmergency: isEmergency,
+                guardrailCategory: guardrailCategory,
               );
               notifyListeners();
             }
@@ -297,10 +306,15 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
     return null;
   }
 
-  /// Avvia una nuova sessione di chat: imposta [currentSessionId] a null e cancella la cronologia a schermo.
+  /// Avvia una nuova sessione di chat: imposta [currentSessionId] a null e cancella la cronologia a schermo
+  /// mantenendo però l'elenco delle sessioni dell'utente corrente nel drawer.
   void newChat() {
+    _epoch++;
     currentSessionId = null;
-    clear();
+    messages.clear();
+    isSending = false;
+    errorMessage = null;
+    notifyListeners();
   }
 
   /// Da chiamare al logout: sono dati sanitari, non devono restare in memoria per l'utente successivo.
@@ -308,7 +322,10 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
     _epoch++;
     currentSessionId = null;
     messages.clear();
+    sessions.clear();
     isSending = false;
+    isLoadingSessions = false;
+    isLoadingSessionDetail = false;
     errorMessage = null;
     notifyListeners();
   }

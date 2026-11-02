@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/chat_models.dart';
 import '../../models/proposed_entry.dart';
 import '../../providers/appointments_provider.dart';
@@ -470,6 +471,95 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildEmergencyBanner(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.only(top: 4, bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.red.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.redAccent, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.emergency_rounded, color: Colors.redAccent, size: 28),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Possibile Emergenza Medica',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 54,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 1,
+              ),
+              icon: const Icon(Icons.phone_in_talk_rounded, size: 22),
+              label: const Text(
+                'Chiama subito il 112',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              onPressed: () async {
+                final uri = Uri.parse('tel:112');
+                try {
+                  await launchUrl(uri);
+                } catch (_) {}
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickSuggestionChips(ThemeData theme) {
+    final suggestions = [
+      'Come posso gestire la glicemia oggi?',
+      'Cosa posso mangiare a cena?',
+      'Consigli per fare movimento',
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: suggestions.map((sugg) {
+          return ActionChip(
+            avatar: const Icon(Icons.lightbulb_outline_rounded, size: 16, color: AppColors.accent),
+            label: Text(sugg, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
+            side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onPressed: () {
+              final chat = context.read<ChatProvider>();
+              if (!chat.isSending) {
+                _controller.text = sugg;
+                _send();
+              }
+            },
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _bubble({
     required ThemeData theme,
     required bool isUser,
@@ -687,6 +777,23 @@ class _ChatScreenState extends State<ChatScreen> {
                                       ],
                                     ),
                                   ),
+                                  if (message.isEmergency)
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Container(
+                                        constraints: const BoxConstraints(maxWidth: 480),
+                                        child: _buildEmergencyBanner(theme),
+                                      ),
+                                    ),
+                                  if (message.guardrailCategory == 'off_topic' ||
+                                      message.guardrailCategory == 'jailbreak_blocked')
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Container(
+                                        constraints: const BoxConstraints(maxWidth: 480),
+                                        child: _buildQuickSuggestionChips(theme),
+                                      ),
+                                    ),
                                   if (message.visibleProposals.isNotEmpty)
                                     Align(
                                       alignment: Alignment.centerLeft,
@@ -816,6 +923,15 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Sono un\'AI. NON sostituisco il medico.',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 11,
+                            color: cs.onSurfaceVariant.withValues(alpha: 0.65),
+                          ),
                         ),
                       ],
                     ),

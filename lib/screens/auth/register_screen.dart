@@ -50,8 +50,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (_step == 1) {
       if (!(_step2FormKey.currentState?.validate() ?? false)) return;
+      if (!_data.termsAccepted) {
+        _showSnack('Devi accettare i Termini e Condizioni di Servizio per proseguire.');
+        return;
+      }
       if (!_data.consensoPrivacy) {
-        _showSnack('Devi accettare il trattamento dei dati per proseguire.');
+        _showSnack('Devi prestare il consenso esplicito GDPR Art. 9 per il trattamento dei dati sanitari.');
         return;
       }
     }
@@ -135,18 +139,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
               child: SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                height: 52,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
                   onPressed: auth.isLoading ? null : _goNext,
-                  child: auth.isLoading
+                  icon: auth.isLoading
+                      ? const SizedBox.shrink()
+                      : Icon(
+                          _step == _totalSteps - 1
+                              ? Icons.check_circle_outline_rounded
+                              : Icons.arrow_forward_rounded,
+                          size: 20,
+                        ),
+                  label: auth.isLoading
                       ? const SizedBox(
                           height: 22,
                           width: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                         )
-                      : Text(_step == _totalSteps - 1 ? 'Completa Registrazione' : 'Avanti'),
+                      : Text(
+                          _step == _totalSteps - 1 ? 'Completa Registrazione' : 'Avanti',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
                 ),
               ),
             ),

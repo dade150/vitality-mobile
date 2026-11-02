@@ -10,6 +10,8 @@ class ChatMessage {
   final String? attachmentKind;
   final String? attachmentFileName;
   final bool isStreaming;
+  final bool isEmergency;
+  final String? guardrailCategory;
 
   ChatMessage({
     String? id,
@@ -20,6 +22,8 @@ class ChatMessage {
     this.attachmentKind,
     this.attachmentFileName,
     this.isStreaming = false,
+    this.isEmergency = false,
+    this.guardrailCategory,
   }) : id = id ?? 'msg_${DateTime.now().microsecondsSinceEpoch}';
 
   ChatMessage copyWith({
@@ -31,6 +35,8 @@ class ChatMessage {
     String? attachmentKind,
     String? attachmentFileName,
     bool? isStreaming,
+    bool? isEmergency,
+    String? guardrailCategory,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -41,6 +47,8 @@ class ChatMessage {
       attachmentKind: attachmentKind ?? this.attachmentKind,
       attachmentFileName: attachmentFileName ?? this.attachmentFileName,
       isStreaming: isStreaming ?? this.isStreaming,
+      isEmergency: isEmergency ?? this.isEmergency,
+      guardrailCategory: guardrailCategory ?? this.guardrailCategory,
     );
   }
 
@@ -80,6 +88,9 @@ class ChatMessage {
       attachmentFileName = att['file_name']?.toString() ?? att['filename']?.toString();
     }
 
+    final isEmergency = json['is_emergency'] == true;
+    final guardrailCategory = json['guardrail_category']?.toString();
+
     return ChatMessage(
       id: json['id']?.toString(),
       text: text,
@@ -88,6 +99,8 @@ class ChatMessage {
       proposedEntries: proposals,
       attachmentKind: attachmentKind,
       attachmentFileName: attachmentFileName,
+      isEmergency: isEmergency,
+      guardrailCategory: guardrailCategory,
     );
   }
 }

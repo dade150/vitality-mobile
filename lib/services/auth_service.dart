@@ -25,7 +25,17 @@ class AuthService {
     return supabase.auth.signInWithPassword(email: email, password: password);
   }
 
-  Future<void> signOut() => supabase.auth.signOut();
+  Future<void> signOut() async {
+    try {
+      await supabase.auth.signOut();
+    } catch (_) {
+      try {
+        await supabase.auth.signOut(scope: SignOutScope.local);
+      } catch (_) {}
+    } finally {
+      await SecureLocalStorage.clearAll();
+    }
+  }
 
   Future<void> resetPassword(String email) {
     return supabase.auth.resetPasswordForEmail(email, redirectTo: _resetRedirect);
@@ -34,7 +44,11 @@ class AuthService {
   /// Rimanda l'email di conferma registrazione, per la schermata
   /// "controlla la tua email" quando l'utente non l'ha ricevuta.
   Future<ResendResponse> resendSignupConfirmation(String email) {
-    return supabase.auth.resend(type: OtpType.signup, email: email, emailRedirectTo: _registerRedirect,);
+    return supabase.auth.resend(
+      type: OtpType.signup,
+      email: email,
+      emailRedirectTo: _registerRedirect,
+    );
   }
 
   Session? get currentSession => supabase.auth.currentSession;

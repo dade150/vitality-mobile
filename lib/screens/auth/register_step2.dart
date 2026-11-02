@@ -1,5 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../models/request/registration_request.dart';
+import '../../widgets/legal_documents_sheet.dart';
 
 class RegisterStep2Credentials extends StatefulWidget {
   final GlobalKey<FormState> formKey;
@@ -19,6 +21,8 @@ class _RegisterStep2CredentialsState extends State<RegisterStep2Credentials> {
   late final _emailController = TextEditingController(text: widget.data.email);
   late final _passwordController = TextEditingController(text: widget.data.password);
   final _confirmController = TextEditingController();
+  late final TapGestureRecognizer _termsTapRecognizer;
+  late final TapGestureRecognizer _privacyTapRecognizer;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   late String _passwordValue = widget.data.password;
@@ -31,10 +35,21 @@ class _RegisterStep2CredentialsState extends State<RegisterStep2Credentials> {
   static final _specialRegex = RegExp(r'''[!@#$%^&*(),.?":{}|<>_\-+=\[\]~`/\\]''');
 
   @override
+  void initState() {
+    super.initState();
+    _termsTapRecognizer = TapGestureRecognizer()
+      ..onTap = () => LegalDocumentsSheet.showTermsOfService(context);
+    _privacyTapRecognizer = TapGestureRecognizer()
+      ..onTap = () => LegalDocumentsSheet.showPrivacyPolicy(context);
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _termsTapRecognizer.dispose();
+    _privacyTapRecognizer.dispose();
     super.dispose();
   }
 
@@ -51,6 +66,7 @@ class _RegisterStep2CredentialsState extends State<RegisterStep2Credentials> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -120,14 +136,69 @@ class _RegisterStep2CredentialsState extends State<RegisterStep2Credentials> {
                 return null;
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
+            Text(
+              'Consensi Legali e Privacy (GDPR)',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            // 1. Termini di Servizio e presa visione Informativa (GDPR Art. 6.1.b & Art. 13)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: widget.data.termsAccepted,
+              onChanged: (v) => setState(() => widget.data.termsAccepted = v ?? false),
+              title: RichText(
+                text: TextSpan(
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
+                  children: [
+                    const TextSpan(text: 'Dichiaro di aver letto e accettato i '),
+                    TextSpan(
+                      text: 'Termini e Condizioni di Servizio',
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: _termsTapRecognizer,
+                    ),
+                    const TextSpan(
+                      text:
+                          ' (inclusa la natura educazionale e non sostitutiva del medico) e di aver preso visione dell\'',
+                    ),
+                    TextSpan(
+                      text: 'Informativa sulla Privacy (Art. 13 GDPR)',
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: _privacyTapRecognizer,
+                    ),
+                    const TextSpan(text: '. *'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            // 2. Consenso Esplicito Dati Sanitari & AI (GDPR Art. 9.2.a & Art. 22)
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               value: widget.data.consensoPrivacy,
               onChanged: (v) => setState(() => widget.data.consensoPrivacy = v ?? false),
-              title: const Text(
-                'Accetto il trattamento dei miei dati sanitari secondo la normativa GDPR',
+              title: Text(
+                'Presto il consenso esplicito (Art. 9.2.a GDPR) al trattamento dei miei dati relativi alla salute (glicemie, pasti, terapie, referti) e alla loro elaborazione – previa de-identificazione – tramite sistemi di Intelligenza Artificiale per ricevere supporto educazionale. *',
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Puoi revocare il consenso o cancellare i tuoi dati in qualsiasi momento dalle Impostazioni.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ),
             ),
           ],

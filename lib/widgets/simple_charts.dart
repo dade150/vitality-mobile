@@ -196,9 +196,9 @@ class WeeklyTherapyTracker extends StatelessWidget {
   }
 }
 
-/// Grafico dell'andamento glicemico settimanale con fascia target (70-180 mg/dL).
-/// Mostra una linea continua con punti per i giorni registrati: i punti dentro
-/// la fascia sono verdi/accent, quelli fuori sono evidenziati in rosso.
+/// Grafico dell'andamento glicemico settimanale con linee guida target (70-180 mg/dL).
+/// Mostra una linea continua ben visibile con punti e pill-badge per i giorni registrati:
+/// i punti dentro il target sono in colore primario, quelli fuori sono evidenziati in rosso errore.
 class GlucoseTrendChart extends StatelessWidget {
   final List<String> labels;
   final List<double?> values;
@@ -212,7 +212,7 @@ class GlucoseTrendChart extends StatelessWidget {
     required this.values,
     this.targetMin = 70.0,
     this.targetMax = 180.0,
-    this.height = 110,
+    this.height = 168,
   });
 
   @override
@@ -249,15 +249,16 @@ class GlucoseTrendChart extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Row(
           children: List.generate(labels.length, (i) {
             return Expanded(
               child: Text(
                 labels[i],
                 textAlign: TextAlign.center,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
                   color: cs.onSurface,
                 ),
               ),
@@ -278,6 +279,9 @@ class _GlucoseChartPainter extends CustomPainter {
   final ColorScheme cs;
   final ThemeData theme;
 
+  static const double _topPadding = 26.0;
+  static const double _bottomPadding = 14.0;
+
   _GlucoseChartPainter({
     required this.values,
     required this.targetMin,
@@ -289,9 +293,10 @@ class _GlucoseChartPainter extends CustomPainter {
   });
 
   double _getY(double val, double height) {
+    final usableHeight = height - _topPadding - _bottomPadding;
     final clamped = val.clamp(minY, maxY);
     final fraction = (clamped - minY) / (maxY - minY);
-    return height - (fraction * height);
+    return _topPadding + (usableHeight - (fraction * usableHeight));
   }
 
   @override
@@ -302,36 +307,25 @@ class _GlucoseChartPainter extends CustomPainter {
     final stepX = size.width / count;
     final halfStep = stepX / 2;
 
-    // 1. Disegna fascia target (70-180)
+    // 1. Linee guida orizzontali del target (tratteggiate, neutre, senza fascia verde)
     final yTargetMax = _getY(targetMax, size.height);
     final yTargetMin = _getY(targetMin, size.height);
 
-    final targetPaint = Paint()
-      ..color = const Color(0xFF2E7D32).withValues(alpha: 0.08)
-      ..style = PaintingStyle.fill;
+    final guidePaint = Paint()
+      ..color = cs.outlineVariant.withValues(alpha: 0.75)
+      ..strokeWidth = 1.2;
 
-    final targetRect = RRect.fromRectAndRadius(
-      Rect.fromLTRB(0, yTargetMax, size.width, yTargetMin),
-      const Radius.circular(6),
-    );
-    canvas.drawRRect(targetRect, targetPaint);
+    _drawDashedLine(canvas, Offset(0, yTargetMax), Offset(size.width, yTargetMax), guidePaint);
+    _drawDashedLine(canvas, Offset(0, yTargetMin), Offset(size.width, yTargetMin), guidePaint);
 
-    // Linee guida orizzontali del target (tratteggiate)
-    final linePaint = Paint()
-      ..color = const Color(0xFF2E7D32).withValues(alpha: 0.3)
-      ..strokeWidth = 1.0;
-
-    _drawDashedLine(canvas, Offset(0, yTargetMax), Offset(size.width, yTargetMax), linePaint);
-    _drawDashedLine(canvas, Offset(0, yTargetMin), Offset(size.width, yTargetMin), linePaint);
-
-    // Etichette target a destra
+    // Etichette target a destra con contrasto nitido
     final labelStyle = TextStyle(
-      fontSize: 9,
+      fontSize: 10.5,
       fontWeight: FontWeight.w700,
-      color: const Color(0xFF2E7D32).withValues(alpha: 0.6),
+      color: cs.onSurfaceVariant.withValues(alpha: 0.85),
     );
-    _drawText(canvas, '180', Offset(size.width - 24, yTargetMax - 11), labelStyle);
-    _drawText(canvas, '70', Offset(size.width - 18, yTargetMin + 2), labelStyle);
+    _drawText(canvas, '180 max', Offset(size.width - 48, yTargetMax - 14), labelStyle);
+    _drawText(canvas, '70 min', Offset(size.width - 42, yTargetMin + 3), labelStyle);
 
     // 2. Disegna linea trend tra i punti validi
     final List<Offset> points = [];
@@ -352,39 +346,39 @@ class _GlucoseChartPainter extends CustomPainter {
         path.lineTo(points[i].dx, points[i].dy);
       }
       final trendPaint = Paint()
-        ..color = cs.primary.withValues(alpha: 0.6)
-        ..strokeWidth = 2.5
+        ..color = cs.primary
+        ..strokeWidth = 3.5
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
       canvas.drawPath(path, trendPaint);
     }
 
-    // 3. Disegna i punti e i valori numerici
+    // 3. Disegna i punti e i pill-badge con i valori numerici
     for (int idx = 0; idx < points.length; idx++) {
       final p = points[idx];
       final val = values[pointIndices[idx]]!;
       final isOutOfRange = val < targetMin || val > targetMax;
-      final pointColor = isOutOfRange ? cs.error : const Color(0xFF2E7D32);
+      final pointColor = isOutOfRange ? cs.error : cs.primary;
 
-      // Cerchietto punto
+      // Cerchietto punto ingrandito per alta visibilità
       final circlePaint = Paint()
         ..color = pointColor
         ..style = PaintingStyle.fill;
       final borderPaint = Paint()
         ..color = cs.surface
-        ..strokeWidth = 2
+        ..strokeWidth = 2.5
         ..style = PaintingStyle.stroke;
 
-      canvas.drawCircle(p, 5.5, circlePaint);
-      canvas.drawCircle(p, 5.5, borderPaint);
+      canvas.drawCircle(p, 7.5, circlePaint);
+      canvas.drawCircle(p, 7.5, borderPaint);
 
-      // Testo valore sopra il punto
+      // Pill-Badge con valore numerico
       final valStr = val.round().toString();
       final valStyle = TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        color: isOutOfRange ? cs.error : cs.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w800,
+        color: isOutOfRange ? cs.onErrorContainer : cs.onSurface,
       );
       final textSpan = TextSpan(text: valStr, style: valStyle);
       final tp = TextPainter(
@@ -392,12 +386,39 @@ class _GlucoseChartPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
 
-      // Posizionamento del testo (sopra il punto o sotto se troppo vicino al tetto)
-      double textY = p.dy - tp.height - 4;
-      if (textY < 0) {
-        textY = p.dy + 8;
+      const padH = 6.0;
+      const padV = 2.0;
+      final badgeW = tp.width + (padH * 2);
+      final badgeH = tp.height + (padV * 2);
+
+      double badgeY = p.dy - badgeH - 10.0;
+      if (badgeY < 2) {
+        badgeY = p.dy + 11.0;
       }
-      tp.paint(canvas, Offset(p.dx - (tp.width / 2), textY));
+      final badgeX = p.dx - (badgeW / 2);
+
+      final badgeRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(badgeX, badgeY, badgeW, badgeH),
+        const Radius.circular(6),
+      );
+
+      final badgeBgPaint = Paint()
+        ..color = isOutOfRange
+            ? cs.errorContainer.withValues(alpha: 0.95)
+            : cs.surfaceContainerHighest.withValues(alpha: 0.95)
+        ..style = PaintingStyle.fill;
+
+      final badgeBorderPaint = Paint()
+        ..color = isOutOfRange
+            ? cs.error.withValues(alpha: 0.6)
+            : cs.outlineVariant.withValues(alpha: 0.8)
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawRRect(badgeRect, badgeBgPaint);
+      canvas.drawRRect(badgeRect, badgeBorderPaint);
+
+      tp.paint(canvas, Offset(badgeX + padH, badgeY + padV));
     }
 
     // Per i giorni senza dato, disegna un trattino neutro
@@ -406,10 +427,10 @@ class _GlucoseChartPainter extends CustomPainter {
         final x = (i * stepX) + halfStep;
         final centerY = (yTargetMax + yTargetMin) / 2;
         final dashPaint = Paint()
-          ..color = cs.outlineVariant.withValues(alpha: 0.4)
-          ..strokeWidth = 2
+          ..color = cs.outlineVariant.withValues(alpha: 0.5)
+          ..strokeWidth = 2.5
           ..strokeCap = StrokeCap.round;
-        canvas.drawLine(Offset(x - 4, centerY), Offset(x + 4, centerY), dashPaint);
+        canvas.drawLine(Offset(x - 5, centerY), Offset(x + 5, centerY), dashPaint);
       }
     }
   }

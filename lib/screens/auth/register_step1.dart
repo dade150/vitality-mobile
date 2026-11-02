@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/request/registration_request.dart';
+import '../../theme/app_colors.dart';
 
 class RegisterStep1Profile extends StatefulWidget {
   final GlobalKey<FormState> formKey;
@@ -51,9 +52,64 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+  Widget _buildSexOption({
+    required BuildContext context,
+    required String value,
+    required String label,
+    required IconData icon,
+  }) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isSelected = widget.data.sesso == value;
+
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          setState(() {
+            widget.data.sesso = isSelected ? null : value;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.accent.withValues(alpha: 0.12)
+                : cs.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? AppColors.accent : cs.outlineVariant.withValues(alpha: 0.7),
+              width: isSelected ? 1.8 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected ? AppColors.accent : cs.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected ? AppColors.accent : cs.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -85,58 +141,76 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
               borderRadius: BorderRadius.circular(16),
               onTap: _pickBirthDate,
               child: InputDecorator(
-                decoration: const InputDecoration(labelText: 'Data di nascita'),
+                decoration: const InputDecoration(
+                  labelText: 'Data di nascita',
+                  suffixIcon: Icon(Icons.calendar_today_outlined, size: 20),
+                ),
                 child: Text(
                   widget.data.birth == null ? 'gg/mm/aaaa' : _formatDate(widget.data.birth!),
-                  style: theme.textTheme.bodyLarge,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: widget.data.birth == null ? cs.onSurfaceVariant.withValues(alpha: 0.6) : cs.onSurface,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            Text('Sesso biologico', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'maschio', label: Text('Maschio')),
-                ButtonSegment(value: 'femmina', label: Text('Femmina')),
+            const SizedBox(height: 18),
+            // Selezione sesso senza dicitura "Sesso biologico"
+            Row(
+              children: [
+                _buildSexOption(
+                  context: context,
+                  value: 'maschio',
+                  label: 'Maschio',
+                  icon: Icons.male_rounded,
+                ),
+                const SizedBox(width: 12),
+                _buildSexOption(
+                  context: context,
+                  value: 'femmina',
+                  label: 'Femmina',
+                  icon: Icons.female_rounded,
+                ),
               ],
-              selected: {if (widget.data.sesso != null) widget.data.sesso!},
-              emptySelectionAllowed: true,
-              onSelectionChanged: (s) =>
-                  setState(() => widget.data.sesso = s.isEmpty ? null : s.first),
+            ),
+            const SizedBox(height: 18),
+            // Altezza disposta uno sopra l'altro con label "cm" a destra del campo
+            TextFormField(
+              controller: _altezzaController,
+              decoration: InputDecoration(
+                labelText: 'Altezza',
+                suffixText: 'cm',
+                suffixStyle: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (v) => widget.data.altezza = int.tryParse(v),
+              validator: (v) {
+                final n = int.tryParse(v ?? '');
+                if (n == null || n < 50 || n > 250) return 'Inserisci un\'altezza valida';
+                return null;
+              },
             ),
             const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _altezzaController,
-                    decoration: const InputDecoration(labelText: 'Altezza (cm)'),
-                    keyboardType: TextInputType.number,
-                    onChanged: (v) => widget.data.altezza = int.tryParse(v),
-                    validator: (v) {
-                      final n = int.tryParse(v ?? '');
-                      if (n == null || n < 50 || n > 250) return 'Non valida';
-                      return null;
-                    },
-                  ),
+            // Peso disposto uno sopra l'altro con label "kg" a destra del campo
+            TextFormField(
+              controller: _pesoController,
+              decoration: InputDecoration(
+                labelText: 'Peso',
+                suffixText: 'kg',
+                suffixStyle: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurfaceVariant,
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _pesoController,
-                    decoration: const InputDecoration(labelText: 'Peso (kg)'),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: (v) => widget.data.peso = double.tryParse(v),
-                    validator: (v) {
-                      final n = double.tryParse(v ?? '');
-                      if (n == null || n < 20 || n > 300) return 'Non valido';
-                      return null;
-                    },
-                  ),
-                ),
-              ],
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (v) => widget.data.peso = double.tryParse(v),
+              validator: (v) {
+                final n = double.tryParse(v ?? '');
+                if (n == null || n < 20 || n > 300) return 'Inserisci un peso valido';
+                return null;
+              },
             ),
             const SizedBox(height: 16),
             TextFormField(

@@ -5,6 +5,8 @@ import '../../models/user_settings.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
+import '../../widgets/gdpr_account_dialogs.dart';
+import '../../widgets/legal_documents_sheet.dart';
 import '../../widgets/section_card.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -13,6 +15,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final settings = context.watch<SettingsProvider>();
 
     if (settings.isLoading && !settings.hasLoaded) {
@@ -156,6 +159,47 @@ class SettingsScreen extends StatelessWidget {
                             context.read<SettingsProvider>().setNotifyAppointments(value);
                           }
                         },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 28),
+                Text('Privacy e Gestione Dati (GDPR)', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 12),
+                SectionCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.description_outlined),
+                        title: const Text('Termini e Condizioni di Servizio'),
+                        subtitle: const Text('Versione ${LegalDocumentsSheet.currentTermsVersion}'),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => LegalDocumentsSheet.showTermsOfService(context),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.privacy_tip_outlined),
+                        title: const Text('Informativa sulla Privacy'),
+                        subtitle: const Text('Versione ${LegalDocumentsSheet.currentPrivacyVersion} (Art. 13 e 9 GDPR)'),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => LegalDocumentsSheet.showPrivacyPolicy(context),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: Icon(Icons.file_download_outlined, color: cs.primary),
+                        title: Text('Esporta dati (JSON)', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600)),
+                        subtitle: const Text('Scarica copia leggibile di tutti i tuoi dati'),
+                        trailing: Icon(Icons.download_rounded, color: cs.primary),
+                        onTap: () => triggerGdprJsonExport(context),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: Icon(Icons.delete_forever_outlined, color: cs.error),
+                        title: Text('Elimina account e dati', style: TextStyle(color: cs.error, fontWeight: FontWeight.w600)),
+                        subtitle: const Text('Cancellazione definitiva (Diritto all\'Oblio)'),
+                        trailing: Icon(Icons.chevron_right_rounded, color: cs.error),
+                        onTap: () => showDeleteAccountSecurityDialog(context),
                       ),
                     ],
                   ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -44,6 +45,27 @@ class ReportUploadResult {
 /// inviare la richiesta e a tradurre la risposta.
 class ReportService {
   static const _endpoint = '/reports';
+
+  /// Scarica dal backend il report PDF clinico aggregato per il medico (2, 3 o 4 mesi).
+  static Future<Uint8List> downloadSummaryPdf({required int months}) async {
+    if (months != 2 && months != 3 && months != 4) {
+      throw ArgumentError('Il periodo selezionato deve essere di 2, 3 o 4 mesi.');
+    }
+
+    final response = await ApiService.get(
+      '$_endpoint/summary-pdf?months=$months',
+      timeout: const Duration(seconds: 40),
+    );
+
+    if (response.bodyBytes.isEmpty) {
+      throw const AppFailure(
+        'Il report PDF generato è vuoto. Riprova tra poco.',
+        cause: 'bodyBytes vuoto da /reports/summary-pdf',
+      );
+    }
+
+    return response.bodyBytes;
+  }
 
   static Future<ReportUploadResult> upload({
     required List<int> bytes,

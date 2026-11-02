@@ -231,6 +231,31 @@ class _AddReportScreenState extends State<AddReportScreen> {
           ),
           const SizedBox(height: 16),
           if (result == null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.6)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.privacy_tip_outlined, size: 20, color: cs.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Tutela Privacy (GDPR): i PDF digitali vengono anonimizzati in memoria prima dell\'analisi. Se carichi una foto di un referto cartaceo, inquadra solo la tabella dei valori o copri l\'intestazione con Nome e Codice Fiscale.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        height: 1.35,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
             OutlinedButton.icon(
               onPressed: _uploading ? null : _pickFile,
               icon: const Icon(Icons.attach_file_rounded),

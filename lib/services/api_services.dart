@@ -1,6 +1,7 @@
 // lib/services/api_services.dart
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -26,6 +27,11 @@ class ApiService {
     if (baseUrl.isEmpty) {
       throw StateError(
         'API_BASE_URL mancante: lancia con --dart-define-from-file=config/env.json',
+      );
+    }
+    if (kReleaseMode && !baseUrl.startsWith('https://')) {
+      throw StateError(
+        'Sicurezza violata: in modalità produzione (release) API_BASE_URL deve utilizzare HTTPS.',
       );
     }
     final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
@@ -123,7 +129,9 @@ class ApiService {
   }
 
   static AppFailure _failureFrom(http.Response r) {
-    print('🚨 ERRORE DAL BACKEND: ${r.body}'); // <--- Aggiungi questa riga
+    if (kDebugMode) {
+      debugPrint('[ApiService] Errore backend HTTP ${r.statusCode}');
+    }
     final detail = _detailFrom(r);
 
     // 502/503 = LLM o auth provider momentaneamente giù: errore atteso,

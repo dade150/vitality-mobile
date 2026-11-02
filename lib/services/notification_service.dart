@@ -324,12 +324,13 @@ class NotificationService {
     if (kIsWeb) return;
 
     // Cancella le notifiche delle terapie schedulate in precedenza
-    for (final id in _scheduledTherapyIds) {
+    final idsToCancel = _scheduledTherapyIds.toList();
+    _scheduledTherapyIds.clear();
+    for (final id in idsToCancel) {
       try {
         await _plugin.cancel(id);
       } catch (_) {}
     }
-    _scheduledTherapyIds.clear();
 
     if (!enabled || therapies.isEmpty) return;
 
@@ -459,12 +460,13 @@ class NotificationService {
   }) async {
     if (kIsWeb) return;
 
-    for (final id in _scheduledAppointmentIds) {
+    final idsToCancel = _scheduledAppointmentIds.toList();
+    _scheduledAppointmentIds.clear();
+    for (final id in idsToCancel) {
       try {
         await _plugin.cancel(id);
       } catch (_) {}
     }
-    _scheduledAppointmentIds.clear();
 
     if (!enabled || appointments.isEmpty) return;
 

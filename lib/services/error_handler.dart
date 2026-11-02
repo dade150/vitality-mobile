@@ -127,6 +127,22 @@ class ErrorHandler {
     }
   }
 
+  static String _scrubLogText(String input) {
+    return input
+        .replaceAll(
+          RegExp(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'),
+          '[REDACTED_JWT]',
+        )
+        .replaceAll(
+          RegExp(r'\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b', caseSensitive: false),
+          '[REDACTED_CF]',
+        )
+        .replaceAll(
+          RegExp(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'),
+          '[REDACTED_EMAIL]',
+        );
+  }
+
   /// IMPORTANTE: l'insert è `await`-ato dentro try/catch. Un insert senza
   /// await genererebbe un'eccezione async non gestita ->
   /// PlatformDispatcher.onError -> di nuovo log -> loop infinito finché la
@@ -138,8 +154,8 @@ class ErrorHandler {
     if (client.auth.currentSession == null) return; // RLS: serve auth.uid()
     _remoteLogging = true;
     try {
-      final stack = (f.stackTrace ?? StackTrace.current).toString();
-      var message = '${f.cause ?? f.message}';
+      final stack = _scrubLogText((f.stackTrace ?? StackTrace.current).toString());
+      var message = _scrubLogText('${f.cause ?? f.message}');
       if (message.length > 2000) message = message.substring(0, 2000);
       await client.from('app_logs').insert({
         'message': message,

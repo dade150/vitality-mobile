@@ -14,9 +14,13 @@ class RegistrationData {
   double? peso; // kg
   String noteAnamnestiche = '';
 
-  // Step 2 - Credenziali
+  // Step 2 - Credenziali e Consensi Legali (GDPR Art. 6.1.b, Art. 7, Art. 9.2.a)
+  static const String currentTermsVersion = '1.0';
+  static const String currentPrivacyVersion = '1.0';
+
   String email = '';
   String password = '';
+  bool termsAccepted = false;
   bool consensoPrivacy = false;
 
   // Step 3 - Preferenze e notifiche
@@ -33,6 +37,7 @@ class RegistrationData {
   /// da cui il trigger `handle_new_user` popola `user`, `profile` e
   /// `user_settings` nella stessa transazione.
   Map<String, dynamic> toMetadata() {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     return {
       'name': name,
       'surname': surname,
@@ -41,7 +46,14 @@ class RegistrationData {
       'altezza': altezza,
       'peso': peso,
       'note_anamnestiche': noteAnamnestiche.isEmpty ? null : noteAnamnestiche,
+      'terms_accepted': termsAccepted,
+      'terms_accepted_at': termsAccepted ? nowIso : null,
+      'terms_version': currentTermsVersion,
       'consenso_privacy': consensoPrivacy,
+      'consenso_privacy_at': consensoPrivacy ? nowIso : null,
+      'privacy_version': currentPrivacyVersion,
+      'ai_health_consent': consensoPrivacy,
+      'ai_health_consent_at': consensoPrivacy ? nowIso : null,
       'show_meals': showMeals,
       'show_activities': showActivities,
       'show_reports': showReports,

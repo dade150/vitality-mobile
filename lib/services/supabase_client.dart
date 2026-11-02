@@ -1,11 +1,22 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-
 class SecureLocalStorage extends LocalStorage {
   const SecureLocalStorage();
 
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+  );
+
+  /// Rimuove qualsiasi sessione o chiave persistente dal Keystore/Keychain (es. dopo cancellazione account).
+  static Future<void> clearAll() async {
+    try {
+      await _storage.deleteAll();
+    } catch (_) {}
+  }
 
   @override
   Future<void> initialize() async {}
