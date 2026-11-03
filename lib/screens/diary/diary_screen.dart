@@ -268,13 +268,25 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   void _editGlucose() {
     final health = context.read<HealthProvider>();
+    final dayReadings =
+        health.glucoseReadings.where((r) => r.id != null && _sameDay(r.time, _selectedDate)).toList();
+    final lastReading = _lastUpTo(health.glucoseReadings, (r) => r.time);
+    final targetDate = dayReadings.isNotEmpty
+        ? _selectedDate
+        : (lastReading?.id != null ? lastReading!.time : null);
+
+    if (targetDate == null) {
+      _showMessage('Nessuna misurazione da modificare.');
+      return;
+    }
+
     final items = health.glucoseReadings
-        .where((r) => r.id != null && _sameDay(r.time, _selectedDate))
+        .where((r) => r.id != null && _sameDay(r.time, targetDate))
         .toList()
         .reversed
         .toList();
     if (items.isEmpty) {
-      _showMessage('Nessuna misurazione da modificare in questa giornata.');
+      _showMessage('Nessuna misurazione da modificare.');
       return;
     }
     showEditEntriesSheet(
@@ -312,13 +324,25 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   void _editPressure() {
     final health = context.read<HealthProvider>();
+    final dayReadings =
+        health.pressureReadings.where((r) => r.id != null && _sameDay(r.time, _selectedDate)).toList();
+    final lastReading = _lastUpTo(health.pressureReadings, (r) => r.time);
+    final targetDate = dayReadings.isNotEmpty
+        ? _selectedDate
+        : (lastReading?.id != null ? lastReading!.time : null);
+
+    if (targetDate == null) {
+      _showMessage('Nessuna misurazione da modificare.');
+      return;
+    }
+
     final items = health.pressureReadings
-        .where((r) => r.id != null && _sameDay(r.time, _selectedDate))
+        .where((r) => r.id != null && _sameDay(r.time, targetDate))
         .toList()
         .reversed
         .toList();
     if (items.isEmpty) {
-      _showMessage('Nessuna misurazione da modificare in questa giornata.');
+      _showMessage('Nessuna misurazione da modificare.');
       return;
     }
     showEditEntriesSheet(
