@@ -145,8 +145,8 @@ class _ProfileSection extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final accentText = isDark ? cs.primary : AppColors.accentText;
-    final iconBoxBg = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
+    final profileColor = profile.color(isDark);
+    final iconBoxBg = profile.containerColor(isDark);
     final types = ClinicalParameterType.values.where((t) => t.profile == profile).toList();
 
     return Padding(
@@ -158,18 +158,18 @@ class _ProfileSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: iconBoxBg,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: accentText.withValues(alpha: 0.3),
-                    width: 1,
+                    color: profileColor.withValues(alpha: 0.35),
+                    width: 1.2,
                   ),
                 ),
                 alignment: Alignment.center,
-                child: Icon(profile.icon, color: accentText, size: 19),
+                child: Icon(profile.icon, color: profileColor, size: 20),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -271,13 +271,24 @@ class _ParameterCardState extends State<_ParameterCard> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              Container(
+                width: 28,
+                height: 28,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: type.containerColor(isDark),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Icon(type.icon, color: type.color(isDark), size: 16),
+              ),
               Expanded(
                 child: Text(
                   type.label,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: cs.onSurface,
-                    fontSize: 19,
+                    fontSize: 18,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -385,9 +396,9 @@ class _ParameterCardState extends State<_ParameterCard> {
                     Text(
                       type.format(reading.value),
                       style: theme.textTheme.headlineMedium?.copyWith(
-                        color: cs.onSurface,
+                        color: type.color(isDark),
                         fontWeight: FontWeight.w800,
-                        fontSize: 23,
+                        fontSize: 24,
                       ),
                     ),
                     const SizedBox(width: 6),

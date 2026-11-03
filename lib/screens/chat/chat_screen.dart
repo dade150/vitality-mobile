@@ -437,33 +437,62 @@ class _ChatScreenState extends State<ChatScreen> {
     final cs = theme.colorScheme;
     final isPdf = kind == 'medical_report' || kind == 'pdf_document';
 
-    final String label = fileName ?? (isPdf ? 'Documento PDF' : 'Foto allegata');
-    final IconData icon = isPdf ? Icons.picture_as_pdf_rounded : Icons.photo_rounded;
+    final String label = fileName ?? (isPdf ? 'Referto Medico PDF' : 'Immagine allegata');
+    final IconData icon = isPdf ? Icons.picture_as_pdf_rounded : Icons.photo_camera_rounded;
+    final iconColor = isUser ? Colors.white : (isPdf ? const Color(0xFFC0392B) : cs.primary);
+    final iconBg = isUser
+        ? Colors.white.withValues(alpha: 0.22)
+        : (isPdf ? const Color(0xFFFDEDEC) : cs.primaryContainer);
 
-    final chipColor = isUser ? Colors.white.withValues(alpha: 0.22) : cs.surfaceContainerHighest;
+    final cardBg = isUser ? Colors.white.withValues(alpha: 0.15) : cs.surfaceContainerLowest;
     final textColor = isUser ? cs.onPrimary : cs.onSurface;
+    final subColor = isUser ? cs.onPrimary.withValues(alpha: 0.8) : cs.onSurfaceVariant;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: chipColor,
-        borderRadius: BorderRadius.circular(10),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isUser ? Colors.white.withValues(alpha: 0.3) : cs.outlineVariant.withValues(alpha: 0.6),
+          width: 1.0,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: textColor),
-          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: iconColor),
+          ),
+          const SizedBox(width: 10),
           Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: textColor,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: textColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  isPdf ? 'Documento protetto GDPR' : 'Foto inviata',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: subColor,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -712,14 +741,47 @@ class _ChatScreenState extends State<ChatScreen> {
                               final isCurrentSpeaking =
                                   voice.isSpeaking && voice.speakingMessageKey == msgKey;
 
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _bubble(
-                                    theme: theme,
-                                    isUser: false,
-                                    child: Column(
+                              final isDark = theme.brightness == Brightness.dark;
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      margin: const EdgeInsets.only(top: 8, right: 8),
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        color: isDark ? cs.surfaceContainerHigh : AppColors.lightPeach,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: (isDark ? cs.primary : AppColors.accent).withValues(alpha: 0.3),
+                                          width: 1.0,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 1),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        Icons.auto_awesome_rounded,
+                                        size: 17,
+                                        color: isDark ? cs.primary : AppColors.accentText,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _bubble(
+                                            theme: theme,
+                                            isUser: false,
+                                            child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -839,7 +901,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                         ),
                                       ),
                                     ),
-                                ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               );
                             },
                           )

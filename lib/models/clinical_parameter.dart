@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 /// I tre profili in cui sono raggruppati i parametri nella schermata.
 enum ClinicalProfile {
@@ -11,6 +12,28 @@ enum ClinicalProfile {
   final String title;
   final String subtitle;
   final IconData icon;
+
+  Color color(bool isDark) {
+    switch (this) {
+      case ClinicalProfile.glycemic:
+        return isDark ? const Color(0xFFFF8A7A) : AppColors.glycemicText;
+      case ClinicalProfile.lipid:
+        return isDark ? const Color(0xFF5CD68D) : AppColors.lipidText;
+      case ClinicalProfile.renal:
+        return isDark ? const Color(0xFF68B7E8) : AppColors.renalText;
+    }
+  }
+
+  Color containerColor(bool isDark) {
+    switch (this) {
+      case ClinicalProfile.glycemic:
+        return isDark ? const Color(0xFF421510) : AppColors.glycemicContainer;
+      case ClinicalProfile.lipid:
+        return isDark ? const Color(0xFF0F361F) : AppColors.lipidContainer;
+      case ClinicalProfile.renal:
+        return isDark ? const Color(0xFF102D40) : AppColors.renalContainer;
+    }
+  }
 }
 
 /// Unica fonte di verità per ogni parametro: etichetta, unità, limiti di
@@ -134,6 +157,9 @@ enum ClinicalParameterType {
 
   /// Formato italiano: "6,8".
   String format(double v) => v.toStringAsFixed(decimals).replaceAll('.', ',');
+
+  Color color(bool isDark) => profile.color(isDark);
+  Color containerColor(bool isDark) => profile.containerColor(isDark);
 
   /// Accetta sia la virgola sia il punto; null se non è un numero.
   double? tryParse(String raw) {

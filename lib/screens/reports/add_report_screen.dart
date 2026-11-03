@@ -451,7 +451,14 @@ class _AddReportScreenState extends State<AddReportScreen> {
                                 padding: const EdgeInsets.symmetric(vertical: 6),
                                 child: Row(
                                   children: [
-                                    Icon(entry.key.icon, color: cs.primary, size: 22),
+                                    Container(
+                                      padding: const EdgeInsets.all(5),
+                                      decoration: BoxDecoration(
+                                        color: entry.key.containerColor(isDark),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(entry.key.icon, color: entry.key.color(isDark), size: 18),
+                                    ),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
@@ -472,7 +479,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
                               enabled: !_saving,
                               textAlign: TextAlign.end,
                               style: theme.textTheme.titleMedium?.copyWith(
-                                color: cs.primary,
+                                color: entry.key.color(isDark),
                                 fontWeight: FontWeight.w700,
                               ),
                               keyboardType: TextInputType.numberWithOptions(
@@ -496,7 +503,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                                 suffixText: ' ${entry.key.unit}',
                                 suffixStyle: theme.textTheme.bodySmall?.copyWith(
-                                  color: cs.primary,
+                                  color: entry.key.color(isDark),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),

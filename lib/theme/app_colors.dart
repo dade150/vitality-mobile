@@ -34,4 +34,24 @@ class AppColors {
   static const Color lightPeach = Color(0xFFFFE9DF);
   static const Color lightGreenContainer = Color(0xFFDDF3DB);
   static const Color lightBlueContainer = Color(0xFFD6EAF8);
+
+  // --- Colori Semantici per Profili Clinici (Esami & Monitoraggio) ---
+  /// Profilo Glicemico (HbA1c, Glicemia) - Tonalità ematica calda
+  static const Color glycemicSeed = Color(0xFFC0392B);
+  static const Color glycemicText = Color(0xFFA93226);
+  static const Color glycemicContainer = Color(0xFFFDEDEC);
+
+  /// Profilo Lipidico (Colesterolo Totale, HDL, LDL, Trigliceridi) - Tonalità cardiovascolare smeraldo
+  static const Color lipidSeed = Color(0xFF1E8449);
+  static const Color lipidText = Color(0xFF196F3D);
+  static const Color lipidContainer = Color(0xFFE8F8F5);
+
+  /// Profilo Renale (eGFR, UACR) - Tonalità renale/idrica ottanio
+  static const Color renalSeed = Color(0xFF1B4F72);
+  static const Color renalText = Color(0xFF154360);
+  static const Color renalContainer = Color(0xFFEBF5FB);
+
+  /// Pressione arteriosa (Sistolica/Diastolica) - Tonalità indaco
+  static const Color pressureText = Color(0xFF5B2C6F);
+  static const Color pressureContainer = Color(0xFFF4ECF7);
 }

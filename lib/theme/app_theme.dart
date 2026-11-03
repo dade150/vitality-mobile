@@ -124,8 +124,11 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: cs.outlineVariant, width: isDark ? 1.2 : 1.5),
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: cs.outlineVariant.withValues(alpha: isDark ? 0.7 : 0.65),
+            width: 1.0,
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

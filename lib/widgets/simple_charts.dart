@@ -310,12 +310,22 @@ class _GlucoseChartPainter extends CustomPainter {
     final stepX = size.width / count;
     final halfStep = stepX / 2;
 
-    // 1. Linee guida orizzontali del target (tratteggiate, neutre, senza fascia verde)
+    // 1. Fascia verde delicata per il Target Clinico (70-180 mg/dL raccomandato ADA/EASD)
+    final isDark = theme.brightness == Brightness.dark;
     final yTargetMax = _getY(targetMax, size.height);
     final yTargetMin = _getY(targetMin, size.height);
 
+    final targetRect = Rect.fromLTRB(0, yTargetMax, size.width, yTargetMin);
+    final targetBandPaint = Paint()
+      ..color = (isDark ? const Color(0xFF1B4D24) : const Color(0xFFDDF3DB)).withValues(alpha: isDark ? 0.3 : 0.5)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(targetRect, const Radius.circular(8)),
+      targetBandPaint,
+    );
+
     final guidePaint = Paint()
-      ..color = cs.outlineVariant.withValues(alpha: 0.75)
+      ..color = (isDark ? const Color(0xFF58D68D) : const Color(0xFF1B6D24)).withValues(alpha: 0.45)
       ..strokeWidth = 1.2;
 
     _drawDashedLine(canvas, Offset(0, yTargetMax), Offset(size.width, yTargetMax), guidePaint);
@@ -325,9 +335,9 @@ class _GlucoseChartPainter extends CustomPainter {
     final labelStyle = TextStyle(
       fontSize: 12,
       fontWeight: FontWeight.w700,
-      color: cs.onSurfaceVariant,
+      color: isDark ? const Color(0xFF7DCE94) : const Color(0xFF196F3D),
     );
-    _drawText(canvas, '180 max', Offset(size.width - 56, yTargetMax - 15), labelStyle);
+    _drawText(canvas, '180 max (target)', Offset(size.width - 100, yTargetMax - 15), labelStyle);
     _drawText(canvas, '70 min', Offset(size.width - 50, yTargetMin + 4), labelStyle);
 
     // 2. Disegna linea trend tra i punti validi
@@ -348,6 +358,23 @@ class _GlucoseChartPainter extends CustomPainter {
       for (int i = 1; i < points.length; i++) {
         path.lineTo(points[i].dx, points[i].dy);
       }
+
+      // Riempimento a gradiente sotto la curva glicemica
+      final fillPath = Path.from(path)
+        ..lineTo(points.last.dx, size.height - _bottomPadding)
+        ..lineTo(points.first.dx, size.height - _bottomPadding)
+        ..close();
+      final fillPaint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            cs.primary.withValues(alpha: isDark ? 0.35 : 0.22),
+            cs.primary.withValues(alpha: 0.0),
+          ],
+        ).createShader(Rect.fromLTRB(0, _topPadding, size.width, size.height));
+      canvas.drawPath(fillPath, fillPaint);
+
       final trendPaint = Paint()
         ..color = cs.primary
         ..strokeWidth = 3.5

@@ -61,47 +61,61 @@ class AppBottomNavBar extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final activeColor = isDark ? cs.primary : AppColors.accentText;
+    final activeColor = isDark ? const Color(0xFFFFB59D) : AppColors.accentText;
+    final activePillBg = isDark ? cs.primaryContainer : AppColors.lightPeach;
+    final inactiveColor = cs.onSurfaceVariant;
 
     return Container(
       decoration: BoxDecoration(
         color: cs.surfaceContainerLowest,
-        border: Border(top: BorderSide(color: cs.outlineVariant, width: 1.2)),
+        border: Border(top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.6), width: 1.0)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, -4)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
         ],
       ),
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 78,
+          height: 80,
           child: Row(
             children: List.generate(_items.length, (i) {
               final item = _items[i];
               final active = i == currentIndex;
-              final color = active ? activeColor : cs.onSurfaceVariant;
+              final color = active ? activeColor : inactiveColor;
               return Expanded(
                 child: InkWell(
                   onTap: () => _onTap(context, i),
+                  borderRadius: BorderRadius.circular(16),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        height: 3.5,
-                        width: 32,
-                        margin: const EdgeInsets.only(bottom: 6),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: active ? 20 : 12,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: active ? activeColor : Colors.transparent,
-                          borderRadius: BorderRadius.circular(2),
+                          color: active ? activePillBg : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          active ? item.activeIcon : item.icon,
+                          size: 25,
+                          color: color,
                         ),
                       ),
-                      Icon(active ? item.activeIcon : item.icon, size: 28, color: color),
                       const SizedBox(height: 3),
                       Text(
                         item.label,
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: color,
-                          fontSize: 14,
+                          fontSize: 13.5,
                           fontWeight: active ? FontWeight.w800 : FontWeight.w600,
                         ),
                       ),
