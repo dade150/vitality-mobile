@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
 
 /// Grafico a barre semplice, senza dipendenze esterne: usato per calorie pasti
 /// e minuti attività nella vista settimanale del Diario e nello Storico Salute.

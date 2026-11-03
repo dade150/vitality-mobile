@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/meal_entry.dart';
 import '../../providers/health_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../theme/app_colors.dart';

@@ -584,7 +584,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<MealType>(
-          value: mealType,
+          initialValue: mealType,
           decoration: _inputDecoration(label: 'Tipo pasto', isMissing: false),
           items: MealType.values.map((t) {
             return DropdownMenuItem(value: t, child: Text(t.label));
@@ -652,7 +652,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<String>(
-          value: currentType,
+          initialValue: currentType,
           decoration: _inputDecoration(label: 'Tipo di attività', isMissing: false),
           items: HealthService.activityLabels.map((l) {
             return DropdownMenuItem(value: l, child: Text(l));

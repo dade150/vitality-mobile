@@ -287,7 +287,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (settings.autoTts && chat.messages.isNotEmpty) {
         final lastMsg = chat.messages.last;
         if (!lastMsg.isUser && lastMsg.text.isNotEmpty) {
-          final msgKey = lastMsg.id ?? '${lastMsg.time.millisecondsSinceEpoch}';
+          final msgKey = lastMsg.id;
           unawaited(voice.speak(lastMsg.text, messageKey: msgKey));
         }
       }
@@ -738,7 +738,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 );
                               }
 
-                              final msgKey = message.id ?? '${message.time.millisecondsSinceEpoch}';
+                              final msgKey = message.id;
                               final isCurrentSpeaking =
                                   voice.isSpeaking && voice.speakingMessageKey == msgKey;
 

@@ -81,13 +81,13 @@ class VoiceService extends ChangeNotifier {
         onResult: (result) {
           onResult(result.recognizedWords);
         },
-        localeId: localeId,
-        pauseFor: const Duration(seconds: 5),
-        listenFor: const Duration(seconds: 60),
         listenOptions: stt.SpeechListenOptions(
           partialResults: true,
           cancelOnError: true,
           listenMode: stt.ListenMode.dictation,
+          localeId: localeId,
+          pauseFor: const Duration(seconds: 5),
+          listenFor: const Duration(seconds: 60),
         ),
       );
       return true;

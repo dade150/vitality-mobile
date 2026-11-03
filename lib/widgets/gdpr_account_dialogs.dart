@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/appointments_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
-import '../providers/clinical_provider.dart';
-import '../providers/health_provider.dart';
-import '../providers/profile_provider.dart';
-import '../providers/reports_provider.dart';
 import '../services/error_handler.dart';
 import '../services/gdpr_service.dart';
 

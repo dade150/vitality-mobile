@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 class LegalDocumentsSheet extends StatelessWidget {
   final String title;
   final String version;
-  final List<_LegalSection> sections;
+  final List<LegalSection> sections;
 
   const LegalDocumentsSheet._({
     required this.title,
@@ -51,14 +51,14 @@ class LegalDocumentsSheet extends StatelessWidget {
     );
   }
 
-  static const List<_LegalSection> _termsSections = [
-    _LegalSection(
+  static const List<LegalSection> _termsSections = [
+    LegalSection(
       heading: '1. Natura del Servizio (Health Coaching Educazionale)',
       body:
           'diaLog2 è un assistente conversazionale di supporto motivazionale, educazionale e di stile di vita dedicato alle persone con Diabete Mellito di Tipo 2.\n'
           'L\'applicazione aiuta l\'utente a tenere traccia del proprio diario giornaliero (glicemie, pasti, attività fisica, terapie prescritte dal medico, appuntamenti e referti) e fornisce informazioni educative basate su linee guida cliniche ufficiali.',
     ),
-    _LegalSection(
+    LegalSection(
       heading: '2. Esclusione di Dispositivo Medico (MDR UE 2017/745)',
       body:
           'diaLog2 NON è un dispositivo medico ai sensi del Regolamento (UE) 2017/745 (MDR) e non sostituisce in alcun modo il medico curante o il diabetologo.\n'
@@ -66,33 +66,33 @@ class LegalDocumentsSheet extends StatelessWidget {
           '• L\'assistente AI non prescrive farmaci e non suggerisce né modifica dosaggi di insulina o di ipoglicemizzanti orali.\n'
           '• Qualsiasi decisione terapeutica o clinica deve essere sempre concordata con il proprio medico.',
     ),
-    _LegalSection(
+    LegalSection(
       heading: '3. Gestione delle Emergenze Sanitarie',
       body:
           'diaLog2 non è un servizio di pronto soccorso né di telemedicina d\'urgenza. In presenza di sintomi acuti (ipoglicemia severa, iperglicemia critica, dolore toracico, difficoltà respiratoria, stato confusionale o malessere improvviso), non attendere la risposta dell\'app: contatta immediatamente il 112 o recati al Pronto Soccorso.',
     ),
-    _LegalSection(
+    LegalSection(
       heading: '4. Conferma Umana dei Dati Estratti (Human-in-the-Loop)',
       body:
           'Ai sensi dell\'Art. 14 dell\'EU AI Act, nessun dato clinico estratto dalla conversazione o dalle foto/PDF dei referti viene salvato automaticamente nel diario senza la tua verifica e conferma esplicita tramite le apposite schede di proposta.',
     ),
   ];
 
-  static const List<_LegalSection> _privacySections = [
-    _LegalSection(
+  static const List<LegalSection> _privacySections = [
+    LegalSection(
       heading: '1. Categorie di Dati Trattati (Art. 9 GDPR)',
       body:
           'Per erogare il servizio di diario e coaching, diaLog2 tratta:\n'
           '• Dati anagrafici e di contatto (nome, cognome, data di nascita, sesso biologico, email).\n'
           '• Categorie particolari di dati relativi alla salute (Art. 9 GDPR): misurazioni glicemiche, pressione arteriosa, emoglobina glicata (HbA1c), profilo lipidico, diario alimentare, attività fisica, piano terapeutico, visite mediche, testo/immagini di referti caricati e cronologia della chat.',
     ),
-    _LegalSection(
+    LegalSection(
       heading: '2. Basi Giuridiche del Trattamento (Art. 6 e Art. 9 GDPR)',
       body:
           '• Esecuzione del contratto di servizio (Art. 6.1.b GDPR): per la gestione dell\'account e delle funzionalità base dell\'applicazione.\n'
           '• Consenso esplicito dell\'interessato (Art. 9.2.a e Art. 22 GDPR): per il trattamento dei dati relativi alla salute e per la loro elaborazione – previa rigorosa de-identificazione – tramite modelli di Intelligenza Artificiale (Google Cloud Vertex AI, regione Unione Europea).',
     ),
-    _LegalSection(
+    LegalSection(
       heading: '3. Privacy-by-Design e De-identificazione prima dell\'IA',
       body:
           'Prima di inviare qualsiasi quesito o testo di referto al modello linguistico (Vertex AI EU):\n'
@@ -101,12 +101,12 @@ class LegalDocumentsSheet extends StatelessWidget {
           '• Il nome del paziente e del medico vengono sostituiti con segnaposto anonimi ({{NOME}}, {{MEDICO}}) e re-idratati solo sul tuo dispositivo.\n'
           '• I dati non vengono mai utilizzati per addestrare modelli di Intelligenza Artificiale di terze parti.',
     ),
-    _LegalSection(
+    LegalSection(
       heading: '4. Conservazione dei Dati e Sicurezza (Art. 5.1.e e Art. 32 GDPR)',
       body:
           'I dati sono protetti nel database Supabase tramite isolamento crittografico Row-Level Security (RLS) associato esclusivamente al tuo utente. La cronologia delle conversazioni può essere cancellata in ogni momento dall\'utente ed è soggetta a limitazione della conservazione.',
     ),
-    _LegalSection(
+    LegalSection(
       heading: '5. Diritti dell\'Interessato (Art. 7.3 e Artt. 15–22 GDPR)',
       body:
           'Dalla sezione Impostazioni > Privacy e Dati Sanitari puoi in qualsiasi momento:\n'
@@ -206,11 +206,11 @@ class LegalDocumentsSheet extends StatelessWidget {
   }
 }
 
-class _LegalSection {
+class LegalSection {
   final String heading;
   final String body;
 
-  const _LegalSection({
+  const LegalSection({
     required this.heading,
     required this.body,
   });

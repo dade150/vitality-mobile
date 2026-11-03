@@ -110,6 +110,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
 
+      if (!mounted) return;
+
       if (auth.pendingEmailConfirmation) {
         // Confirm email ON: utente creato ma sessione nulla, serve la conferma.
         Navigator.of(context).pushReplacement(

@@ -42,10 +42,6 @@ class _ClinicalParametersScreenState extends State<ClinicalParametersScreen> {
     });
   }
 
-  void _openHistory(BuildContext context) {
-    Navigator.of(context).pushNamed('/reports/history');
-  }
-
   Widget _viewButton(String label, ClinicalScreenView value) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;

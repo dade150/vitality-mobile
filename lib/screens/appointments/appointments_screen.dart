@@ -41,13 +41,8 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     Navigator.of(context).pushNamed('/appointments/add', arguments: appt);
   }
 
-  String _formatTime(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
-
-  bool _isToday(DateTime d) => _isSameDay(d, DateTime.now());
 
   @override
   Widget build(BuildContext context) {
