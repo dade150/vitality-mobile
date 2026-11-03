@@ -58,7 +58,7 @@ class GdprService {
 
     final bundle = {
       'metadata': {
-        'application': 'Vitality Assist',
+        'application': 'diaLog2',
         'gdpr_reference': 'Art. 20 Regolamento (UE) 2016/679 (Diritto alla portabilità dei dati)',
         'schema_version': '1.0',
         'exported_at': DateTime.now().toUtc().toIso8601String(),

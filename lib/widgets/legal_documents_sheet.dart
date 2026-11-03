@@ -55,13 +55,13 @@ class LegalDocumentsSheet extends StatelessWidget {
     _LegalSection(
       heading: '1. Natura del Servizio (Health Coaching Educazionale)',
       body:
-          'Vitality Assist è un assistente conversazionale di supporto motivazionale, educazionale e di stile di vita dedicato alle persone con Diabete Mellito di Tipo 2.\n'
+          'diaLog2 è un assistente conversazionale di supporto motivazionale, educazionale e di stile di vita dedicato alle persone con Diabete Mellito di Tipo 2.\n'
           'L\'applicazione aiuta l\'utente a tenere traccia del proprio diario giornaliero (glicemie, pasti, attività fisica, terapie prescritte dal medico, appuntamenti e referti) e fornisce informazioni educative basate su linee guida cliniche ufficiali.',
     ),
     _LegalSection(
       heading: '2. Esclusione di Dispositivo Medico (MDR UE 2017/745)',
       body:
-          'Vitality Assist NON è un dispositivo medico ai sensi del Regolamento (UE) 2017/745 (MDR) e non sostituisce in alcun modo il medico curante o il diabetologo.\n'
+          'diaLog2 NON è un dispositivo medico ai sensi del Regolamento (UE) 2017/745 (MDR) e non sostituisce in alcun modo il medico curante o il diabetologo.\n'
           '• L\'assistente AI non formula diagnosi mediche.\n'
           '• L\'assistente AI non prescrive farmaci e non suggerisce né modifica dosaggi di insulina o di ipoglicemizzanti orali.\n'
           '• Qualsiasi decisione terapeutica o clinica deve essere sempre concordata con il proprio medico.',
@@ -69,7 +69,7 @@ class LegalDocumentsSheet extends StatelessWidget {
     _LegalSection(
       heading: '3. Gestione delle Emergenze Sanitarie',
       body:
-          'Vitality Assist non è un servizio di pronto soccorso né di telemedicina d\'urgenza. In presenza di sintomi acuti (ipoglicemia severa, iperglicemia critica, dolore toracico, difficoltà respiratoria, stato confusionale o malessere improvviso), non attendere la risposta dell\'app: contatta immediatamente il 112 o recati al Pronto Soccorso.',
+          'diaLog2 non è un servizio di pronto soccorso né di telemedicina d\'urgenza. In presenza di sintomi acuti (ipoglicemia severa, iperglicemia critica, dolore toracico, difficoltà respiratoria, stato confusionale o malessere improvviso), non attendere la risposta dell\'app: contatta immediatamente il 112 o recati al Pronto Soccorso.',
     ),
     _LegalSection(
       heading: '4. Conferma Umana dei Dati Estratti (Human-in-the-Loop)',
@@ -82,7 +82,7 @@ class LegalDocumentsSheet extends StatelessWidget {
     _LegalSection(
       heading: '1. Categorie di Dati Trattati (Art. 9 GDPR)',
       body:
-          'Per erogare il servizio di diario e coaching, Vitality Assist tratta:\n'
+          'Per erogare il servizio di diario e coaching, diaLog2 tratta:\n'
           '• Dati anagrafici e di contatto (nome, cognome, data di nascita, sesso biologico, email).\n'
           '• Categorie particolari di dati relativi alla salute (Art. 9 GDPR): misurazioni glicemiche, pressione arteriosa, emoglobina glicata (HbA1c), profilo lipidico, diario alimentare, attività fisica, piano terapeutico, visite mediche, testo/immagini di referti caricati e cronologia della chat.',
     ),

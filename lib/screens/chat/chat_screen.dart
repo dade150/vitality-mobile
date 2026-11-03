@@ -654,14 +654,15 @@ class _ChatScreenState extends State<ChatScreen> {
                   highlightColor: menuColor.withValues(alpha: 0.1),
                   onTap: () => Scaffold.of(scaffoldContext).openDrawer(),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.menu_rounded,
-                          color: menuColor,
-                          size: 24,
+                        Image.asset(
+                          'assets/logo/dialog_symbol.png',
+                          width: 28,
+                          height: 28,
+                          fit: BoxFit.contain,
                         ),
                         const SizedBox(width: 6),
                         Text(

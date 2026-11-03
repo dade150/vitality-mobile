@@ -73,7 +73,7 @@ class ChatDrawer extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header pulito ed essenziale: solo scritta "Menu" senza banner o icone ingombranti
+          // Header con logo dialog_symbol e nome diaLog2
           Padding(
             padding: EdgeInsets.fromLTRB(
               24,
@@ -81,13 +81,38 @@ class ChatDrawer extends StatelessWidget {
               24,
               12,
             ),
-            child: Text(
-              'Menu',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface,
-                fontSize: 22,
-              ),
+            child: Row(
+              children: [
+                Image.asset(
+                  'assets/logo/dialog_symbol.png',
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(width: 10),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'diaLog',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: cs.onSurface,
+                          fontSize: 22,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '2',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: cs.primary,
+                          fontSize: 22,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
 

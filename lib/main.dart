@@ -292,7 +292,7 @@ class _AppWithTheme extends StatelessWidget {
 
         return MaterialApp(
           navigatorKey: navigatorKey,
-          title: 'Vitality Assist',
+          title: 'diaLog2',
           debugShowCheckedModeBanner: false,
           themeMode: themeMode,
           theme: AppTheme.light(),
