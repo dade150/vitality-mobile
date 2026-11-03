@@ -158,7 +158,7 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
       _activities = activities;
       var loadedTherapies = therapies;
       if (loadedTherapies.isEmpty) {
-        final metaTherapies = _db.auth.currentUser?.userMetadata?['therapies'];
+        final metaTherapies = Supabase.instance.client.auth.currentUser?.userMetadata?['therapies'];
         if (metaTherapies is List && metaTherapies.isNotEmpty) {
           for (final raw in metaTherapies) {
             if (raw is Map) {
