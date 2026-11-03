@@ -92,15 +92,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Diabete · Coaching · Diario',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
                     const SizedBox(height: 36),
                     TextFormField(
                       controller: _emailController,
