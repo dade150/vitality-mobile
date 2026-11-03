@@ -7,6 +7,7 @@ import '../models/meal_entry.dart';
 import '../models/proposed_entry.dart';
 import '../services/health_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/app_date_picker.dart';
 import 'vital_entry_sheet.dart';
 
 class ClinicalProposalCard extends StatefulWidget {
@@ -178,23 +179,19 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
 
   Future<void> _pickFutureAppointmentDateTime() async {
     final now = DateTime.now();
-    final pickedDate = await showDatePicker(
+    final pickedDate = await AppDateTimePicker.pickDate(
       context: context,
       initialDate: _selectedDateTime.isBefore(now) ? now : _selectedDateTime,
       firstDate: now.subtract(const Duration(days: 30)),
       lastDate: now.add(const Duration(days: 730)),
-      helpText: 'Scegli la data dell\'appuntamento',
-      cancelText: 'Annulla',
-      confirmText: 'Conferma',
+      helpText: 'Data della visita',
     );
     if (pickedDate == null || !mounted) return;
 
-    final pickedTime = await showTimePicker(
+    final pickedTime = await AppDateTimePicker.pickTime(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
-      helpText: 'Scegli l\'orario dell\'appuntamento',
-      cancelText: 'Annulla',
-      confirmText: 'Conferma',
+      helpText: 'Orario della visita',
     );
     if (pickedTime == null || !mounted) return;
 
@@ -741,33 +738,12 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
           readOnly: readOnly,
         ),
         const SizedBox(height: 12),
-        Text('Data e ora appuntamento', style: theme.textTheme.labelLarge),
-        const SizedBox(height: 6),
-        InkWell(
-          onTap: readOnly ? null : _pickFutureAppointmentDateTime,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: cs.outlineVariant),
-              borderRadius: BorderRadius.circular(12),
-              color: readOnly ? cs.surfaceContainerHigh : cs.surfaceContainerLowest,
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.event_available_rounded, color: AppColors.accent, size: 22),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    dateFormat.format(_selectedDateTime),
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                if (!readOnly)
-                  Icon(Icons.edit_calendar_rounded, size: 18, color: cs.onSurfaceVariant),
-              ],
-            ),
-          ),
+        AppPickerTile(
+          icon: Icons.event_available_rounded,
+          caption: 'Data e orario visita',
+          valueText: dateFormat.format(_selectedDateTime),
+          enabled: !readOnly,
+          onTap: _pickFutureAppointmentDateTime,
         ),
       ],
     );

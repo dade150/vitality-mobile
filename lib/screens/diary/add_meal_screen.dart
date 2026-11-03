@@ -7,6 +7,7 @@ import '../../providers/health_provider.dart';
 import '../../services/health_service.dart';
 import '../../services/nutrition_service.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/app_date_picker.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/vital_entry_sheet.dart';
 
@@ -66,6 +67,41 @@ class _AddMealScreenState extends State<AddMealScreen> {
   void _showMessage(String text) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final picked = await AppDateTimePicker.pickDate(
+      context: context,
+      initialDate: _day.isAfter(today) ? today : _day,
+      firstDate: DateTime(2000, 1, 1),
+      lastDate: today,
+      helpText: 'Scegli il giorno del pasto',
+    );
+    if (picked != null) {
+      setState(() => _day = DateTime(picked.year, picked.month, picked.day));
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final now = TimeOfDay.now();
+    TimeOfDay initial = now;
+    final current = HealthService.normalizeTime(_timeController.text);
+    if (current != null) {
+      final parts = current.split(':');
+      initial = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
+    final picked = await AppDateTimePicker.pickTime(
+      context: context,
+      initialTime: initial,
+      helpText: _type == MealType.fuoriPasto ? 'Orario fuori pasto' : 'Orario del pasto',
+    );
+    if (picked != null) {
+      final hh = picked.hour.toString().padLeft(2, '0');
+      final mm = picked.minute.toString().padLeft(2, '0');
+      setState(() => _timeController.text = '$hh:$mm');
+    }
   }
 
   Future<void> _estimateWithAI() async {
@@ -430,38 +466,40 @@ class _AddMealScreenState extends State<AddMealScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    WhenSelector(
-                      label: 'Giorno del pasto',
-                      value: _day,
-                      showTime: false,
-                      enabled: !_saving,
-                      onChanged: (v) => setState(() => _day = DateTime(v.year, v.month, v.day)),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      isFuoriPasto ? 'Orario fuori pasto (es. 17:30)' : 'Orario (opzionale, es. 13:00)',
-                      style: theme.textTheme.labelLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _timeController,
-                      enabled: !_saving,
-                      textInputAction: TextInputAction.done,
-                      keyboardType: TextInputType.datetime,
-                      inputFormatters: const [TimeTextInputFormatter()],
-                      decoration: InputDecoration(
-                        hintText: isFuoriPasto ? 'es. 17:30' : 'Lascia vuoto se è l\'orario abituale',
-                        prefixIcon: Icon(Icons.schedule_rounded, color: accentColor),
-                        suffixIcon: _timeController.text.isNotEmpty
-                            ? IconButton(
-                                tooltip: 'Rimuovi orario',
-                                icon: const Icon(Icons.clear_rounded),
-                                onPressed: () => setState(() => _timeController.clear()),
-                              )
-                            : null,
-                      ),
-                      onChanged: (_) => setState(() {}),
-                      onSubmitted: (_) => _save(),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 6,
+                          child: AppPickerTile(
+                            icon: Icons.calendar_month_outlined,
+                            caption: 'Giorno del pasto',
+                            valueText: WhenSelector.formatDayLabel(_day),
+                            enabled: !_saving,
+                            onTap: _pickDate,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 5,
+                          child: AppPickerTile(
+                            icon: Icons.schedule_rounded,
+                            caption: isFuoriPasto ? 'Orario fuori pasto' : 'Orario (opzionale)',
+                            valueText: _timeController.text.isEmpty
+                                ? (isFuoriPasto ? 'Seleziona' : 'Abituale')
+                                : _timeController.text,
+                            enabled: !_saving,
+                            onTap: _pickTime,
+                            trailing: _timeController.text.isNotEmpty
+                                ? IconButton(
+                                    tooltip: 'Rimuovi orario',
+                                    icon: const Icon(Icons.clear_rounded, size: 20),
+                                    onPressed: () => setState(() => _timeController.clear()),
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 28),
                     SizedBox(

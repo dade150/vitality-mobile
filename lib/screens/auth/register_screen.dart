@@ -151,7 +151,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
                   RegisterStep1Profile(formKey: _step1FormKey, data: _data),
-                  RegisterStepTherapy(data: _data, onSkip: _goNext),
+                  RegisterStepTherapy(data: _data),
                   RegisterStep2Credentials(formKey: _step2FormKey, data: _data),
                   RegisterStep3Settings(data: _data),
                 ],

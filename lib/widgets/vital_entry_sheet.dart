@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../services/health_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/app_date_picker.dart';
 import '../utils/date_format.dart';
 
 /// Formatter che facilita la digitazione dell'orario senza orologio:
@@ -93,45 +93,16 @@ class WhenSelector extends StatefulWidget {
 }
 
 class _WhenSelectorState extends State<WhenSelector> {
-  late final TextEditingController _timeCtrl;
-  String? _timeError;
-
-  @override
-  void initState() {
-    super.initState();
-    _timeCtrl = TextEditingController(text: WhenSelector.hhmm(widget.value));
-  }
-
-  @override
-  void didUpdateWidget(covariant WhenSelector oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final formatted = WhenSelector.hhmm(widget.value);
-    final normalizedCurrent = HealthService.normalizeTime(_timeCtrl.text);
-    if (normalizedCurrent != formatted) {
-      _timeCtrl.text = formatted;
-      _timeError = null;
-    }
-  }
-
-  @override
-  void dispose() {
-    _timeCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _pickDate(BuildContext context) async {
-    FocusScope.of(context).unfocus();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final initial = DateTime(widget.value.year, widget.value.month, widget.value.day);
-    final picked = await showDatePicker(
+    final picked = await AppDateTimePicker.pickDate(
       context: context,
       initialDate: initial.isAfter(today) ? today : initial,
       firstDate: WhenSelector._earliestDate,
       lastDate: today,
       helpText: 'Scegli il giorno',
-      cancelText: 'Annulla',
-      confirmText: 'Conferma',
     );
     if (picked == null) return;
     final updated = DateTime(
@@ -141,47 +112,34 @@ class _WhenSelectorState extends State<WhenSelector> {
       widget.value.hour,
       widget.value.minute,
     );
-    final clamped = WhenSelector.clampNotFuture(updated);
-    _timeCtrl.text = WhenSelector.hhmm(clamped);
-    setState(() => _timeError = null);
-    widget.onChanged(clamped);
+    widget.onChanged(WhenSelector.clampNotFuture(updated));
   }
 
-  void _onTimeTextChanged(String text) {
-    final normalized = HealthService.normalizeTime(text);
-    if (normalized == null) {
-      setState(() {
-        _timeError = text.trim().length >= 4 ? 'Usa il formato HH:MM (es. 08:30)' : null;
-      });
-      return;
-    }
-    final parts = normalized.split(':');
-    final h = int.parse(parts[0]);
-    final m = int.parse(parts[1]);
-    final candidate = DateTime(
+  Future<void> _pickTime(BuildContext context) async {
+    final initialTime = TimeOfDay(hour: widget.value.hour, minute: widget.value.minute);
+    final picked = await AppDateTimePicker.pickTime(
+      context: context,
+      initialTime: initialTime,
+      helpText: 'Scegli l\'orario',
+    );
+    if (picked == null) return;
+    final updated = DateTime(
       widget.value.year,
       widget.value.month,
       widget.value.day,
-      h,
-      m,
+      picked.hour,
+      picked.minute,
     );
-    final clamped = WhenSelector.clampNotFuture(candidate);
-    setState(() => _timeError = null);
-    widget.onChanged(clamped);
+    widget.onChanged(WhenSelector.clampNotFuture(updated));
   }
 
   void _applyPreset(DateTime target) {
-    FocusScope.of(context).unfocus();
-    final clamped = WhenSelector.clampNotFuture(target);
-    _timeCtrl.text = WhenSelector.hhmm(clamped);
-    setState(() => _timeError = null);
-    widget.onChanged(clamped);
+    widget.onChanged(WhenSelector.clampNotFuture(target));
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final now = DateTime.now();
     final v = widget.value;
     final isNowSelected = v.difference(now).abs().inMinutes <= 2 && WhenSelector.sameDay(v, now);
@@ -192,7 +150,7 @@ class _WhenSelectorState extends State<WhenSelector> {
         Text(widget.label, style: theme.textTheme.labelLarge),
         const SizedBox(height: 10),
         if (!widget.showTime) ...[
-          _PickerTile(
+          AppPickerTile(
             icon: Icons.calendar_month_outlined,
             caption: 'Giorno',
             valueText: WhenSelector.formatDayLabel(v),
@@ -205,7 +163,7 @@ class _WhenSelectorState extends State<WhenSelector> {
             children: [
               Expanded(
                 flex: 6,
-                child: _PickerTile(
+                child: AppPickerTile(
                   icon: Icons.calendar_month_outlined,
                   caption: 'Giorno',
                   valueText: WhenSelector.formatDayLabel(v),
@@ -216,33 +174,16 @@ class _WhenSelectorState extends State<WhenSelector> {
               const SizedBox(width: 10),
               Expanded(
                 flex: 5,
-                child: TextField(
-                  controller: _timeCtrl,
+                child: AppPickerTile(
+                  icon: Icons.schedule_rounded,
+                  caption: 'Orario',
+                  valueText: WhenSelector.hhmm(v),
                   enabled: widget.enabled,
-                  keyboardType: TextInputType.datetime,
-                  inputFormatters: const [TimeTextInputFormatter()],
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                  onChanged: _onTimeTextChanged,
-                  decoration: InputDecoration(
-                    labelText: 'Orario',
-                    hintText: 'es. 08:30',
-                    prefixIcon: Icon(
-                      Icons.schedule_rounded,
-                      color: theme.brightness == Brightness.dark ? cs.primary : AppColors.accentText,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                  ),
+                  onTap: () => _pickTime(context),
                 ),
               ),
             ],
           ),
-          if (_timeError != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              _timeError!,
-              style: TextStyle(color: cs.error, fontSize: 15, fontWeight: FontWeight.w700),
-            ),
-          ],
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -276,76 +217,6 @@ class _WhenSelectorState extends State<WhenSelector> {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _PickerTile extends StatelessWidget {
-  final IconData icon;
-  final String caption;
-  final String valueText;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _PickerTile({
-    required this.icon,
-    required this.caption,
-    required this.valueText,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return Material(
-      color: cs.surfaceContainerLowest,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: cs.outlineVariant, width: 2),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: enabled ? onTap : null,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: theme.brightness == Brightness.dark ? cs.primary : AppColors.accentText,
-                size: 28,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      caption,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 14.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      valueText,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16.5,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

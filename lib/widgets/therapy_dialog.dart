@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/therapy_item.dart';
 import '../services/health_service.dart';
+import '../utils/app_date_picker.dart';
 
 /// Dialog riutilizzabile per inserire o modificare un farmaco della terapia.
 /// Usato sia nella schermata di configurazione terapia ([TherapyConfigScreen])
@@ -65,7 +66,7 @@ class _TherapyItemDialogState extends State<TherapyItemDialog> {
       final parts = current.split(':');
       initial = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
     }
-    final picked = await showTimePicker(
+    final picked = await AppDateTimePicker.pickTime(
       context: context,
       initialTime: initial,
       helpText: 'Orario di assunzione',
@@ -136,23 +137,13 @@ class _TherapyItemDialogState extends State<TherapyItemDialog> {
                 prefixIcon: Icon(Icons.medication_outlined),
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _timeController,
+            const SizedBox(height: 14),
+            AppPickerTile(
+              icon: Icons.schedule_rounded,
+              caption: 'Orario di assunzione',
+              valueText: _timeController.text.isEmpty ? 'Seleziona orario' : _timeController.text,
               enabled: !_busy,
-              textInputAction: TextInputAction.done,
-              keyboardType: TextInputType.datetime,
-              decoration: InputDecoration(
-                labelText: 'Orario (es. 08:00)',
-                hintText: '08:00',
-                prefixIcon: const Icon(Icons.access_time_rounded),
-                suffixIcon: IconButton(
-                  tooltip: 'Seleziona orario',
-                  icon: const Icon(Icons.schedule_rounded),
-                  onPressed: _busy ? null : _pickTime,
-                ),
-              ),
-              onSubmitted: (_) => _save(),
+              onTap: _pickTime,
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),

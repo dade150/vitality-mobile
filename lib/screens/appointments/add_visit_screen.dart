@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/appointment.dart';
 import '../../providers/appointments_provider.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/app_date_picker.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 
 class AddVisitScreen extends StatefulWidget {
@@ -57,22 +58,17 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
   }
 
   Future<void> _pickDate() async {
-    FocusScope.of(context).unfocus();
     final now = DateTime.now();
     final first = DateTime(now.year - 5);
     final last = DateTime(now.year + 5);
     var initial = _date ?? now;
-    if (initial.isBefore(first)) initial = first;
-    if (initial.isAfter(last)) initial = last;
 
-    final picked = await showDatePicker(
+    final picked = await AppDateTimePicker.pickDate(
       context: context,
       initialDate: initial,
       firstDate: first,
       lastDate: last,
       helpText: 'Data della visita',
-      cancelText: 'Annulla',
-      confirmText: 'Conferma',
     );
     if (picked != null && mounted) {
       setState(() {
@@ -83,13 +79,10 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
   }
 
   Future<void> _pickTime() async {
-    FocusScope.of(context).unfocus();
-    final picked = await showTimePicker(
+    final picked = await AppDateTimePicker.pickTime(
       context: context,
       initialTime: _time ?? TimeOfDay.now(),
       helpText: 'Orario della visita',
-      cancelText: 'Annulla',
-      confirmText: 'Conferma',
     );
     if (picked != null && mounted) {
       setState(() {
@@ -243,38 +236,33 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text('Data', style: theme.textTheme.labelLarge),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: _busy ? null : _pickDate,
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        suffixIcon: Icon(Icons.calendar_today_outlined),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: AppPickerTile(
+                          icon: Icons.calendar_month_outlined,
+                          caption: 'Data della visita',
+                          valueText: _date == null
+                              ? 'Seleziona data'
+                              : '${_date!.day.toString().padLeft(2, '0')}/${_date!.month.toString().padLeft(2, '0')}/${_date!.year}',
+                          enabled: !_busy,
+                          onTap: _pickDate,
+                        ),
                       ),
-                      child: Text(
-                        _date == null
-                            ? 'gg/mm/aaaa'
-                            : '${_date!.day.toString().padLeft(2, '0')}/${_date!.month.toString().padLeft(2, '0')}/${_date!.year}',
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: AppPickerTile(
+                          icon: Icons.schedule_rounded,
+                          caption: 'Orario visita',
+                          valueText: _time == null
+                              ? '--:--'
+                              : '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}',
+                          enabled: !_busy,
+                          onTap: _pickTime,
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text('Ora', style: theme.textTheme.labelLarge),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: _busy ? null : _pickTime,
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        suffixIcon: Icon(Icons.access_time_rounded),
-                      ),
-                      child: Text(
-                        _time == null
-                            ? '--:--'
-                            : '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}',
-                      ),
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 20),
                   Text('Medico o specialista (opzionale)', style: theme.textTheme.labelLarge),

@@ -82,12 +82,18 @@ class ChatDrawer extends StatelessWidget {
               12,
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Image.asset(
-                  'assets/logo/dialog_symbol.png',
-                  width: 32,
-                  height: 32,
-                  fit: BoxFit.contain,
+                // Offset ottico (+2dp) per compensare la codina inferiore del fumetto
+                // e allineare il baricentro della nuvoletta al testo.
+                Transform.translate(
+                  offset: const Offset(0, 2),
+                  child: Image.asset(
+                    'assets/logo/dialog_symbol.png',
+                    width: 30,
+                    height: 30,
+                    fit: BoxFit.contain,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Text.rich(

@@ -10,6 +10,7 @@ import '../../providers/reports_provider.dart';
 import '../../services/error_handler.dart';
 import '../../services/report_service.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/app_date_picker.dart';
 import '../../utils/date_format.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/section_card.dart';
@@ -163,17 +164,14 @@ class _AddReportScreenState extends State<AddReportScreen> {
   // ---------------------------------------------------------------- Salvataggio
 
   Future<void> _pickDate() async {
-    FocusScope.of(context).unfocus();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final picked = await showDatePicker(
+    final picked = await AppDateTimePicker.pickDate(
       context: context,
       initialDate: _examDate ?? today,
       firstDate: ClinicalParameterType.earliestDate,
       lastDate: today,
       helpText: "Data dell'esame",
-      cancelText: 'Annulla',
-      confirmText: 'Conferma',
     );
     if (picked == null || !mounted) return;
     setState(() => _setExamDate(picked));
@@ -524,17 +522,13 @@ class _AddReportScreenState extends State<AddReportScreen> {
                     ),
                   ],
                   const Divider(),
-                  Text("Data dell'esame", style: theme.textTheme.labelLarge),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _dateCtrl,
-                    readOnly: true,
+                  const SizedBox(height: 12),
+                  AppPickerTile(
+                    icon: Icons.calendar_month_outlined,
+                    caption: "Data dell'esame",
+                    valueText: _examDate == null ? 'Tocca per scegliere la data' : _dateCtrl.text,
                     enabled: !_saving,
                     onTap: _pickDate,
-                    decoration: const InputDecoration(
-                      hintText: 'Tocca per scegliere la data',
-                      suffixIcon: Icon(Icons.calendar_month_outlined),
-                    ),
                   ),
                 ],
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/request/registration_request.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/app_date_picker.dart';
 
 class RegisterStep1Profile extends StatefulWidget {
   final GlobalKey<FormState> formKey;
@@ -37,7 +38,7 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
 
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final picked = await AppDateTimePicker.pickDate(
       context: context,
       initialDate: widget.data.birth ?? DateTime(now.year - 60, now.month, now.day),
       firstDate: DateTime(now.year - 120),
@@ -141,21 +142,11 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
                   (v == null || v.trim().isEmpty) ? 'Inserisci il tuo cognome' : null,
             ),
             const SizedBox(height: 16),
-            InkWell(
-              borderRadius: BorderRadius.circular(16),
+            AppPickerTile(
+              icon: Icons.calendar_today_outlined,
+              caption: 'Data di nascita',
+              valueText: widget.data.birth == null ? 'gg/mm/aaaa' : _formatDate(widget.data.birth!),
               onTap: _pickBirthDate,
-              child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Data di nascita',
-                  suffixIcon: Icon(Icons.calendar_today_outlined, size: 20),
-                ),
-                child: Text(
-                  widget.data.birth == null ? 'gg/mm/aaaa' : _formatDate(widget.data.birth!),
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: widget.data.birth == null ? cs.onSurfaceVariant.withValues(alpha: 0.6) : cs.onSurface,
-                  ),
-                ),
-              ),
             ),
             const SizedBox(height: 18),
             // Selezione sesso senza dicitura "Sesso biologico"

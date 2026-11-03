@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/clinical_parameter.dart';
+import '../utils/app_date_picker.dart';
 import '../utils/date_format.dart';
 
 /// Foglio per aggiungere o modificare un valore clinico.
@@ -101,17 +102,14 @@ class _ClinicalEntrySheetState extends State<_ClinicalEntrySheet> {
   }
 
   Future<void> _pickDate() async {
-    FocusScope.of(context).unfocus();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final picked = await showDatePicker(
+    final picked = await AppDateTimePicker.pickDate(
       context: context,
       initialDate: _date ?? today,
       firstDate: ClinicalParameterType.earliestDate,
       lastDate: today,
       helpText: "Data dell'esame",
-      cancelText: 'Annulla',
-      confirmText: 'Conferma',
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -239,17 +237,12 @@ class _ClinicalEntrySheetState extends State<_ClinicalEntrySheet> {
               decoration: InputDecoration(suffixText: _type.unit),
             ),
             const SizedBox(height: 16),
-            Text("Data dell'esame", style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _dateCtrl,
-              readOnly: true,
+            AppPickerTile(
+              icon: Icons.calendar_month_outlined,
+              caption: "Data dell'esame",
+              valueText: _date == null ? 'Tocca per scegliere la data' : _dateCtrl.text,
               enabled: !_busy,
               onTap: _pickDate,
-              decoration: const InputDecoration(
-                hintText: 'Tocca per scegliere la data',
-                suffixIcon: Icon(Icons.calendar_month_outlined),
-              ),
             ),
             const SizedBox(height: 16),
             if (_error != null) ...[

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter/foundation.dart';
@@ -294,6 +295,15 @@ class _AppWithTheme extends StatelessWidget {
           navigatorKey: navigatorKey,
           title: 'diaLog2',
           debugShowCheckedModeBanner: false,
+          locale: const Locale('it', 'IT'),
+          supportedLocales: const [
+            Locale('it', 'IT'),
+          ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           themeMode: themeMode,
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
@@ -301,6 +311,7 @@ class _AppWithTheme extends StatelessWidget {
             return MediaQuery(
               data: MediaQuery.of(context).copyWith(
                 textScaler: TextScaler.linear(fontScale),
+                alwaysUse24HourFormat: true,
               ),
               child: child ?? const SizedBox.shrink(),
             );

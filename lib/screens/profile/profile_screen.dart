@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../models/profile.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/app_date_picker.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/pill_button.dart';
 import '../../widgets/section_card.dart';
@@ -90,31 +91,27 @@ class ProfileScreen extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: InkWell(
+                            child: AppPickerTile(
+                              icon: Icons.calendar_today_outlined,
+                              caption: 'Data di nascita',
+                              valueText: selectedBirth == null
+                                  ? 'gg/mm/aaaa'
+                                  : DateFormat('dd/MM/yyyy').format(selectedBirth!),
                               onTap: () async {
                                 final now = DateTime.now();
                                 final first = DateTime(now.year - 120);
-                                // initialDate deve stare tra first e last:
-                                // una data fuori range fa assert del date picker.
                                 var initial = selectedBirth ?? DateTime(now.year - 60);
-                                if (initial.isBefore(first)) initial = first;
-                                if (initial.isAfter(now)) initial = now;
-                                final picked = await showDatePicker(
+                                final picked = await AppDateTimePicker.pickDate(
                                   context: context,
                                   initialDate: initial,
                                   firstDate: first,
                                   lastDate: now,
+                                  helpText: 'Data di nascita',
                                 );
                                 if (picked != null) {
                                   setState(() => selectedBirth = picked);
                                 }
                               },
-                              child: InputDecorator(
-                                decoration: const InputDecoration(labelText: 'Data di nascita'),
-                                child: Text(selectedBirth == null
-                                    ? 'gg/mm/aaaa'
-                                    : DateFormat('dd/MM/yyyy').format(selectedBirth!)),
-                              ),
                             ),
                           ),
                           const SizedBox(width: 12),

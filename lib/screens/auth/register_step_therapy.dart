@@ -13,12 +13,12 @@ import '../../widgets/therapy_dialog.dart';
 /// Il passaggio è facoltativo e include opzione esplicita di Skip ("Salta").
 class RegisterStepTherapy extends StatefulWidget {
   final RegistrationData data;
-  final VoidCallback onSkip;
+  final VoidCallback? onSkip;
 
   const RegisterStepTherapy({
     super.key,
     required this.data,
-    required this.onSkip,
+    this.onSkip,
   });
 
   @override
@@ -82,19 +82,7 @@ class _RegisterStepTherapyState extends State<RegisterStepTherapy> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Terapia farmacologica', style: theme.textTheme.headlineSmall),
-                    Text(
-                      'Passaggio facoltativo',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+                child: Text('Terapia farmacologica', style: theme.textTheme.headlineSmall),
               ),
             ],
           ),
@@ -106,75 +94,15 @@ class _RegisterStepTherapyState extends State<RegisterStepTherapy> {
               height: 1.35,
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Banner informativo
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: isDark ? cs.surfaceContainerHigh : AppColors.lightPeach.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: accentText.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline_rounded, color: accentText, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Potrai modificare, aggiungere o eliminare i tuoi farmaci in qualunque momento dalle impostazioni o dal diario.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurface,
-                      height: 1.3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           // Lista dei farmaci aggiunti
-          if (therapies.isEmpty)
-            SectionCard(
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.medical_services_outlined,
-                      size: 44,
-                      color: cs.onSurfaceVariant.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Nessun farmaco configurato',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Se non assumi farmaci quotidiani puoi saltare questo passaggio e proseguire.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else ...[
+          if (therapies.isNotEmpty) ...[
             Text(
               'Farmaci inseriti (${therapies.length})',
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             for (int i = 0; i < therapies.length; i++) ...[
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -222,14 +150,13 @@ class _RegisterStepTherapyState extends State<RegisterStepTherapy> {
                 ),
               ),
             ],
+            const SizedBox(height: 12),
           ],
-
-          const SizedBox(height: 16),
 
           // Tasto Aggiungi Farmaco
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 52,
             child: OutlinedButton.icon(
               onPressed: () => _addOrEditTherapy(),
               style: OutlinedButton.styleFrom(
@@ -241,23 +168,6 @@ class _RegisterStepTherapyState extends State<RegisterStepTherapy> {
               label: const Text(
                 'Aggiungi farmaco',
                 style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Tasto Salta
-          Center(
-            child: TextButton.icon(
-              onPressed: widget.onSkip,
-              style: TextButton.styleFrom(
-                foregroundColor: cs.onSurfaceVariant,
-              ),
-              icon: const Icon(Icons.fast_forward_rounded, size: 18),
-              label: Text(
-                therapies.isEmpty ? 'Non assumo farmaci (Salta)' : 'Salta configurazione',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               ),
             ),
           ),

@@ -657,14 +657,20 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Image.asset(
-                          'assets/logo/dialog_symbol.png',
-                          width: 28,
-                          height: 28,
-                          fit: BoxFit.contain,
+                        // Offset ottico (+1.5dp) per compensare la codina inferiore del fumetto
+                        // e allineare il corpo della nuvoletta all'altezza delle lettere di 'Menu'.
+                        Transform.translate(
+                          offset: const Offset(0, 1.5),
+                          child: Image.asset(
+                            'assets/logo/dialog_symbol.png',
+                            width: 24,
+                            height: 24,
+                            fit: BoxFit.contain,
+                          ),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8),
                         Text(
                           'Menu',
                           style: theme.textTheme.titleSmall?.copyWith(
