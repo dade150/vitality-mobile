@@ -280,7 +280,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!ok && chat.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(chat.errorMessage!)));
     } else if (ok) {
-      if (attachmentIn != null && attachmentIn.kind == 'medical_report') {
+      if (attachmentIn != null) {
         unawaited(context.read<ReportsProvider>().refresh());
       }
       final settings = context.read<SettingsProvider>();
@@ -530,6 +530,9 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildQuickSuggestionChips(ThemeData theme) {
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final chipTextColor = isDark ? cs.primary : AppColors.accentText;
     final suggestions = [
       'Come posso gestire la glicemia oggi?',
       'Cosa posso mangiare a cena?',
@@ -542,10 +545,16 @@ class _ChatScreenState extends State<ChatScreen> {
         runSpacing: 6,
         children: suggestions.map((sugg) {
           return ActionChip(
-            avatar: const Icon(Icons.lightbulb_outline_rounded, size: 16, color: AppColors.accent),
-            label: Text(sugg, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            avatar: Icon(Icons.lightbulb_outline_rounded, size: 18, color: chipTextColor),
+            label: Text(
+              sugg,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: chipTextColor,
+              ),
+            ),
             backgroundColor: theme.colorScheme.surfaceContainerHighest,
-            side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
+            side: BorderSide(color: chipTextColor.withValues(alpha: 0.4)),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onPressed: () {
               final chat = context.read<ChatProvider>();
@@ -606,30 +615,31 @@ class _ChatScreenState extends State<ChatScreen> {
           leadingWidth: 125,
           leading: Builder(
             builder: (scaffoldContext) {
+              final isDark = theme.brightness == Brightness.dark;
+              final menuColor = isDark ? cs.primary : AppColors.accentText;
               return Padding(
                 padding: const EdgeInsets.only(left: 12),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
-                  splashColor: AppColors.accent.withValues(alpha: 0.2),
-                  highlightColor: AppColors.accent.withValues(alpha: 0.1),
+                  splashColor: menuColor.withValues(alpha: 0.2),
+                  highlightColor: menuColor.withValues(alpha: 0.1),
                   onTap: () => Scaffold.of(scaffoldContext).openDrawer(),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.menu_rounded,
-                          color: AppColors.accent,
+                          color: menuColor,
                           size: 24,
                         ),
                         const SizedBox(width: 6),
                         Text(
                           'Menu',
                           style: theme.textTheme.titleSmall?.copyWith(
-                            color: AppColors.accent,
+                            color: menuColor,
                             fontWeight: FontWeight.w700,
-                            fontSize: 17,
                           ),
                         ),
                       ],
@@ -642,7 +652,10 @@ class _ChatScreenState extends State<ChatScreen> {
           actions: [
             if (chat.hasMessages)
               IconButton(
-                icon: const Icon(Icons.add_comment_outlined, color: AppColors.accent),
+                icon: Icon(
+                  Icons.add_comment_outlined,
+                  color: theme.brightness == Brightness.dark ? cs.primary : AppColors.accentText,
+                ),
                 tooltip: 'Nuova chat',
                 onPressed: () {
                   voice.stopSpeaking();
@@ -928,9 +941,10 @@ class _ChatScreenState extends State<ChatScreen> {
                         Text(
                           'Sono un\'AI. NON sostituisco il medico.',
                           textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: 11,
-                            color: cs.onSurfaceVariant.withValues(alpha: 0.65),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: theme.brightness == Brightness.dark ? cs.onSurface : Colors.black,
                           ),
                         ),
                       ],

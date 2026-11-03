@@ -293,6 +293,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? cs.primary : AppColors.accentText;
+
     if (!MealType.values.contains(_type)) {
       _type = MealType.colazione;
     }
@@ -307,7 +311,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -316,148 +320,160 @@ class _AddMealScreenState extends State<AddMealScreen> {
                         IconButton(
                           onPressed: _saving ? null : () => Navigator.of(context).maybePop(),
                           icon: const Icon(Icons.arrow_back_rounded),
+                          tooltip: 'Torna indietro',
                         ),
-                        Text(
-                          'Aggiungi Pasto',
-                          style: theme.textTheme.headlineLarge?.copyWith(color: AppColors.accent),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Aggiungi pasto',
+                            style: theme.textTheme.headlineLarge?.copyWith(
+                              color: accentColor,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Tipo di pasto', style: theme.textTheme.labelLarge),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<MealType>(
-                            initialValue: _type,
-                            items: MealType.values
-                                .map((t) => DropdownMenuItem(value: t, child: Text(t.label)))
-                                .toList(),
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setState(() {
-                                _type = v;
-                                if (_type == MealType.fuoriPasto && _timeController.text.isEmpty) {
-                                  _timeController.text = WhenSelector.hhmm(DateTime.now());
-                                }
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                          Text('Cosa hai mangiato?', style: theme.textTheme.labelLarge),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _descriptionController,
-                            maxLines: 3,
-                            enabled: !_saving,
-                            decoration: const InputDecoration(
-                              hintText: 'es. 80g di pasta integrale con pomodoro e un cucchiaio di parmigiano',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: OutlinedButton.icon(
-                              onPressed: canEstimate ? _estimateWithAI : null,
-                              icon: _estimating
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : const Icon(Icons.auto_awesome_rounded, color: AppColors.accent),
-                              label: Text(
-                                _estimating ? 'Calcolo nutrizionale in corso...' : 'Calcola con AI (Tabelle CREA)',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                              ),
-                            ),
-                          ),
-                          _buildEstimateBreakdownCard(theme),
-                          const SizedBox(height: 20),
-                          Row(
+                    Text('Tipo di pasto', style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<MealType>(
+                      initialValue: _type,
+                      items: MealType.values
+                          .map((t) => DropdownMenuItem(value: t, child: Text(t.label)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() {
+                          _type = v;
+                          if (_type == MealType.fuoriPasto && _timeController.text.isEmpty) {
+                            _timeController.text = WhenSelector.hhmm(DateTime.now());
+                          }
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    Text('Cosa hai mangiato?', style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _descriptionController,
+                      maxLines: 3,
+                      enabled: !_saving,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        hintText: 'es. 80 g di pasta integrale con pomodoro e un cucchiaio di parmigiano',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: canEstimate ? _estimateWithAI : null,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          foregroundColor: accentColor,
+                          side: BorderSide(color: accentColor.withValues(alpha: 0.5)),
+                        ),
+                        icon: _estimating
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Icon(Icons.auto_awesome_rounded, color: accentColor),
+                        label: Text(
+                          _estimating ? 'Calcolo nutrizionale in corso...' : 'Calcola con AI (tabelle CREA)',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+                    ),
+                    _buildEstimateBreakdownCard(theme),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Calorie (kcal)', style: theme.textTheme.labelLarge),
-                                    const SizedBox(height: 8),
-                                    TextField(
-                                      controller: _caloriesController,
-                                      enabled: !_saving,
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(hintText: 'es. 450'),
-                                      onChanged: (_) => _isEstimated = false,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Carboidrati (g)', style: theme.textTheme.labelLarge),
-                                    const SizedBox(height: 8),
-                                    TextField(
-                                      controller: _carbsController,
-                                      enabled: !_saving,
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(hintText: 'es. 60'),
-                                      onChanged: (_) => _isEstimated = false,
-                                    ),
-                                  ],
-                                ),
+                              Text('Calorie (kcal)', style: theme.textTheme.labelLarge),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _caloriesController,
+                                enabled: !_saving,
+                                textInputAction: TextInputAction.next,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(hintText: 'es. 450'),
+                                onChanged: (_) => _isEstimated = false,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
-                          WhenSelector(
-                            label: 'Giorno del pasto',
-                            value: _day,
-                            showTime: false,
-                            enabled: !_saving,
-                            onChanged: (v) => setState(() => _day = DateTime(v.year, v.month, v.day)),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Carboidrati (g)', style: theme.textTheme.labelLarge),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _carbsController,
+                                enabled: !_saving,
+                                textInputAction: TextInputAction.next,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(hintText: 'es. 60'),
+                                onChanged: (_) => _isEstimated = false,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            isFuoriPasto ? 'Orario fuori pasto (es. 17:30)' : 'Orario (opzionale, es. 13:00)',
-                            style: theme.textTheme.labelLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _timeController,
-                            enabled: !_saving,
-                            keyboardType: TextInputType.datetime,
-                            inputFormatters: const [TimeTextInputFormatter()],
-                            decoration: InputDecoration(
-                              hintText: isFuoriPasto ? 'es. 17:30' : 'Lascia vuoto se è l\'orario abituale',
-                              prefixIcon: const Icon(Icons.schedule_rounded, color: AppColors.accent),
-                              suffixIcon: _timeController.text.isNotEmpty
-                                  ? IconButton(
-                                      tooltip: 'Rimuovi orario',
-                                      icon: const Icon(Icons.clear_rounded),
-                                      onPressed: () => setState(() => _timeController.clear()),
-                                    )
-                                  : null,
-                            ),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 28),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton.icon(
-                              onPressed: _saving ? null : _save,
-                              icon: const Icon(Icons.save_rounded),
-                              label: const Text('Salva Pasto', style: TextStyle(fontSize: 16)),
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    WhenSelector(
+                      label: 'Giorno del pasto',
+                      value: _day,
+                      showTime: false,
+                      enabled: !_saving,
+                      onChanged: (v) => setState(() => _day = DateTime(v.year, v.month, v.day)),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      isFuoriPasto ? 'Orario fuori pasto (es. 17:30)' : 'Orario (opzionale, es. 13:00)',
+                      style: theme.textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _timeController,
+                      enabled: !_saving,
+                      textInputAction: TextInputAction.done,
+                      keyboardType: TextInputType.datetime,
+                      inputFormatters: const [TimeTextInputFormatter()],
+                      decoration: InputDecoration(
+                        hintText: isFuoriPasto ? 'es. 17:30' : 'Lascia vuoto se è l\'orario abituale',
+                        prefixIcon: Icon(Icons.schedule_rounded, color: accentColor),
+                        suffixIcon: _timeController.text.isNotEmpty
+                            ? IconButton(
+                                tooltip: 'Rimuovi orario',
+                                icon: const Icon(Icons.clear_rounded),
+                                onPressed: () => setState(() => _timeController.clear()),
+                              )
+                            : null,
+                      ),
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) => _save(),
+                    ),
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: _saving ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        icon: const Icon(Icons.save_rounded),
+                        label: const Text('Salva pasto', style: TextStyle(fontSize: 16)),
                       ),
                     ),
                   ],

@@ -20,7 +20,7 @@ class GlucoseHistoryScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Storico Glicemia'),
+        title: const Text('Storico glicemia'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -63,23 +63,27 @@ class GlucoseHistoryScreen extends StatelessWidget {
                 final isHyper = val > 180;
                 final statusColor = isHypo || isHyper ? cs.error : const Color(0xFF2E7D32);
 
+                final isDark = theme.brightness == Brightness.dark;
+                final accentText = isDark ? cs.primary : AppColors.accentText;
+                final iconBoxBg = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
+
                 return SectionCard(
                   padding: const EdgeInsets.all(14),
                   child: Row(
                     children: [
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
-                          color: AppColors.lightPeach,
+                          color: iconBoxBg,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: AppColors.accent.withValues(alpha: 0.25),
+                            color: accentText.withValues(alpha: 0.3),
                             width: 1,
                           ),
                         ),
                         alignment: Alignment.center,
-                        child: const Icon(Icons.water_drop_outlined, color: AppColors.accent, size: 20),
+                        child: Icon(Icons.water_drop_outlined, color: accentText, size: 22),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -93,21 +97,21 @@ class GlucoseHistoryScreen extends StatelessWidget {
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: cs.onSurface,
-                                    fontSize: 17,
+                                    fontSize: 19,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 10),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: statusColor.withValues(alpha: 0.12),
+                                    color: statusColor.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     isHypo ? 'Bassa' : isHyper ? 'Alta' : 'Nel target',
                                     style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
                                       color: statusColor,
                                     ),
                                   ),
@@ -117,7 +121,10 @@ class GlucoseHistoryScreen extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               AppDateFormat.dayMonthYearTime(reading.time),
-                              style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: cs.onSurfaceVariant,
+                                fontSize: 14.5,
+                              ),
                             ),
                           ],
                         ),

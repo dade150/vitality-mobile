@@ -34,7 +34,7 @@ class FormattedChatMessage extends StatelessWidget {
         ) ??
         TextStyle(
           color: isUser ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
-          fontSize: 16,
+          fontSize: 18,
           height: 1.45,
         );
 

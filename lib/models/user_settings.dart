@@ -1,7 +1,7 @@
 enum AppFontSize {
-  piccolo('PICCOLO', 'Piccolo', 0.9),
-  medio('MEDIO', 'Medio', 1.0),
-  grande('GRANDE', 'Grande', 1.15);
+  piccolo('PICCOLO', 'Piccolo', 0.95),
+  medio('MEDIO', 'Medio', 1.05),
+  grande('GRANDE', 'Grande', 1.20);
 
   final String dbCode;
   final String label;

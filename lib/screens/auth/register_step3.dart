@@ -105,7 +105,7 @@ class _RegisterStep3SettingsState extends State<RegisterStep3Settings> {
                 const Divider(height: 1),
                 SwitchListTile(
                   secondary: const Icon(Icons.calendar_month_outlined),
-                  title: const Text('Promemoria appuntamenti'),
+                  title: const Text('Promemoria visite'),
                   value: d.notifyAppointments,
                   onChanged: (v) => setState(() => d.notifyAppointments = v),
                 ),

@@ -76,15 +76,16 @@ class _RegisterStep2CredentialsState extends State<RegisterStep2Credentials> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Credenziali di Accesso', style: theme.textTheme.headlineSmall),
+            Text('Credenziali di accesso', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 20),
             TextFormField(
               controller: _emailController,
               decoration: const InputDecoration(
-                labelText: 'Indirizzo Email',
+                labelText: 'Indirizzo email',
                 hintText: 'es. mario.rossi@email.com',
               ),
               keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
               onChanged: (v) => widget.data.email = v.trim(),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Inserisci la tua email';
@@ -96,6 +97,7 @@ class _RegisterStep2CredentialsState extends State<RegisterStep2Credentials> {
             TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
+              textInputAction: TextInputAction.next,
               decoration: InputDecoration(
                 labelText: 'Password',
                 hintText: 'Crea una password sicura',
@@ -124,8 +126,9 @@ class _RegisterStep2CredentialsState extends State<RegisterStep2Credentials> {
               key: _confirmFieldKey,
               controller: _confirmController,
               obscureText: _obscureConfirm,
+              textInputAction: TextInputAction.done,
               decoration: InputDecoration(
-                labelText: 'Conferma Password',
+                labelText: 'Conferma password',
                 suffixIcon: IconButton(
                   icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
                   onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
@@ -138,7 +141,7 @@ class _RegisterStep2CredentialsState extends State<RegisterStep2Credentials> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Consensi Legali e Privacy (GDPR)',
+              'Consensi legali e privacy (GDPR)',
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),

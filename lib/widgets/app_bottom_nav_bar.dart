@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 class _NavItemData {
   final String label;
@@ -59,11 +60,13 @@ class AppBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final activeColor = isDark ? cs.primary : AppColors.accentText;
 
     return Container(
       decoration: BoxDecoration(
         color: cs.surfaceContainerLowest,
-        border: Border(top: BorderSide(color: cs.outlineVariant, width: 1)),
+        border: Border(top: BorderSide(color: cs.outlineVariant, width: 1.2)),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, -4)),
         ],
@@ -71,12 +74,12 @@ class AppBottomNavBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 76,
+          height: 78,
           child: Row(
             children: List.generate(_items.length, (i) {
               final item = _items[i];
               final active = i == currentIndex;
-              final color = active ? cs.primary : cs.onSurfaceVariant;
+              final color = active ? activeColor : cs.onSurfaceVariant;
               return Expanded(
                 child: InkWell(
                   onTap: () => _onTap(context, i),
@@ -84,21 +87,22 @@ class AppBottomNavBar extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        height: 3,
-                        width: 28,
+                        height: 3.5,
+                        width: 32,
                         margin: const EdgeInsets.only(bottom: 6),
                         decoration: BoxDecoration(
-                          color: active ? cs.primary : Colors.transparent,
+                          color: active ? activeColor : Colors.transparent,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      Icon(active ? item.activeIcon : item.icon, size: 26, color: color),
-                      const SizedBox(height: 2),
+                      Icon(active ? item.activeIcon : item.icon, size: 28, color: color),
+                      const SizedBox(height: 3),
                       Text(
                         item.label,
-                        style: theme.textTheme.labelSmall?.copyWith(
+                        style: theme.textTheme.labelMedium?.copyWith(
                           color: color,
-                          fontWeight: active ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 14,
+                          fontWeight: active ? FontWeight.w800 : FontWeight.w600,
                         ),
                       ),
                     ],

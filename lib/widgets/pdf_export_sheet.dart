@@ -221,12 +221,14 @@ class _PdfExportSheetContentState extends State<_PdfExportSheetContent> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: _selectedMonths == opt.months
-                          ? AppColors.lightPeach.withValues(alpha: 0.5)
+                          ? (theme.brightness == Brightness.dark
+                              ? cs.surfaceContainerHigh
+                              : AppColors.lightPeach.withValues(alpha: 0.5))
                           : cs.surfaceContainerLowest,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: _selectedMonths == opt.months
-                            ? AppColors.accent
+                            ? (theme.brightness == Brightness.dark ? cs.primary : AppColors.accentText)
                             : cs.outlineVariant.withValues(alpha: 0.4),
                         width: _selectedMonths == opt.months ? 1.8 : 1.0,
                       ),
@@ -238,8 +240,8 @@ class _PdfExportSheetContentState extends State<_PdfExportSheetContent> {
                               ? Icons.radio_button_checked_rounded
                               : Icons.radio_button_off_rounded,
                           color: _selectedMonths == opt.months
-                              ? AppColors.accent
-                              : cs.onSurfaceVariant.withValues(alpha: 0.6),
+                              ? (theme.brightness == Brightness.dark ? cs.primary : AppColors.accentText)
+                              : cs.onSurfaceVariant,
                           size: 20,
                         ),
                         const SizedBox(width: 12),
@@ -260,17 +262,22 @@ class _PdfExportSheetContentState extends State<_PdfExportSheetContent> {
                                   if (opt.isRecommended) ...[
                                     const SizedBox(width: 8),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
-                                        color: AppColors.accent.withValues(alpha: 0.15),
+                                        color: (theme.brightness == Brightness.dark
+                                                ? cs.primary
+                                                : AppColors.accentText)
+                                            .withValues(alpha: 0.15),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: const Text(
+                                      child: Text(
                                         'Consigliato',
                                         style: TextStyle(
-                                          fontSize: 10.5,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w800,
-                                          color: AppColors.accent,
+                                          color: theme.brightness == Brightness.dark
+                                              ? cs.primary
+                                              : AppColors.accentText,
                                         ),
                                       ),
                                     ),
@@ -282,7 +289,7 @@ class _PdfExportSheetContentState extends State<_PdfExportSheetContent> {
                                 opt.subtitle,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: cs.onSurfaceVariant,
-                                  fontSize: 12,
+                                  fontSize: 13.5,
                                 ),
                               ),
                             ],
@@ -324,7 +331,7 @@ class _PdfExportSheetContentState extends State<_PdfExportSheetContent> {
 
             // Pulsante di generazione / download
             SizedBox(
-              height: 48,
+              height: 52,
               child: FilledButton.icon(
                 onPressed: _isLoading ? null : _generateAndSave,
                 icon: _isLoading
@@ -335,12 +342,13 @@ class _PdfExportSheetContentState extends State<_PdfExportSheetContent> {
                       )
                     : const Icon(Icons.download_rounded, size: 20),
                 label: Text(
-                  _isLoading ? 'Generazione in corso...' : 'Scarica e Salva PDF',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  _isLoading ? 'Generazione in corso...' : 'Scarica e salva PDF',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.accent,
                   foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),

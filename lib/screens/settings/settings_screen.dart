@@ -113,7 +113,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 28),
-                Text('Assistente Vocale', style: theme.textTheme.titleLarge),
+                Text('Assistente vocale', style: theme.textTheme.titleLarge),
                 const SizedBox(height: 12),
                 SectionCard(
                   padding: EdgeInsets.zero,
@@ -164,7 +164,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 28),
-                Text('Privacy e Gestione Dati (GDPR)', style: theme.textTheme.titleLarge),
+                Text('Privacy e gestione dati (GDPR)', style: theme.textTheme.titleLarge),
                 const SizedBox(height: 12),
                 SectionCard(
                   padding: EdgeInsets.zero,
@@ -172,7 +172,7 @@ class SettingsScreen extends StatelessWidget {
                     children: [
                       ListTile(
                         leading: const Icon(Icons.description_outlined),
-                        title: const Text('Termini e Condizioni di Servizio'),
+                        title: const Text('Termini e condizioni di servizio'),
                         subtitle: const Text('Versione ${LegalDocumentsSheet.currentTermsVersion}'),
                         trailing: const Icon(Icons.chevron_right_rounded),
                         onTap: () => LegalDocumentsSheet.showTermsOfService(context),
@@ -180,7 +180,7 @@ class SettingsScreen extends StatelessWidget {
                       const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.privacy_tip_outlined),
-                        title: const Text('Informativa sulla Privacy'),
+                        title: const Text('Informativa sulla privacy'),
                         subtitle: const Text('Versione ${LegalDocumentsSheet.currentPrivacyVersion} (Art. 13 e 9 GDPR)'),
                         trailing: const Icon(Icons.chevron_right_rounded),
                         onTap: () => LegalDocumentsSheet.showPrivacyPolicy(context),

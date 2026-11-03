@@ -443,15 +443,16 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.auto_awesome_rounded, color: AppColors.accent, size: 16),
+          Icon(Icons.auto_awesome_rounded, color: isDark ? cs.primary : AppColors.accentText, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               note,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
-                fontSize: 12.5,
+                color: cs.onSurface,
+                fontSize: 14,
                 height: 1.35,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -466,22 +467,22 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
         .join(', ');
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: cs.errorContainer.withValues(alpha: 0.3),
+        color: cs.errorContainer.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline_rounded, color: cs.error, size: 15),
-          const SizedBox(width: 6),
+          Icon(Icons.info_outline_rounded, color: cs.error, size: 18),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Compila i campi evidenziati prima di salvare: $missingNames',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: cs.error,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                fontSize: 13.5,
               ),
             ),
           ),

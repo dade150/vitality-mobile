@@ -21,7 +21,7 @@ class MealsHistoryScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Storico Pasti'),
+        title: const Text('Storico pasti'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -59,24 +59,27 @@ class MealsHistoryScreen extends StatelessWidget {
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 final meal = meals[index];
+                final isDark = theme.brightness == Brightness.dark;
+                final accentText = isDark ? cs.primary : AppColors.accentText;
+                final iconBoxBg = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
 
                 return SectionCard(
                   padding: const EdgeInsets.all(14),
                   child: Row(
                     children: [
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
-                          color: AppColors.lightPeach,
+                          color: iconBoxBg,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: AppColors.accent.withValues(alpha: 0.25),
+                            color: accentText.withValues(alpha: 0.3),
                             width: 1,
                           ),
                         ),
                         alignment: Alignment.center,
-                        child: const Icon(Icons.restaurant_outlined, color: AppColors.accent, size: 20),
+                        child: Icon(Icons.restaurant_outlined, color: accentText, size: 22),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -90,7 +93,7 @@ class MealsHistoryScreen extends StatelessWidget {
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w700,
                                     color: cs.onSurface,
-                                    fontSize: 16,
+                                    fontSize: 18,
                                   ),
                                 ),
                                 if (meal.calories > 0) ...[
@@ -100,18 +103,19 @@ class MealsHistoryScreen extends StatelessWidget {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                       color: cs.onSurface,
-                                      fontSize: 14,
+                                      fontSize: 15.5,
                                     ),
                                   ),
                                 ],
                               ],
                             ),
                             if (meal.description.isNotEmpty) ...[
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 3),
                               Text(
                                 meal.description,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: cs.onSurface,
+                                  fontSize: 15.5,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -120,7 +124,10 @@ class MealsHistoryScreen extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               AppDateFormat.dayMonthYearTime(meal.date),
-                              style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: cs.onSurfaceVariant,
+                                fontSize: 14,
+                              ),
                             ),
                           ],
                         ),

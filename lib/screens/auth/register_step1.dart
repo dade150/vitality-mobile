@@ -60,6 +60,8 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
   }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final activeColor = isDark ? cs.primary : AppColors.accentText;
     final isSelected = widget.data.sesso == value;
 
     return Expanded(
@@ -75,11 +77,11 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
           padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 10),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.accent.withValues(alpha: 0.12)
+                ? activeColor.withValues(alpha: 0.12)
                 : cs.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isSelected ? AppColors.accent : cs.outlineVariant.withValues(alpha: 0.7),
+              color: isSelected ? activeColor : cs.outlineVariant.withValues(alpha: 0.7),
               width: isSelected ? 1.8 : 1.0,
             ),
           ),
@@ -89,14 +91,14 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
               Icon(
                 icon,
                 size: 20,
-                color: isSelected ? AppColors.accent : cs.onSurfaceVariant,
+                color: isSelected ? activeColor : cs.onSurfaceVariant,
               ),
               const SizedBox(width: 8),
               Text(
                 label,
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  color: isSelected ? AppColors.accent : cs.onSurface,
+                  color: isSelected ? activeColor : cs.onSurface,
                 ),
               ),
             ],
@@ -118,12 +120,13 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Profilo Base', style: theme.textTheme.headlineSmall),
+            Text('Profilo base', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 20),
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Nome'),
               textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
               onChanged: (v) => widget.data.name = v.trim(),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Inserisci il tuo nome' : null,
             ),
@@ -132,6 +135,7 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
               controller: _surnameController,
               decoration: const InputDecoration(labelText: 'Cognome'),
               textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
               onChanged: (v) => widget.data.surname = v.trim(),
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? 'Inserisci il tuo cognome' : null,
@@ -176,6 +180,7 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
             // Altezza disposta uno sopra l'altro con label "cm" a destra del campo
             TextFormField(
               controller: _altezzaController,
+              textInputAction: TextInputAction.next,
               decoration: InputDecoration(
                 labelText: 'Altezza',
                 suffixText: 'cm',
@@ -196,6 +201,7 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
             // Peso disposto uno sopra l'altro con label "kg" a destra del campo
             TextFormField(
               controller: _pesoController,
+              textInputAction: TextInputAction.next,
               decoration: InputDecoration(
                 labelText: 'Peso',
                 suffixText: 'kg',
@@ -215,6 +221,7 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _noteController,
+              textInputAction: TextInputAction.done,
               decoration: const InputDecoration(
                 labelText: 'Note anamnestiche (opzionale)',
                 hintText: 'Altre patologie o informazioni utili da tenere in considerazione',

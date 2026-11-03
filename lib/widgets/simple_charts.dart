@@ -64,8 +64,9 @@ class SimpleBarChart extends StatelessWidget {
                     fit: BoxFit.scaleDown,
                     child: Text(
                       valueLabel,
-                      style: theme.textTheme.labelSmall?.copyWith(
+                      style: theme.textTheme.labelMedium?.copyWith(
                         fontWeight: FontWeight.w700,
+                        fontSize: 13,
                         color: hasData ? cs.onSurface : cs.onSurfaceVariant,
                       ),
                     ),
@@ -83,8 +84,9 @@ class SimpleBarChart extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     labels[i],
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
                       color: cs.onSurface,
                     ),
                   ),
@@ -158,15 +160,16 @@ class WeeklyTherapyTracker extends StatelessWidget {
               children: [
                 Text(
                   labels[i],
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
                     color: cs.onSurface,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: bgColor,
                     shape: BoxShape.circle,
@@ -182,8 +185,8 @@ class WeeklyTherapyTracker extends StatelessWidget {
                 Text(
                   statusLabel,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
                     color: fgColor,
                   ),
                 ),
@@ -320,12 +323,12 @@ class _GlucoseChartPainter extends CustomPainter {
 
     // Etichette target a destra con contrasto nitido
     final labelStyle = TextStyle(
-      fontSize: 10.5,
+      fontSize: 12,
       fontWeight: FontWeight.w700,
-      color: cs.onSurfaceVariant.withValues(alpha: 0.85),
+      color: cs.onSurfaceVariant,
     );
-    _drawText(canvas, '180 max', Offset(size.width - 48, yTargetMax - 14), labelStyle);
-    _drawText(canvas, '70 min', Offset(size.width - 42, yTargetMin + 3), labelStyle);
+    _drawText(canvas, '180 max', Offset(size.width - 56, yTargetMax - 15), labelStyle);
+    _drawText(canvas, '70 min', Offset(size.width - 50, yTargetMin + 4), labelStyle);
 
     // 2. Disegna linea trend tra i punti validi
     final List<Offset> points = [];
@@ -376,7 +379,7 @@ class _GlucoseChartPainter extends CustomPainter {
       // Pill-Badge con valore numerico
       final valStr = val.round().toString();
       final valStyle = TextStyle(
-        fontSize: 13,
+        fontSize: 14.5,
         fontWeight: FontWeight.w800,
         color: isOutOfRange ? cs.onErrorContainer : cs.onSurface,
       );
@@ -513,9 +516,9 @@ class BloodPressureGroupedBarChart extends StatelessWidget {
                     fit: BoxFit.scaleDown,
                     child: Text(
                       hasData ? '$sys/$dia' : '-',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 10.5,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
                         color: hasData ? cs.onSurface : cs.onSurfaceVariant,
                       ),
                     ),

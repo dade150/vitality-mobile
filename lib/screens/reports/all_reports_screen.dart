@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/reports_provider.dart';
+import '../../services/report_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/date_format.dart';
 import '../../widgets/section_card.dart';
@@ -19,9 +20,10 @@ class AllReportsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tutti i Referti'),
+        title: const Text('Tutti i referti'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: 'Torna indietro',
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         actions: [
@@ -68,6 +70,7 @@ class AllReportsScreen extends StatelessWidget {
                     final report = reports[index];
                     return SectionCard(
                       padding: const EdgeInsets.all(14),
+                      onTap: () => ReportService.openReportWithExternalApp(context, report),
                       child: Row(
                         children: [
                           Container(
@@ -107,6 +110,8 @@ class AllReportsScreen extends StatelessWidget {
                               ],
                             ),
                           ),
+                          Icon(Icons.open_in_new_rounded, color: cs.onSurfaceVariant, size: 18),
+                          const SizedBox(width: 8),
                           Icon(Icons.check_circle_rounded, color: cs.secondary, size: 20),
                         ],
                       ),

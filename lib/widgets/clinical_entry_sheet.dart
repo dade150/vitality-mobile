@@ -214,13 +214,17 @@ class _ClinicalEntrySheetState extends State<_ClinicalEntrySheet> {
             Text(_isEdit ? 'Modifica ${_type.label}' : 'Aggiungi ${_type.label}',
                 style: theme.textTheme.headlineSmall),
             const SizedBox(height: 4),
-            Text(_type.description, style: theme.textTheme.bodySmall),
+            Text(
+              _type.description,
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
             const SizedBox(height: 20),
             Text('Valore (${_type.unit})', style: theme.textTheme.labelLarge),
             const SizedBox(height: 8),
             TextField(
               controller: _valueCtrl,
               enabled: !_busy,
+              textInputAction: TextInputAction.next,
               keyboardType: TextInputType.numberWithOptions(
                 decimal: _type.allowsDecimals,
                 signed: true,
@@ -257,7 +261,7 @@ class _ClinicalEntrySheetState extends State<_ClinicalEntrySheet> {
               icon: const Icon(Icons.save_rounded),
               label: const Text('Salva'),
               style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
+                minimumSize: const Size.fromHeight(52),
                 shape: const StadiumBorder(),
                 textStyle: theme.textTheme.labelLarge,
               ),
@@ -271,6 +275,7 @@ class _ClinicalEntrySheetState extends State<_ClinicalEntrySheet> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: cs.error,
                   side: BorderSide(color: cs.error, width: 2),
+                  minimumSize: const Size.fromHeight(50),
                 ),
               ),
             ],

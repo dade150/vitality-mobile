@@ -295,7 +295,10 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
       ),
       Padding(
         padding: EdgeInsets.only(left: widget.entries.length > 1 ? 8 : 0, bottom: 16),
-        child: Text(entry.subtitle, style: theme.textTheme.bodySmall),
+        child: Text(
+          entry.subtitle,
+          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+        ),
       ),
       for (var i = 0; i < entry.fields.length; i++) ...[
         Text(entry.fields[i].label, style: theme.textTheme.labelLarge),
@@ -303,6 +306,7 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
         TextField(
           controller: _controllers[i],
           enabled: !_busy,
+          textInputAction: i == entry.fields.length - 1 ? TextInputAction.done : TextInputAction.next,
           keyboardType: entry.fields[i].keyboardType,
           maxLines: entry.fields[i].maxLines,
         ),
@@ -330,7 +334,7 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
         icon: const Icon(Icons.save_rounded),
         label: const Text('Salva'),
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(56),
+          minimumSize: const Size.fromHeight(52),
           shape: const StadiumBorder(),
           textStyle: theme.textTheme.labelLarge,
         ),
@@ -343,6 +347,7 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
         style: OutlinedButton.styleFrom(
           foregroundColor: cs.error,
           side: BorderSide(color: cs.error, width: 2),
+          minimumSize: const Size.fromHeight(50),
         ),
       ),
     ];

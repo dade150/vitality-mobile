@@ -29,26 +29,28 @@ class ChatDrawer extends StatelessWidget {
   }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final iconColor = isDark ? cs.primary : AppColors.accentText;
 
     return ListTile(
       leading: Icon(
         icon,
-        color: AppColors.accent,
-        size: 21,
+        color: iconColor,
+        size: 24,
       ),
       title: Text(
         title,
         style: theme.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           color: cs.onSurface,
-          fontSize: 16,
+          fontSize: 17,
         ),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
-      minLeadingWidth: 28,
-      splashColor: AppColors.accent.withValues(alpha: 0.18),
-      hoverColor: AppColors.accent.withValues(alpha: 0.08),
-      focusColor: AppColors.accent.withValues(alpha: 0.12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 3),
+      minLeadingWidth: 30,
+      splashColor: iconColor.withValues(alpha: 0.18),
+      hoverColor: iconColor.withValues(alpha: 0.08),
+      focusColor: iconColor.withValues(alpha: 0.12),
       onTap: () {
         Navigator.pop(context);
         onTap();
@@ -183,18 +185,18 @@ class ChatDrawer extends StatelessWidget {
                   leading: Icon(
                     Icons.delete_forever_outlined,
                     color: cs.error,
-                    size: 21,
+                    size: 24,
                   ),
                   title: Text(
                     'Elimina account e dati',
                     style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: cs.error,
-                      fontSize: 16,
+                      fontSize: 17,
                     ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
-                  minLeadingWidth: 28,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 3),
+                  minLeadingWidth: 30,
                   onTap: () {
                     Navigator.pop(context);
                     showDeleteAccountSecurityDialog(hostContext);

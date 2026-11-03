@@ -113,8 +113,13 @@ class _AllReportsSectionState extends State<_AllReportsSection> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Archivio Referti (${reports.length})',
-              style: theme.textTheme.titleLarge?.copyWith(color: AppColors.accent),
+              'Archivio referti (${reports.length})',
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: theme.brightness == Brightness.dark
+                    ? theme.colorScheme.primary
+                    : AppColors.accentText,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             if (reports.length > 4)
               TextButton.icon(

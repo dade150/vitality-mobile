@@ -223,11 +223,14 @@ class _WhenSelectorState extends State<WhenSelector> {
                   inputFormatters: const [TimeTextInputFormatter()],
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   onChanged: _onTimeTextChanged,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Orario',
                     hintText: 'es. 08:30',
-                    prefixIcon: Icon(Icons.schedule_rounded, color: AppColors.accent),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    prefixIcon: Icon(
+                      Icons.schedule_rounded,
+                      color: theme.brightness == Brightness.dark ? cs.primary : AppColors.accentText,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                   ),
                 ),
               ),
@@ -235,7 +238,10 @@ class _WhenSelectorState extends State<WhenSelector> {
           ),
           if (_timeError != null) ...[
             const SizedBox(height: 6),
-            Text(_timeError!, style: TextStyle(color: cs.error, fontSize: 14)),
+            Text(
+              _timeError!,
+              style: TextStyle(color: cs.error, fontSize: 15, fontWeight: FontWeight.w700),
+            ),
           ],
           const SizedBox(height: 10),
           Wrap(
@@ -307,7 +313,11 @@ class _PickerTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
-              Icon(icon, color: AppColors.accent, size: 26),
+              Icon(
+                icon,
+                color: theme.brightness == Brightness.dark ? cs.primary : AppColors.accentText,
+                size: 28,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -315,12 +325,18 @@ class _PickerTile extends StatelessWidget {
                   children: [
                     Text(
                       caption,
-                      style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 14.5,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       valueText,
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16.5,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -351,13 +367,15 @@ class _QuickTimeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final activeBg = isDark ? cs.primary : AppColors.accent;
 
     return Material(
-      color: selected ? AppColors.accent : cs.surfaceContainerHigh,
+      color: selected ? activeBg : cs.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(999),
         side: BorderSide(
-          color: selected ? AppColors.accent : cs.outlineVariant,
+          color: selected ? activeBg : cs.outlineVariant,
           width: 1.5,
         ),
       ),
@@ -365,13 +383,13 @@ class _QuickTimeChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         onTap: enabled ? onTap : null,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Text(
             label,
             style: theme.textTheme.labelMedium?.copyWith(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : cs.onSurface,
+              fontSize: 15.5,
+              fontWeight: FontWeight.w800,
+              color: selected ? (isDark ? cs.onPrimary : Colors.white) : cs.onSurface,
             ),
           ),
         ),
@@ -559,7 +577,7 @@ class _VitalEntrySheetState extends State<_VitalEntrySheet> {
                 controller: _controllers.first,
                 autofocus: true,
                 enabled: !_busy,
-                style: theme.textTheme.headlineSmall,
+                style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, fontSize: 26),
                 keyboardType: TextInputType.numberWithOptions(
                   decimal: widget.fields.first.decimal,
                   signed: true,
@@ -593,7 +611,7 @@ class _VitalEntrySheetState extends State<_VitalEntrySheet> {
                             controller: _controllers[i],
                             autofocus: i == 0,
                             enabled: !_busy,
-                            style: theme.textTheme.headlineSmall,
+                            style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, fontSize: 26),
                             keyboardType: TextInputType.numberWithOptions(
                               decimal: widget.fields[i].decimal,
                               signed: true,
@@ -629,7 +647,10 @@ class _VitalEntrySheetState extends State<_VitalEntrySheet> {
             ),
             const SizedBox(height: 20),
             if (_error != null) ...[
-              Text(_error!, style: TextStyle(color: cs.error, fontSize: 16)),
+              Text(
+                _error!,
+                style: TextStyle(color: cs.error, fontSize: 16, fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 12),
             ],
             FilledButton.icon(

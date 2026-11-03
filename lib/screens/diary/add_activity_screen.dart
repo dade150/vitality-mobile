@@ -83,6 +83,9 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? cs.primary : AppColors.accentText;
 
     // La PopScope blocca back e predictive back finché il salvataggio è in
     // corso: se la schermata venisse chiusa durante l'await, l'esito non
@@ -95,7 +98,7 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -105,59 +108,67 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
                           onPressed:
                               _saving ? null : () => Navigator.of(context).maybePop(),
                           icon: const Icon(Icons.arrow_back_rounded),
+                          tooltip: 'Torna indietro',
                         ),
-                        Text('Aggiungi Attività',
-                            style: theme.textTheme.headlineLarge?.copyWith(color: AppColors.accent)),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Aggiungi attività',
+                            style: theme.textTheme.headlineLarge?.copyWith(
+                              color: accentColor,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Tipo di attività', style: theme.textTheme.labelLarge),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            initialValue: _type,
-                            items: _types
-                                .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                                .toList(),
-                            onChanged: (v) => setState(() => _type = v ?? _type),
-                          ),
-                          const SizedBox(height: 20),
-                          Text('Durata (minuti)', style: theme.textTheme.labelLarge),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _minutesController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: 'es. 30'),
-                          ),
-                          const SizedBox(height: 20),
-                          Text('Passi (opzionale)', style: theme.textTheme.labelLarge),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _stepsController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: 'es. 2500'),
-                          ),
-                          const SizedBox(height: 20),
-                          WhenSelector(
-                            label: "Quando hai svolto l'attività?",
-                            value: _when,
-                            enabled: !_saving,
-                            onChanged: (v) => setState(() => _when = v),
-                          ),
-                          const SizedBox(height: 28),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _saving ? null : _save,
-                              icon: const Icon(Icons.save_rounded),
-                              label: const Text('Salva Attività'),
-                            ),
-                          ),
-                        ],
+                    Text('Tipo di attività', style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: _type,
+                      items: _types
+                          .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _type = v ?? _type),
+                    ),
+                    const SizedBox(height: 20),
+                    Text('Durata (minuti)', style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _minutesController,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(hintText: 'es. 30'),
+                    ),
+                    const SizedBox(height: 20),
+                    Text('Passi (opzionale)', style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _stepsController,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(hintText: 'es. 2500'),
+                      onSubmitted: (_) => _save(),
+                    ),
+                    const SizedBox(height: 20),
+                    WhenSelector(
+                      label: "Quando hai svolto l'attività?",
+                      value: _when,
+                      enabled: !_saving,
+                      onChanged: (v) => setState(() => _when = v),
+                    ),
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: _saving ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        icon: const Icon(Icons.save_rounded),
+                        label: const Text('Salva attività'),
                       ),
                     ),
                   ],

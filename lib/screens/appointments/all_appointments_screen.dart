@@ -83,6 +83,8 @@ class _AllAppointmentsScreenState extends State<AllAppointmentsScreen> {
   Widget _pillButton(String label, AppointmentsArchiveTab tab) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final activeBg = isDark ? cs.primary : AppColors.accent;
     final selected = _currentTab == tab;
 
     return GestureDetector(
@@ -91,9 +93,9 @@ class _AllAppointmentsScreenState extends State<AllAppointmentsScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? AppColors.accent : Colors.transparent,
+          color: selected ? activeBg : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
@@ -141,9 +143,10 @@ class _AllAppointmentsScreenState extends State<AllAppointmentsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tutte le Visite'),
+        title: const Text('Tutte le visite'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: 'Torna indietro',
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         actions: [
@@ -200,12 +203,13 @@ class _AllAppointmentsScreenState extends State<AllAppointmentsScreen> {
                         Expanded(
                           child: TextField(
                             controller: _searchController,
+                            textInputAction: TextInputAction.search,
                             onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
                             decoration: const InputDecoration(
-                              hintText: 'Cerca visita, medico o luogo...',
+                              hintText: 'Cerca per visita, medico o luogo...',
                               border: InputBorder.none,
                               isDense: true,
-                              contentPadding: EdgeInsets.symmetric(vertical: 10),
+                              contentPadding: EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),
                         ),

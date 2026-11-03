@@ -199,7 +199,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final health = context.read<HealthProvider>();
     showVitalEntrySheet(
       context: context,
-      title: 'Aggiungi Glicemia',
+      title: 'Aggiungi glicemia',
       icon: Icons.water_drop_outlined,
       fields: const [
         VitalFieldSpec(
@@ -224,16 +224,16 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final health = context.read<HealthProvider>();
     showVitalEntrySheet(
       context: context,
-      title: 'Aggiungi Pressione',
+      title: 'Aggiungi pressione',
       icon: Icons.favorite_outline_rounded,
       fields: const [
         VitalFieldSpec(
-          label: 'Massima (Sistolica)',
+          label: 'Massima (sistolica)',
           hint: 'es. 125',
           unit: 'mmHg',
         ),
         VitalFieldSpec(
-          label: 'Minima (Diastolica)',
+          label: 'Minima (diastolica)',
           hint: 'es. 80',
           unit: 'mmHg',
         ),
@@ -373,8 +373,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
             id: m.id!,
             title: m.type.label,
             subtitle: m.hasExplicitTime
-                ? 'Ore ${_hhmm(m.date)} · ${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams}g carb' : ''}'
-                : '${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams}g carb' : ''}',
+                ? 'Ore ${_hhmm(m.date)} · ${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams} g carb' : ''}'
+                : '${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams} g carb' : ''}',
             initialDateTime: m.date,
             whenLabel: 'Giorno del pasto',
             showTimeInWhen: false,
@@ -498,6 +498,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
     final settings = context.watch<SettingsProvider>();
     final health = context.watch<HealthProvider>();
 
@@ -522,13 +524,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
           const SizedBox(height: 16),
           SectionCard(
             highlight: false,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
                   onPressed: () => _changePeriod(-1),
-                  icon: const Icon(Icons.chevron_left_rounded, color: AppColors.accent),
+                  icon: Icon(Icons.chevron_left_rounded, color: accentText),
+                  tooltip: 'Periodo precedente',
                 ),
                 if (_view == DiaryView.giorno)
                   Column(
@@ -536,7 +539,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                       Text(
                         _isToday ? 'Oggi' : AppDateFormat.weekdayShort(_selectedDate),
                         style: theme.textTheme.labelMedium?.copyWith(
-                          color: AppColors.accent,
+                          color: accentText,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -550,8 +553,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   onPressed: _canGoForward ? () => _changePeriod(1) : null,
                   icon: Icon(
                     Icons.chevron_right_rounded,
-                    color: _canGoForward ? AppColors.accent : cs.onSurfaceVariant.withValues(alpha: 0.35),
+                    color: _canGoForward ? accentText : cs.onSurfaceVariant.withValues(alpha: 0.35),
                   ),
+                  tooltip: 'Periodo successivo',
                 ),
               ],
             ),
@@ -563,7 +567,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
           if (health.loadFailed) ...[
             const SizedBox(height: 12),
             SectionCard(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   Expanded(
@@ -629,25 +633,29 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   Widget _buildViewAllButton({VoidCallback? onPressed}) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = isDark ? cs.primary : AppColors.accentText;
+    final bg = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: onPressed ?? () {},
-        icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-        label: const Text('Visualizza tutto'),
+        icon: Icon(Icons.arrow_forward_rounded, size: 19, color: accent),
+        label: Text('Visualizza tutto', style: TextStyle(color: accent)),
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.accent,
-          minimumSize: const Size.fromHeight(42),
+          foregroundColor: accent,
+          minimumSize: const Size.fromHeight(46),
           side: BorderSide(
-            color: AppColors.accent.withValues(alpha: 0.45),
-            width: 1.3,
+            color: accent.withValues(alpha: 0.45),
+            width: 1.4,
           ),
-          backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
+          backgroundColor: bg.withValues(alpha: 0.35),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           textStyle: theme.textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w700,
-            fontSize: 14,
+            fontSize: 15,
           ),
         ),
       ),
@@ -713,7 +721,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 12),
           if (health.therapyItems.isEmpty)
-            Text('Nessuna terapia registrata.', style: theme.textTheme.bodyMedium)
+            Text(
+              'Nessuna terapia registrata',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            )
           else ...[
             _ValueLine(label: 'Aderenza:', value: '$pct%', color: cs.onSurface),
             const SizedBox(height: 14),
@@ -762,7 +773,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 12),
           if (readings.isEmpty)
-            Text('Nessuna misurazione nel periodo.', style: theme.textTheme.bodyMedium)
+            Text(
+              'Nessuna misurazione nel periodo',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            )
           else ...[
             _ValueLine(
               label: 'Media:',
@@ -844,7 +858,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 12),
           if (readings.isEmpty)
-            Text('Nessuna misurazione nel periodo.', style: theme.textTheme.bodyMedium)
+            Text(
+              'Nessuna misurazione nel periodo',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            )
           else ...[
             _ValueLine(
               label: 'Media:',
@@ -910,7 +927,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 12),
           if (meals.isEmpty)
-            Text('Nessun pasto registrato nel periodo.', style: theme.textTheme.bodyMedium)
+            Text(
+              'Nessun pasto registrato nel periodo',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            )
           else ...[
             _ValueLine(label: 'Totale:', value: '$totalKcal', unit: 'kcal', color: cs.onSurface),
             const SizedBox(height: 16),
@@ -961,7 +981,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 12),
           if (entries.isEmpty)
-            Text('Nessuna attività registrata nel periodo.', style: theme.textTheme.bodyMedium)
+            Text(
+              'Nessuna attività registrata nel periodo',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            )
           else ...[
             _ValueLine(label: 'Totale:', value: '$minutes', unit: 'minuti', color: cs.onSurface),
             if (steps > 0) ...[
@@ -1006,8 +1029,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 16),
           if (health.therapyItems.isEmpty)
-            Text('Nessuna terapia registrata.',
-                style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant))
+            Text(
+              'Nessuna terapia registrata',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            )
           else
             for (final item in health.therapyItems)
               _buildTherapyRow(context, health, item, isPast),
@@ -1020,15 +1045,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final taken = health.isTherapyTaken(item.id, _selectedDate);
-
-    String statusText;
-    if (taken) {
-      statusText = '${item.time} - Presa';
-    } else if (isPast) {
-      statusText = '${item.time} - Non registrata';
-    } else {
-      statusText = item.time;
-    }
 
     Widget? trailing;
     if (_isToday && !taken) {
@@ -1048,25 +1064,25 @@ class _DiaryScreenState extends State<DiaryScreen> {
                 },
           borderRadius: BorderRadius.circular(8),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (busy)
                   const SizedBox(
-                    width: 14,
-                    height: 14,
+                    width: 16,
+                    height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 else ...[
-                  const Icon(Icons.check_rounded, size: 16, color: Colors.white),
-                  const SizedBox(width: 4),
+                  const Icon(Icons.check_rounded, size: 18, color: Colors.white),
+                  const SizedBox(width: 5),
                   const Text(
                     'Prendi',
                     style: TextStyle(
                       color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.5,
                     ),
                   ),
                 ],
@@ -1081,7 +1097,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         color: cs.surfaceContainerLowest,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: cs.outlineVariant, width: 1.2),
+          side: BorderSide(color: cs.outlineVariant, width: 1.4),
         ),
         child: InkWell(
           onTap: busy
@@ -1095,25 +1111,25 @@ class _DiaryScreenState extends State<DiaryScreen> {
                 },
           borderRadius: BorderRadius.circular(8),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (busy)
                   SizedBox(
-                    width: 14,
-                    height: 14,
+                    width: 16,
+                    height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2, color: cs.onSurfaceVariant),
                   )
                 else ...[
-                  Icon(Icons.undo_rounded, size: 14, color: cs.onSurfaceVariant),
+                  Icon(Icons.undo_rounded, size: 16, color: cs.onSurfaceVariant),
                   const SizedBox(width: 4),
                   Text(
                     'Annulla',
                     style: TextStyle(
                       color: cs.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
                     ),
                   ),
                 ],
@@ -1124,40 +1140,43 @@ class _DiaryScreenState extends State<DiaryScreen> {
       );
     }
 
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: cs.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: taken
-                ? Colors.green.withValues(alpha: 0.35)
-                : AppColors.accent.withValues(alpha: 0.3),
-            width: 1.3,
+                ? Colors.green.withValues(alpha: 0.4)
+                : accentText.withValues(alpha: 0.35),
+            width: 1.4,
           ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 color: taken
-                    ? Colors.green.withValues(alpha: 0.12)
-                    : AppColors.lightPeach,
+                    ? Colors.green.withValues(alpha: 0.14)
+                    : (isDark ? cs.surfaceContainerHigh : AppColors.lightPeach),
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
               child: Icon(
                 taken ? Icons.check_circle_rounded : Icons.medication_outlined,
-                size: 20,
-                color: taken ? Colors.green.shade700 : AppColors.accent,
+                size: 22,
+                color: taken ? Colors.green.shade700 : accentText,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1168,18 +1187,18 @@ class _DiaryScreenState extends State<DiaryScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
-                      fontSize: 15,
+                      fontSize: 16,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       Icon(
                         Icons.access_time_rounded,
-                        size: 13,
-                        color: taken ? Colors.green.shade700 : AppColors.accent,
+                        size: 15,
+                        color: taken ? Colors.green.shade700 : accentText,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 5),
                       Expanded(
                         child: Text(
                           taken
@@ -1194,9 +1213,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
                                 ? Colors.green.shade700
                                 : isPast
                                     ? cs.onSurfaceVariant
-                                    : AppColors.accent,
-                            fontWeight: taken ? FontWeight.w600 : FontWeight.w700,
-                            fontSize: 13,
+                                    : accentText,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
                           ),
                         ),
                       ),
@@ -1218,25 +1237,30 @@ class _DiaryScreenState extends State<DiaryScreen> {
     IconData icon = Icons.add_rounded,
   }) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = isDark ? cs.primary : AppColors.accentText;
+    final bg = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
+
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: onAdd,
-        icon: Icon(icon, size: 18),
-        label: Text(label),
+        icon: Icon(icon, size: 20, color: accent),
+        label: Text(label, style: TextStyle(color: accent)),
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.accent,
-          minimumSize: const Size.fromHeight(42),
+          foregroundColor: accent,
+          minimumSize: const Size.fromHeight(46),
           side: BorderSide(
-            color: AppColors.accent.withValues(alpha: 0.45),
-            width: 1.3,
+            color: accent.withValues(alpha: 0.45),
+            width: 1.4,
           ),
-          backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
+          backgroundColor: bg.withValues(alpha: 0.35),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           textStyle: theme.textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w700,
-            fontSize: 14,
+            fontSize: 15,
           ),
         ),
       ),
@@ -1268,7 +1292,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 12),
           if (reading == null) ...[
-            Text('Non è presente alcuna misurazione', style: theme.textTheme.bodyMedium),
+            Text(
+              'Nessuna misurazione registrata',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
             const SizedBox(height: 12),
             _buildCardAddButton(
               label: 'Aggiungi misurazione',
@@ -1368,7 +1395,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 12),
           if (reading == null) ...[
-            Text('Non è presente alcuna misurazione', style: theme.textTheme.bodyMedium),
+            Text(
+              'Nessuna misurazione registrata',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
             const SizedBox(height: 12),
             _buildCardAddButton(
               label: 'Aggiungi misurazione',
@@ -1442,7 +1472,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 12),
           if (meals.isEmpty)
-            Text('Nessun pasto registrato', style: theme.textTheme.bodyMedium)
+            Text(
+              'Nessun pasto registrato',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            )
           else
             for (final m in meals)
               Padding(
@@ -1470,7 +1503,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams}g carb' : ''}',
+                      '${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams} g carb' : ''}',
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -1508,7 +1541,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           const SizedBox(height: 12),
           if (entries.isEmpty)
-            Text('Nessuna attività registrata', style: theme.textTheme.bodyMedium)
+            Text(
+              'Nessuna attività registrata',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            )
           else ...[
             if (steps > 0) _ValueLine(value: '$steps', unit: 'passi', color: cs.tertiary),
             Text('$minutes minuti di attività', style: theme.textTheme.bodyMedium),
@@ -1537,15 +1573,15 @@ class _DiaryScreenState extends State<DiaryScreen> {
 /// Intestazione di card: icona discreta, titolo ed eventuale bottone "Modifica" a destra (stile Visite).
 class _CardHeader extends StatelessWidget {
   final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
+  final Color? iconColor;
+  final Color? iconBg;
   final String title;
   final VoidCallback? onEdit;
 
   const _CardHeader({
     required this.icon,
-    this.iconColor = AppColors.accent,
-    this.iconBg = AppColors.lightPeach,
+    this.iconColor,
+    this.iconBg,
     required this.title,
     this.onEdit,
   });
@@ -1554,23 +1590,26 @@ class _CardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
+    final defaultBg = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
-            color: AppColors.lightPeach,
+            color: iconBg ?? defaultBg,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: AppColors.accent.withValues(alpha: 0.25),
+              color: (iconColor ?? accentText).withValues(alpha: 0.3),
               width: 1,
             ),
           ),
           alignment: Alignment.center,
-          child: Icon(icon, color: AppColors.accent, size: 17),
+          child: Icon(icon, color: iconColor ?? accentText, size: 19),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1579,7 +1618,7 @@ class _CardHeader extends StatelessWidget {
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: cs.onSurface,
-              fontSize: 18,
+              fontSize: 19,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1592,30 +1631,30 @@ class _CardHeader extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
               side: BorderSide(
-                color: AppColors.accent.withValues(alpha: 0.55),
-                width: 1.2,
+                color: accentText.withValues(alpha: 0.55),
+                width: 1.3,
               ),
             ),
             child: InkWell(
               onTap: onEdit,
               borderRadius: BorderRadius.circular(8),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.edit_outlined,
-                      size: 14,
-                      color: AppColors.accent,
+                      size: 16,
+                      color: accentText,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Text(
                       'Modifica',
                       style: TextStyle(
-                        color: AppColors.accent,
+                        color: accentText,
                         fontWeight: FontWeight.w700,
-                        fontSize: 12.5,
+                        fontSize: 14,
                         height: 1.1,
                       ),
                     ),
@@ -1666,10 +1705,10 @@ class _ValueLine extends StatelessWidget {
         ],
         Text(
           value,
-          style: theme.textTheme.titleMedium?.copyWith(
+          style: theme.textTheme.headlineMedium?.copyWith(
             color: color,
             fontWeight: FontWeight.w800,
-            fontSize: 18,
+            fontSize: 23,
           ),
         ),
         if (unit.isNotEmpty) ...[
@@ -1678,7 +1717,7 @@ class _ValueLine extends StatelessWidget {
             child: Text(
               unit,
               style: theme.textTheme.titleMedium?.copyWith(
-                color: cs.onSurface,
+                color: cs.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
                 fontSize: 18,
               ),

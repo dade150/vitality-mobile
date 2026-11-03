@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/clinical_parameter.dart';
 import '../../providers/clinical_provider.dart';
 import '../../providers/reports_provider.dart';
+import '../../services/report_service.dart';
 import '../../services/voice_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/date_format.dart';
@@ -37,7 +38,7 @@ class _ClinicalParametersScreenState extends State<ClinicalParametersScreen> {
       final clinical = context.read<ClinicalProvider>();
       if (!clinical.hasLoaded && !clinical.isLoading) clinical.refresh();
       final reports = context.read<ReportsProvider>();
-      if (!reports.hasLoaded && !reports.isLoading) reports.refresh();
+      if (!reports.isLoading) reports.refresh();
     });
   }
 
@@ -48,17 +49,24 @@ class _ClinicalParametersScreenState extends State<ClinicalParametersScreen> {
   Widget _viewButton(String label, ClinicalScreenView value) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final selected = _currentView == value;
+    final activeBg = isDark ? cs.primary : AppColors.accent;
+
     return GestureDetector(
       onTap: () {
         if (_currentView == value) return;
         setState(() => _currentView = value);
+        if (value == ClinicalScreenView.referti) {
+          final reports = context.read<ReportsProvider>();
+          if (!reports.isLoading) reports.refresh();
+        }
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? AppColors.accent : Colors.transparent,
+          color: selected ? activeBg : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
@@ -136,6 +144,9 @@ class _ProfileSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
+    final iconBoxBg = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
     final types = ClinicalParameterType.values.where((t) => t.profile == profile).toList();
 
     return Padding(
@@ -147,18 +158,18 @@ class _ProfileSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  color: AppColors.lightPeach,
+                  color: iconBoxBg,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: AppColors.accent.withValues(alpha: 0.25),
+                    color: accentText.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
                 alignment: Alignment.center,
-                child: Icon(profile.icon, color: AppColors.accent, size: 17),
+                child: Icon(profile.icon, color: accentText, size: 19),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -167,7 +178,7 @@ class _ProfileSection extends StatelessWidget {
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: cs.onSurface,
-                    fontSize: 18,
+                    fontSize: 19,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -239,6 +250,9 @@ class _ParameterCardState extends State<_ParameterCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
+    final bgButton = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
     final type = widget.type;
     final readings = widget.readings;
     final safeIndex = readings.isEmpty ? 0 : _selectedIndex.clamp(0, readings.length - 1);
@@ -263,7 +277,7 @@ class _ParameterCardState extends State<_ParameterCard> {
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: cs.onSurface,
-                    fontSize: 18,
+                    fontSize: 19,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -276,26 +290,26 @@ class _ParameterCardState extends State<_ParameterCard> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                     side: BorderSide(
-                      color: AppColors.accent.withValues(alpha: 0.55),
-                      width: 1.2,
+                      color: accentText.withValues(alpha: 0.55),
+                      width: 1.3,
                     ),
                   ),
                   child: InkWell(
                     onTap: () => _edit(context, reading),
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.edit_outlined, size: 14, color: AppColors.accent),
-                          const SizedBox(width: 4),
-                          const Text(
+                          Icon(Icons.edit_outlined, size: 16, color: accentText),
+                          const SizedBox(width: 5),
+                          Text(
                             'Modifica',
                             style: TextStyle(
-                              color: AppColors.accent,
+                              color: accentText,
                               fontWeight: FontWeight.w700,
-                              fontSize: 12.5,
+                              fontSize: 14,
                               height: 1.1,
                             ),
                           ),
@@ -311,7 +325,7 @@ class _ParameterCardState extends State<_ParameterCard> {
           if (reading != null) ...[
             if (readings.length > 1) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerHigh.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(8),
@@ -325,21 +339,21 @@ class _ParameterCardState extends State<_ParameterCard> {
                       icon: Icon(
                         Icons.chevron_left_rounded,
                         color: canGoOlder
-                            ? AppColors.accent
+                            ? accentText
                             : cs.onSurfaceVariant.withValues(alpha: 0.35),
                       ),
                     ),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.accent),
-                        const SizedBox(width: 6),
+                        Icon(Icons.calendar_today_rounded, size: 16, color: accentText),
+                        const SizedBox(width: 7),
                         Text(
                           AppDateFormat.dayMonthYear(reading.measuredOn),
                           style: theme.textTheme.labelMedium?.copyWith(
                             fontWeight: FontWeight.w700,
                             color: cs.onSurface,
-                            fontSize: 14,
+                            fontSize: 15,
                           ),
                         ),
                       ],
@@ -350,7 +364,7 @@ class _ParameterCardState extends State<_ParameterCard> {
                       icon: Icon(
                         Icons.chevron_right_rounded,
                         color: canGoNewer
-                            ? AppColors.accent
+                            ? accentText
                             : cs.onSurfaceVariant.withValues(alpha: 0.35),
                       ),
                     ),
@@ -370,10 +384,10 @@ class _ParameterCardState extends State<_ParameterCard> {
                   children: [
                     Text(
                       type.format(reading.value),
-                      style: theme.textTheme.titleMedium?.copyWith(
+                      style: theme.textTheme.headlineMedium?.copyWith(
                         color: cs.onSurface,
                         fontWeight: FontWeight.w800,
-                        fontSize: 18,
+                        fontSize: 23,
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -381,7 +395,7 @@ class _ParameterCardState extends State<_ParameterCard> {
                       type.unit,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
+                        color: cs.onSurfaceVariant,
                         fontSize: 18,
                       ),
                     ),
@@ -395,11 +409,11 @@ class _ParameterCardState extends State<_ParameterCard> {
               const SizedBox(height: 6),
               Row(
                 children: [
-                  Icon(Icons.calendar_today_rounded, size: 14, color: cs.onSurfaceVariant),
+                  Icon(Icons.calendar_today_rounded, size: 16, color: cs.onSurfaceVariant),
                   const SizedBox(width: 6),
                   Text(
                     AppDateFormat.dayMonthYear(reading.measuredOn),
-                    style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                    style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant, fontSize: 15.5),
                   ),
                 ],
               ),
@@ -407,28 +421,28 @@ class _ParameterCardState extends State<_ParameterCard> {
           ] else
             Text(
               'Nessun valore inserito',
-              style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () => _add(context),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Aggiungi misurazione'),
+              icon: Icon(Icons.add_rounded, size: 20, color: accentText),
+              label: Text('Aggiungi misurazione', style: TextStyle(color: accentText)),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                minimumSize: const Size.fromHeight(42),
+                foregroundColor: accentText,
+                minimumSize: const Size.fromHeight(46),
                 side: BorderSide(
-                  color: AppColors.accent.withValues(alpha: 0.45),
-                  width: 1.3,
+                  color: accentText.withValues(alpha: 0.45),
+                  width: 1.4,
                 ),
-                backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
+                backgroundColor: bgButton.withValues(alpha: 0.35),
                 padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 textStyle: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  fontSize: 14,
+                  fontSize: 15,
                 ),
               ),
             ),
@@ -552,6 +566,10 @@ class _ReportsTabSectionState extends State<_ReportsTabSection> {
     final voice = context.watch<VoiceService>();
     final reports = reportsProvider.reports;
 
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
+    final iconBoxBg = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
+
     // Filtra per titolo e limita agli ultimi 10
     final filteredReports = reports.where((r) {
       if (_searchQuery.isEmpty) return true;
@@ -565,18 +583,18 @@ class _ReportsTabSectionState extends State<_ReportsTabSection> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
-                color: AppColors.lightPeach,
+                color: iconBoxBg,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: AppColors.accent.withValues(alpha: 0.25),
+                  color: accentText.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.description_outlined, color: AppColors.accent, size: 17),
+              child: Icon(Icons.description_outlined, color: accentText, size: 19),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -585,7 +603,7 @@ class _ReportsTabSectionState extends State<_ReportsTabSection> {
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: cs.onSurface,
-                  fontSize: 18,
+                  fontSize: 19,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -596,26 +614,26 @@ class _ReportsTabSectionState extends State<_ReportsTabSection> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
                 side: BorderSide(
-                  color: AppColors.accent.withValues(alpha: 0.55),
-                  width: 1.2,
+                  color: accentText.withValues(alpha: 0.55),
+                  width: 1.3,
                 ),
               ),
               child: InkWell(
                 onTap: widget.onAdd,
                 borderRadius: BorderRadius.circular(8),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.add_rounded, size: 14, color: AppColors.accent),
-                      SizedBox(width: 4),
+                      Icon(Icons.add_rounded, size: 16, color: accentText),
+                      const SizedBox(width: 5),
                       Text(
                         'Aggiungi',
                         style: TextStyle(
-                          color: AppColors.accent,
+                          color: accentText,
                           fontWeight: FontWeight.w700,
-                          fontSize: 12.5,
+                          fontSize: 14,
                           height: 1.1,
                         ),
                       ),
@@ -735,21 +753,22 @@ class _ReportsTabSectionState extends State<_ReportsTabSection> {
               padding: EdgeInsets.only(bottom: i < filteredReports.length - 1 ? 10 : 0),
               child: SectionCard(
                 padding: const EdgeInsets.all(14),
+                onTap: () => ReportService.openReportWithExternalApp(context, filteredReports[i]),
                 child: Row(
                   children: [
                     Container(
-                      width: 36,
-                      height: 36,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                        color: AppColors.lightPeach,
+                        color: iconBoxBg,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: AppColors.accent.withValues(alpha: 0.25),
+                          color: accentText.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.description_outlined, color: AppColors.accent, size: 19),
+                      child: Icon(Icons.description_outlined, color: accentText, size: 21),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -761,20 +780,21 @@ class _ReportsTabSectionState extends State<_ReportsTabSection> {
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w700,
                               color: cs.onSurface,
-                              fontSize: 15,
+                              fontSize: 16.5,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
                             AppDateFormat.dayMonthYear(filteredReports[i].date),
-                            style: theme.textTheme.bodySmall?.copyWith(
+                            style: theme.textTheme.bodyMedium?.copyWith(
                               color: cs.onSurfaceVariant,
+                              fontSize: 14.5,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Icon(Icons.check_circle_rounded, color: cs.secondary, size: 20),
+                    Icon(Icons.open_in_new_rounded, color: accentText, size: 20),
                   ],
                 ),
               ),

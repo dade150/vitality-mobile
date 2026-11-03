@@ -59,17 +59,33 @@ class ProfileScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Modifica Dati', style: Theme.of(context).textTheme.titleLarge),
+                      Text('Modifica dati', style: Theme.of(context).textTheme.titleLarge),
                       const SizedBox(height: 16),
                       Row(
                         children: [
-                          Expanded(child: TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nome'))),
+                          Expanded(
+                            child: TextField(
+                              controller: nameController,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(labelText: 'Nome'),
+                            ),
+                          ),
                           const SizedBox(width: 12),
-                          Expanded(child: TextField(controller: surnameController, decoration: const InputDecoration(labelText: 'Cognome'))),
+                          Expanded(
+                            child: TextField(
+                              controller: surnameController,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(labelText: 'Cognome'),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
-                      TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'Telefono')),
+                      TextField(
+                        controller: phoneController,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(labelText: 'Telefono'),
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -119,6 +135,7 @@ class ProfileScreen extends StatelessWidget {
                             child: TextField(
                               controller: weightController,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              textInputAction: TextInputAction.next,
                               decoration: const InputDecoration(labelText: 'Peso (kg)'),
                             ),
                           ),
@@ -127,6 +144,7 @@ class ProfileScreen extends StatelessWidget {
                             child: TextField(
                               controller: heightController,
                               keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.done,
                               decoration: const InputDecoration(labelText: 'Altezza (cm)'),
                             ),
                           ),
@@ -135,7 +153,9 @@ class ProfileScreen extends StatelessWidget {
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
+                        height: 50,
                         child: FilledButton(
+                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
                           onPressed: () async {
                             final ok = await profileProvider.updateProfile(
                               name: nameController.text,
@@ -243,7 +263,7 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 PillButton(
-                  label: 'Modifica Dati',
+                  label: 'Modifica dati',
                   icon: Icons.edit_rounded,
                   filled: true,
                   onTap: () => _editProfile(context, profileProvider),
@@ -252,7 +272,7 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          Text('Parametri Vitali', style: theme.textTheme.titleLarge),
+          Text('Parametri vitali', style: theme.textTheme.titleLarge),
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {

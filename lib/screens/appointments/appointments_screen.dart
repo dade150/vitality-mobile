@@ -64,6 +64,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         ? <Appointment>[]
         : appointments.appointments.where((a) => _isSameDay(a.date, _selectedDate!)).toList();
 
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
+
     return AppScaffold(
       navIndex: 3,
       body: Column(
@@ -75,7 +78,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           ],
           if (appointments.loadFailed) ...[
             SectionCard(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   Expanded(
@@ -98,19 +101,19 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                   children: [
                     IconButton(
                       onPressed: () => _changeMonth(-1),
-                      icon: const Icon(Icons.chevron_left_rounded, color: AppColors.accent),
+                      icon: Icon(Icons.chevron_left_rounded, color: accentText),
                     ),
                     Text(
                       AppDateFormat.monthYear(_visibleMonth),
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: cs.onSurface,
                       ),
                     ),
                     IconButton(
                       onPressed: () => _changeMonth(1),
-                      icon: const Icon(Icons.chevron_right_rounded, color: AppColors.accent),
+                      icon: Icon(Icons.chevron_right_rounded, color: accentText),
                     ),
                   ],
                 ),
@@ -139,10 +142,14 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
+            height: 52,
             child: FilledButton.icon(
               onPressed: () => Navigator.of(context).pushNamed('/appointments/add'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
               icon: const Icon(Icons.add_rounded),
-              label: const Text('Aggiungi Visita'),
+              label: const Text('Aggiungi visita'),
             ),
           ),
           const SizedBox(height: 24),
@@ -157,7 +164,12 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           const SizedBox(height: 12),
           if (allUpcoming.isEmpty)
             SectionCard(
-              child: Text('Nessuna visita in programma.', style: theme.textTheme.bodyMedium),
+              child: Text(
+                'Nessuna visita in programma',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
             )
           else ...[
             for (final appt in visibleUpcoming)
@@ -179,6 +191,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
+    final bgButton = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -190,7 +205,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: cs.onSurface,
-              fontSize: 18,
+              fontSize: 19,
             ),
           ),
         ),
@@ -198,15 +213,15 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         OutlinedButton(
           onPressed: onViewAll,
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.accent,
-            minimumSize: Size.zero,
+            foregroundColor: accentText,
+            minimumSize: const Size(0, 42),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             side: BorderSide(
-              color: AppColors.accent.withValues(alpha: 0.45),
-              width: 1.2,
+              color: accentText.withValues(alpha: 0.45),
+              width: 1.3,
             ),
-            backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            backgroundColor: bgButton.withValues(alpha: 0.35),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
           child: Row(
@@ -215,17 +230,17 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
               Text(
                 'Visualizza tutto',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: AppColors.accent,
+                  color: accentText,
                   fontWeight: FontWeight.w700,
-                  fontSize: 12.5,
+                  fontSize: 14,
                   height: 1.1,
                 ),
               ),
-              const SizedBox(width: 4),
-              const Icon(
+              const SizedBox(width: 5),
+              Icon(
                 Icons.arrow_forward_rounded,
-                size: 14,
-                color: AppColors.accent,
+                size: 15,
+                color: accentText,
               ),
             ],
           ),
@@ -317,7 +332,11 @@ class _CalendarGrid extends StatelessWidget {
                   child: Center(
                     child: Text(
                       d,
-                      style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        color: cs.onSurface,
+                      ),
                     ),
                   ),
                 ),
@@ -383,14 +402,16 @@ class _CalendarGrid extends StatelessWidget {
                 textColor = Colors.white;
                 fontWeight = FontWeight.bold;
               } else if (hasAppointment) {
-                // Giorno con visita: dischetto pesca chiaro morbido con numero scuro bold
+                // Giorno con visita: dischetto pesca chiaro morbido (o container scuro se dark) con numero bold
                 // nettamente distinto dal cerchio arancione pieno di Oggi
-                decoration = const BoxDecoration(
-                  color: AppColors.lightPeach,
+                final isDark = theme.brightness == Brightness.dark;
+                decoration = BoxDecoration(
+                  color: isDark ? cs.surfaceContainerHigh : AppColors.lightPeach,
                   shape: BoxShape.circle,
+                  border: isDark ? Border.all(color: cs.primary, width: 1.5) : null,
                 );
-                textColor = cs.onSurface;
-                fontWeight = FontWeight.w800;
+                textColor = isDark ? cs.primary : cs.onSurface;
+                fontWeight = FontWeight.w900;
               }
 
               return Expanded(
@@ -401,8 +422,8 @@ class _CalendarGrid extends StatelessWidget {
                     height: 44,
                     child: Center(
                       child: Container(
-                        width: 34,
-                        height: 34,
+                        width: 35,
+                        height: 35,
                         alignment: Alignment.center,
                         decoration: decoration,
                         child: FittedBox(
@@ -414,7 +435,7 @@ class _CalendarGrid extends StatelessWidget {
                               maxLines: 1,
                               softWrap: false,
                               style: TextStyle(
-                                fontSize: 15,
+                                fontSize: 16,
                                 height: 1.1,
                                 color: textColor,
                                 fontWeight: fontWeight,

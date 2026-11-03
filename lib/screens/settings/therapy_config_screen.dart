@@ -36,7 +36,7 @@ class TherapyConfigScreen extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Configurazione Terapia')),
+      appBar: AppBar(title: const Text('Configurazione terapia')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -86,8 +86,11 @@ class TherapyConfigScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: () => _addOrEditTherapy(context),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('Aggiungi Farmaco'),
+                  label: const Text('Aggiungi farmaco'),
                 ),
               ],
             ),
@@ -198,20 +201,24 @@ class _TherapyDialogState extends State<_TherapyDialog> {
     return PopScope(
       canPop: !_busy,
       child: AlertDialog(
-        title: Text(existing == null ? 'Aggiungi Farmaco' : 'Modifica Farmaco'),
+        title: Text(existing == null ? 'Aggiungi farmaco' : 'Modifica farmaco'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameController,
               enabled: !_busy,
+              textInputAction: TextInputAction.next,
               decoration: const InputDecoration(labelText: 'Nome farmaco'),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _timeController,
               enabled: !_busy,
+              textInputAction: TextInputAction.done,
+              keyboardType: TextInputType.datetime,
               decoration: const InputDecoration(labelText: 'Orario (es. 08:00)'),
+              onSubmitted: (_) => _save(),
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),

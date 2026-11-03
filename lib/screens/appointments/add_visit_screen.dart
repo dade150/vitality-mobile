@@ -146,7 +146,7 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('Elimina visita'),
-            content: const Text('Vuoi davvero eliminare questo appuntamento?'),
+            content: const Text('Vuoi davvero eliminare questa visita?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -189,6 +189,8 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentTitle = isDark ? cs.primary : AppColors.accentText;
     final isEdit = _editing != null;
 
     return Scaffold(
@@ -197,7 +199,7 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -206,147 +208,153 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
                       IconButton(
                         onPressed: _busy ? null : () => Navigator.of(context).maybePop(),
                         icon: const Icon(Icons.arrow_back_rounded),
+                        tooltip: 'Torna indietro',
                       ),
+                      const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          isEdit ? 'Modifica Visita' : 'Nuova Visita',
+                          isEdit ? 'Modifica visita' : 'Nuova visita',
                           style: theme.textTheme.displaySmall?.copyWith(
-                            color: AppColors.accent,
+                            color: accentTitle,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8, top: 4),
-                    child: Text(
-                      isEdit
-                          ? 'Aggiorna i dettagli o l\'orario dell\'appuntamento.'
-                          : 'Pianifica un nuovo appuntamento medico.',
-                      style: theme.textTheme.bodyLarge?.copyWith(color: cs.onSurfaceVariant),
+                  const SizedBox(height: 6),
+                  Text(
+                    isEdit
+                        ? 'Aggiorna i dettagli o l\'orario della visita.'
+                        : 'Pianifica una nuova visita medica.',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Tipo di visita', style: theme.textTheme.labelLarge),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _typeController,
-                          enabled: !_busy,
-                          decoration: const InputDecoration(
-                            hintText: 'es. Cardiologica, Diabetologica',
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text('Data', style: theme.textTheme.labelLarge),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: _busy ? null : _pickDate,
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              suffixIcon: Icon(Icons.calendar_today_outlined),
-                            ),
-                            child: Text(
-                              _date == null
-                                  ? 'gg/mm/aaaa'
-                                  : '${_date!.day.toString().padLeft(2, '0')}/${_date!.month.toString().padLeft(2, '0')}/${_date!.year}',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text('Ora', style: theme.textTheme.labelLarge),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: _busy ? null : _pickTime,
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              suffixIcon: Icon(Icons.access_time_rounded),
-                            ),
-                            child: Text(
-                              _time == null
-                                  ? '--:--'
-                                  : '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text('Medico / Specialista (Opzionale)', style: theme.textTheme.labelLarge),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _doctorController,
-                          enabled: !_busy,
-                          decoration: const InputDecoration(
-                            hintText: 'es. Dott. Rossi',
-                            prefixIcon: Icon(Icons.person_outline_rounded),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text('Luogo / Studio Medico (Opzionale)', style: theme.textTheme.labelLarge),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _locationController,
-                          enabled: !_busy,
-                          decoration: const InputDecoration(
-                            hintText: 'es. Ospedale San Raffaele',
-                            prefixIcon: Icon(Icons.location_on_outlined),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text('Note (Opzionale)', style: theme.textTheme.labelLarge),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _notesController,
-                          enabled: !_busy,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                            hintText: 'Aggiungi dettagli o promemoria...',
-                          ),
-                        ),
-                        if (_error != null) ...[
-                          const SizedBox(height: 16),
-                          Text(_error!, style: TextStyle(color: cs.error, fontSize: 16)),
-                        ],
-                        const SizedBox(height: 28),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: _busy ? null : _save,
-                            icon: _busy
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.save_rounded),
-                            label: Text(_busy ? 'Salvataggio...' : 'Salva Appuntamento'),
-                          ),
-                        ),
-                        if (isEdit) ...[
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _busy ? null : _delete,
-                              icon: const Icon(Icons.delete_outline_rounded),
-                              label: const Text('Elimina Visita'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: cs.error,
-                                side: BorderSide(color: cs.error, width: 2),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                  Text('Tipo di visita', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _typeController,
+                    enabled: !_busy,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      hintText: 'es. Cardiologica, Diabetologica',
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  Text('Data', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _busy ? null : _pickDate,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        suffixIcon: Icon(Icons.calendar_today_outlined),
+                      ),
+                      child: Text(
+                        _date == null
+                            ? 'gg/mm/aaaa'
+                            : '${_date!.day.toString().padLeft(2, '0')}/${_date!.month.toString().padLeft(2, '0')}/${_date!.year}',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text('Ora', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _busy ? null : _pickTime,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        suffixIcon: Icon(Icons.access_time_rounded),
+                      ),
+                      child: Text(
+                        _time == null
+                            ? '--:--'
+                            : '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text('Medico o specialista (opzionale)', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _doctorController,
+                    enabled: !_busy,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      hintText: 'es. Dott. Rossi',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text('Luogo o studio medico (opzionale)', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _locationController,
+                    enabled: !_busy,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      hintText: 'es. Ospedale San Raffaele',
+                      prefixIcon: Icon(Icons.location_on_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text('Note (opzionale)', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _notesController,
+                    enabled: !_busy,
+                    textInputAction: TextInputAction.done,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'Aggiungi dettagli o promemoria...',
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    Text(_error!, style: TextStyle(color: cs.error, fontSize: 16)),
+                  ],
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: _busy ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
+                      icon: _busy
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save_rounded),
+                      label: Text(_busy ? 'Salvataggio...' : 'Salva visita'),
+                    ),
+                  ),
+                  if (isEdit) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: _busy ? null : _delete,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('Elimina visita'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: cs.error,
+                          side: BorderSide(color: cs.error, width: 2),
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

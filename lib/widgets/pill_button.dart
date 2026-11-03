@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Pulsante ovale riutilizzato in tutta l'app (es. "Storico", "Profilo",
-/// "Modifica Dati" nel profilo, "Modifica" nella sezione Terapia del Diario,
+/// "Modifica dati" nel profilo, "Modifica" nella sezione Terapia del Diario,
 /// "Aggiungi" nelle varie card dei parametri vitali).
 class PillButton extends StatelessWidget {
   final String label;
@@ -28,13 +28,13 @@ class PillButton extends StatelessWidget {
     return Material(
       color: background,
       shape: StadiumBorder(
-        side: filled ? BorderSide.none : BorderSide(color: cs.outlineVariant, width: 1.5),
+        side: filled ? BorderSide.none : BorderSide(color: cs.outlineVariant, width: 1.8),
       ),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
           // scaleDown evita overflow orizzontale quando il bottone è in uno
           // spazio stretto (es. Expanded affiancati): scala solo il contenuto
           // icona+testo, il padding resta invariato.
@@ -45,12 +45,15 @@ class PillButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 20, color: foreground),
+                  Icon(icon, size: 21, color: foreground),
                   const SizedBox(width: 8),
                 ],
                 Text(
                   label,
-                  style: textTheme.labelLarge?.copyWith(color: foreground),
+                  style: textTheme.labelLarge?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
             ),

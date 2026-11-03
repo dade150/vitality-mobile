@@ -38,6 +38,8 @@ class ApiService {
     String cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
     if (cleanBase.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
       cleanEndpoint = cleanEndpoint.substring(4);
+    } else if (!cleanBase.endsWith('/api') && !cleanEndpoint.startsWith('/api/')) {
+      cleanEndpoint = '/api$cleanEndpoint';
     }
     return Uri.parse('$cleanBase$cleanEndpoint');
   }

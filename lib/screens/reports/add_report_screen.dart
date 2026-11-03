@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/clinical_parameter.dart';
@@ -34,14 +35,23 @@ class _AddReportScreenState extends State<AddReportScreen> {
   ReportUploadResult? _result;
 
   final Set<ClinicalParameterType> _selected = {};
+  final Map<ClinicalParameterType, TextEditingController> _valueCtrls = {};
   final _dateCtrl = TextEditingController();
   DateTime? _examDate;
   String? _error;
 
   static const _genericError = 'Operazione non riuscita. Controlla la connessione e riprova.';
 
+  void _disposeValueControllers() {
+    for (final ctrl in _valueCtrls.values) {
+      ctrl.dispose();
+    }
+    _valueCtrls.clear();
+  }
+
   @override
   void dispose() {
+    _disposeValueControllers();
     _dateCtrl.dispose();
     super.dispose();
   }
@@ -78,6 +88,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
       _bytes = bytes;
       _result = null;
       _selected.clear();
+      _disposeValueControllers();
       _examDate = null;
       _dateCtrl.clear();
       _error = null;
@@ -119,11 +130,17 @@ class _AddReportScreenState extends State<AddReportScreen> {
       _uploading = false;
       _result = result;
       _setExamDate(result.reportDate ?? DateTime.now());
+      _disposeValueControllers();
+      for (final item in result.extracted) {
+        _valueCtrls[item.type] = TextEditingController(
+          text: item.type.format(item.value),
+        );
+      }
       _selected
         ..clear()
         ..addAll(result.extracted.map((e) => e.type));
       if (result.extracted.isEmpty) {
-        _error = 'Nessun parametro riconosciuto nel documento.';
+        _error = 'Nessun parametro riconosciuto nel documento. Puoi aggiungerli manualmente qui sotto.';
       }
     });
 
@@ -162,19 +179,86 @@ class _AddReportScreenState extends State<AddReportScreen> {
     setState(() => _setExamDate(picked));
   }
 
-  /// Salva i valori spuntati nei parametri clinici (conferma manuale).
+  void _addMissingParameter(ClinicalParameterType type) {
+    setState(() {
+      _valueCtrls.putIfAbsent(type, () => TextEditingController());
+      _selected.add(type);
+      _error = null;
+    });
+  }
+
+  Future<void> _showAddParameterDialog() async {
+    FocusScope.of(context).unfocus();
+    final missing = ClinicalParameterType.values
+        .where((t) => !_valueCtrls.containsKey(t))
+        .toList();
+    if (missing.isEmpty) return;
+
+    final chosen = await showModalBottomSheet<ClinicalParameterType>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetCtx) {
+        final theme = Theme.of(sheetCtx);
+        final cs = theme.colorScheme;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Aggiungi parametro clinico', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 8),
+                for (final t in missing)
+                  ListTile(
+                    leading: Icon(t.icon, color: cs.primary),
+                    title: Text(t.label, style: theme.textTheme.titleSmall),
+                    subtitle: Text('Unità: ${t.unit}', style: theme.textTheme.bodySmall),
+                    onTap: () => Navigator.of(sheetCtx).pop(t),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (chosen != null && mounted) {
+      _addMissingParameter(chosen);
+    }
+  }
+
+  /// Salva i valori spuntati e modificati nei parametri clinici (conferma manuale).
   Future<void> _saveValues() async {
+    FocusScope.of(context).unfocus();
     final date = _examDate;
-    final values = _selected.isEmpty
-        ? const <ExtractedValue>[]
-        : _result!.extracted.where((v) => _selected.contains(v.type)).toList();
     if (date == null) {
       setState(() => _error = "Scegli la data dell'esame.");
       return;
     }
-    if (values.isEmpty) {
+
+    final selectedTypes = _valueCtrls.keys.where((t) => _selected.contains(t)).toList();
+    if (selectedTypes.isEmpty) {
       setState(() => _error = 'Spunta almeno un valore da salvare.');
       return;
+    }
+
+    final parsedValues = <ExtractedValue>[];
+    for (final type in selectedTypes) {
+      final rawText = _valueCtrls[type]?.text ?? '';
+      final parsed = type.tryParse(rawText);
+      if (parsed == null) {
+        setState(() => _error = 'Inserisci un numero valido per ${type.label}.');
+        return;
+      }
+      if (!type.isInRange(parsed)) {
+        setState(
+          () => _error =
+              'Il valore di ${type.label} deve essere tra ${type.format(type.min)} e ${type.format(type.max)} ${type.unit}.',
+        );
+        return;
+      }
+      parsedValues.add(ExtractedValue(type: type, value: type.round(parsed)));
     }
 
     setState(() {
@@ -183,7 +267,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
     });
 
     final clinical = context.read<ClinicalProvider>();
-    for (final v in values) {
+    for (final v in parsedValues) {
       final ok = await clinical.addReading(v.type, v.value, date);
       if (!ok) {
         if (!mounted) return;
@@ -196,11 +280,30 @@ class _AddReportScreenState extends State<AddReportScreen> {
     }
 
     if (!mounted) return;
+    final res = _result;
+    if (res != null) {
+      final title = (_filename ?? 'Referto medico')
+          .replaceAll(RegExp(r'\.(pdf|png|jpg|jpeg|webp)$', caseSensitive: false), '');
+      context.read<ReportsProvider>().addReport(
+            MedicalReport(
+              id: res.id,
+              title: title,
+              date: date,
+              cleanSummary: res.cleanSummary,
+              filePath: res.filePath,
+              extractedParams: {
+                for (final v in parsedValues)
+                  v.type.label: '${v.type.format(v.value)} ${v.type.unit}',
+              },
+            ),
+          );
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(values.length == 1
+        content: Text(parsedValues.length == 1
             ? 'Valore salvato nei parametri clinici.'
-            : '${values.length} valori salvati nei parametri clinici.'),
+            : '${parsedValues.length} valori salvati nei parametri clinici.'),
       ),
     );
     Navigator.of(context).maybePop();
@@ -214,6 +317,9 @@ class _AddReportScreenState extends State<AddReportScreen> {
     final cs = theme.colorScheme;
     final result = _result;
 
+    final isDark = theme.brightness == Brightness.dark;
+    final accentTitle = isDark ? cs.primary : AppColors.accentText;
+
     return AppScaffold(
       navIndex: 2,
       body: Column(
@@ -224,9 +330,16 @@ class _AddReportScreenState extends State<AddReportScreen> {
               IconButton(
                 onPressed: () => Navigator.of(context).maybePop(),
                 icon: const Icon(Icons.arrow_back_rounded),
+                tooltip: 'Torna indietro',
               ),
-              // Titolo sempre arancione, indipendentemente dal tema (chiaro/scuro).
-              Text('Aggiungi Referto', style: theme.textTheme.headlineLarge?.copyWith(color: AppColors.accent)),
+              const SizedBox(width: 4),
+              Text(
+                'Aggiungi referto',
+                style: theme.textTheme.headlineLarge?.copyWith(
+                  color: accentTitle,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -258,18 +371,25 @@ class _AddReportScreenState extends State<AddReportScreen> {
             const SizedBox(height: 14),
             OutlinedButton.icon(
               onPressed: _uploading ? null : _pickFile,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
               icon: const Icon(Icons.attach_file_rounded),
               label: Text(_filename ?? 'Scegli il documento (PDF o immagine)'),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
+              height: 52,
               child: ElevatedButton.icon(
                 onPressed: _uploading ? null : _upload,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                ),
                 icon: _uploading
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.upload_file_rounded),
-                label: Text(_uploading ? 'Caricamento ed analisi...' : 'Carica ed Analizza Documento'),
+                label: Text(_uploading ? 'Caricamento ed analisi...' : 'Carica e analizza documento'),
               ),
             ),
           ] else ...[
@@ -282,7 +402,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
                       children: [
                         Icon(Icons.summarize_outlined, size: 20, color: cs.primary),
                         const SizedBox(width: 8),
-                        Text('Sintesi Clinica Oggettiva', style: theme.textTheme.titleSmall),
+                        Text('Sintesi clinica oggettiva', style: theme.textTheme.titleSmall),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -295,54 +415,123 @@ class _AddReportScreenState extends State<AddReportScreen> {
               ),
               const SizedBox(height: 16),
             ],
-            Text('Parametri Clinici Estratti', style: theme.textTheme.titleLarge),
+            Text('Parametri clinici estratti', style: theme.textTheme.titleLarge),
             const SizedBox(height: 4),
             Text(
-              'Spunta quelli che vuoi salvare: compaiono in "Parametri Clinici".',
+              'Spunta quelli che vuoi salvare e tocca il valore per correggerlo se necessario.',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
-            if (result.extracted.isEmpty)
-              Text('Il documento non contiene parametri riconosciuti.',
-                  style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic))
-            else
-              SectionCard(
-                child: Column(
-                  children: [
-                    for (final v in result.extracted)
-                      InkWell(
-                        onTap: _saving ? null : () => _toggle(v.type),
-                        child: Row(
-                          children: [
-                            Checkbox(
-                              value: _selected.contains(v.type),
-                              onChanged: _saving ? null : (_) => _toggle(v.type),
-                            ),
-                            Expanded(
-                              child: _paramRow(context,
-                                  icon: v.type.icon,
-                                  label: v.type.label,
-                                  value: '${v.type.format(v.value)} ${v.type.unit}'),
-                            ),
-                          ],
-                        ),
+            SectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_valueCtrls.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Nessun parametro riconosciuto automaticamente.',
+                        style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                       ),
-                    const Divider(),
-                    Text("Data dell'esame", style: theme.textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _dateCtrl,
-                      readOnly: true,
-                      enabled: !_saving,
-                      onTap: _pickDate,
-                      decoration: const InputDecoration(
-                        hintText: 'Tocca per scegliere la data',
-                        suffixIcon: Icon(Icons.calendar_month_outlined),
+                    ),
+                  for (final entry in _valueCtrls.entries)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: _selected.contains(entry.key),
+                            onChanged: _saving ? null : (_) => _toggle(entry.key),
+                          ),
+                          Expanded(
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: _saving ? null : () => _toggle(entry.key),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: Row(
+                                  children: [
+                                    Icon(entry.key.icon, color: cs.primary, size: 22),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        entry.key.label,
+                                        style: theme.textTheme.titleSmall,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 128,
+                            child: TextField(
+                              controller: entry.value,
+                              enabled: !_saving,
+                              textAlign: TextAlign.end,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: cs.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              keyboardType: TextInputType.numberWithOptions(
+                                decimal: entry.key.allowsDecimals,
+                                signed: false,
+                              ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(entry.key.allowsDecimals ? r'[0-9.,]' : r'[0-9]'),
+                                ),
+                              ],
+                              onChanged: (_) {
+                                if (!_selected.contains(entry.key)) {
+                                  setState(() => _selected.add(entry.key));
+                                } else if (_error != null) {
+                                  setState(() => _error = null);
+                                }
+                              },
+                              decoration: InputDecoration(
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                suffixText: ' ${entry.key.unit}',
+                                suffixStyle: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_valueCtrls.length < ClinicalParameterType.values.length) ...[
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _saving ? null : _showAddParameterDialog,
+                        icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+                        label: const Text('Aggiungi parametro mancante'),
                       ),
                     ),
                   ],
-                ),
+                  const Divider(),
+                  Text("Data dell'esame", style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _dateCtrl,
+                    readOnly: true,
+                    enabled: !_saving,
+                    onTap: _pickDate,
+                    decoration: const InputDecoration(
+                      hintText: 'Tocca per scegliere la data',
+                      suffixIcon: Icon(Icons.calendar_month_outlined),
+                    ),
+                  ),
+                ],
               ),
+            ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -365,22 +554,6 @@ class _AddReportScreenState extends State<AddReportScreen> {
             const SizedBox(height: 12),
             Text(_error!, style: TextStyle(color: cs.error, fontSize: 16)),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _paramRow(BuildContext context, {required IconData icon, required String label, required String value}) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Icon(icon, color: cs.primary),
-          const SizedBox(width: 12),
-          Expanded(child: Text(label, style: theme.textTheme.titleSmall)),
-          Text(value, style: theme.textTheme.titleMedium?.copyWith(color: cs.primary)),
         ],
       ),
     );

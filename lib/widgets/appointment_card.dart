@@ -25,12 +25,15 @@ class AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
+    final dateBoxBg = isDark ? cs.surfaceContainerHigh : AppColors.lightPeach;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: SectionCard(
         highlight: false,
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -39,13 +42,13 @@ class AppointmentCard extends StatelessWidget {
               children: [
                 // Blocchetto compatto con Mese, Giorno e Orario integrati
                 Container(
-                  width: 58,
+                  width: 62,
                   decoration: BoxDecoration(
-                    color: AppColors.lightPeach,
+                    color: dateBoxBg,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: AppColors.accent.withValues(alpha: 0.3),
-                      width: 1,
+                      color: accentText.withValues(alpha: 0.35),
+                      width: 1.2,
                     ),
                   ),
                   child: Column(
@@ -54,35 +57,35 @@ class AppointmentCard extends StatelessWidget {
                       const SizedBox(height: 5),
                       Text(
                         AppDateFormat.monthShort(appt.date).toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 11,
+                        style: TextStyle(
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.accent,
+                          color: accentText,
                           letterSpacing: 0.5,
                         ),
                       ),
                       Text(
                         '${appt.date.day}',
                         style: TextStyle(
-                          fontSize: 22,
+                          fontSize: 24,
                           fontWeight: FontWeight.w900,
                           color: cs.onSurface,
                           height: 1.05,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 5),
                       Container(
-                        width: 58,
-                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        width: 62,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.accent.withValues(alpha: 0.12),
-                          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(9)),
+                          color: accentText.withValues(alpha: 0.14),
+                          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
                         ),
                         child: Text(
                           _formatTime(appt.time),
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w800,
                             color: cs.onSurface,
                           ),
@@ -100,29 +103,29 @@ class AppointmentCard extends StatelessWidget {
                       Text(
                         appt.type,
                         style: theme.textTheme.titleMedium?.copyWith(
-                          fontSize: 18,
+                          fontSize: 19,
                           fontWeight: FontWeight.w700,
                           color: cs.onSurface,
                           height: 1.25,
                         ),
                       ),
                       if (appt.doctorName.isNotEmpty) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 5),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.person_outline_rounded,
-                              size: 15,
-                              color: AppColors.accent,
+                              size: 17,
+                              color: accentText,
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 appt.doctorName,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: cs.onSurface,
-                                  fontSize: 14,
+                                  fontSize: 15.5,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -131,22 +134,22 @@ class AppointmentCard extends StatelessWidget {
                         ),
                       ],
                       if (appt.location.isNotEmpty) ...[
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 4),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.location_on_outlined,
-                              size: 15,
-                              color: AppColors.accent,
+                              size: 17,
+                              color: accentText,
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 appt.location,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: cs.onSurface,
-                                  fontSize: 14,
+                                  fontSize: 15.5,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -161,13 +164,13 @@ class AppointmentCard extends StatelessWidget {
             ),
             if (appt.notes.isNotEmpty) ...[
               const SizedBox(height: 10),
-              Divider(height: 1, thickness: 1, color: cs.outlineVariant.withValues(alpha: 0.35)),
+              Divider(height: 1, thickness: 1, color: cs.outlineVariant.withValues(alpha: 0.45)),
               const SizedBox(height: 8),
               Text(
                 appt.notes,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: cs.onSurface,
-                  fontSize: 14.5,
+                  fontSize: 15.5,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -176,21 +179,21 @@ class AppointmentCard extends StatelessWidget {
             // Bottone Modifica a tutta larghezza
             OutlinedButton.icon(
               onPressed: onEdit,
-              icon: const Icon(Icons.edit_outlined, size: 16),
+              icon: const Icon(Icons.edit_outlined, size: 18),
               label: const Text('Modifica'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                minimumSize: const Size.fromHeight(40),
+                foregroundColor: accentText,
+                minimumSize: const Size.fromHeight(46),
                 side: BorderSide(
-                  color: AppColors.accent.withValues(alpha: 0.45),
-                  width: 1.3,
+                  color: accentText.withValues(alpha: 0.45),
+                  width: 1.4,
                 ),
-                backgroundColor: AppColors.lightPeach.withValues(alpha: 0.35),
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                backgroundColor: dateBoxBg.withValues(alpha: 0.35),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 textStyle: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  fontSize: 14,
+                  fontSize: 15,
                 ),
               ),
             ),
