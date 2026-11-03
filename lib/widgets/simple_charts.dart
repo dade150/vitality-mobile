@@ -37,7 +37,7 @@ class SimpleBarChart extends StatelessWidget {
     final safeMax = maxValue <= 0 ? 1.0 : maxValue;
 
     return SizedBox(
-      height: height + 46,
+      height: height + 54,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: List.generate(labels.length, (i) {
@@ -82,12 +82,15 @@ class SimpleBarChart extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    labels[i],
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13.5,
-                      color: cs.onSurface,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      labels[i],
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: cs.onSurface,
+                      ),
                     ),
                   ),
                 ],
@@ -522,7 +525,7 @@ class BloodPressureGroupedBarChart extends StatelessWidget {
     final safeMax = maxValue <= 0 ? 190.0 : maxValue;
 
     return SizedBox(
-      height: height + 46,
+      height: height + 54,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: List.generate(labels.length, (i) {
@@ -591,11 +594,14 @@ class BloodPressureGroupedBarChart extends StatelessWidget {
                       ),
                     ),
                   const SizedBox(height: 6),
-                  Text(
-                    labels[i],
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      labels[i],
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
                     ),
                   ),
                 ],
