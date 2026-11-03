@@ -4,7 +4,7 @@ import '../theme/app_colors.dart';
 /// I tre profili in cui sono raggruppati i parametri nella schermata.
 enum ClinicalProfile {
   glycemic('Controllo glicemico', 'Come è andata la glicemia negli ultimi mesi',
-      Icons.bloodtype_outlined),
+      Icons.insights_outlined),
   renal('Funzionalità renale', 'Come stanno lavorando i reni', Icons.water_drop_outlined),
   lipid('Profilo lipidico', 'Colesterolo e grassi nel sangue', Icons.monitor_heart_outlined);
 
