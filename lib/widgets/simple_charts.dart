@@ -37,69 +37,70 @@ class SimpleBarChart extends StatelessWidget {
     final cs = theme.colorScheme;
     final safeMax = maxValue <= 0 ? 1.0 : maxValue;
 
-    return SizedBox(
-      height: height + 54,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(labels.length, (i) {
-          final raw = i < values.length ? values[i] : null;
-          final hasData = raw != null && (!showZeroAsDash || raw > 0);
-          final value = raw ?? 0.0;
-          final barColor = (barColors != null && i < barColors!.length && barColors![i] != null)
-              ? barColors![i]!
-              : color;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: List.generate(labels.length, (i) {
+        final raw = i < values.length ? values[i] : null;
+        final hasData = raw != null && (!showZeroAsDash || raw > 0);
+        final value = raw ?? 0.0;
+        final barColor = (barColors != null && i < barColors!.length && barColors![i] != null)
+            ? barColors![i]!
+            : color;
 
-          final barHeight = !hasData
-              ? 4.0
-              : (value <= 0 ? 6.0 : (value / safeMax * height).clamp(8.0, height));
+        final barHeight = !hasData
+            ? 4.0
+            : (value <= 0 ? 6.0 : (value / safeMax * height).clamp(8.0, height));
 
-          final valueLabel = hasData ? _formatValue(value) : '-';
+        final valueLabel = hasData ? _formatValue(value) : '—';
 
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      valueLabel,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: hasData ? cs.onSurface : cs.onSurfaceVariant,
-                      ),
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    valueLabel,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: hasData ? cs.onSurface : cs.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    height: barHeight,
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: height,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
                     child: Container(
+                      height: barHeight,
                       decoration: BoxDecoration(
                         color: hasData ? barColor : cs.outlineVariant.withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      labels[i],
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
-                        color: cs.onSurface,
-                      ),
+                ),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    labels[i],
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                      color: cs.onSurface,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          );
-        }),
-      ),
+          ),
+        );
+      }),
     );
   }
 }
