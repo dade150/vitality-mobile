@@ -156,7 +156,28 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
       _pressure = vitals.pressure;
       _meals = meals;
       _activities = activities;
-      _therapyItems = therapies;
+      var loadedTherapies = therapies;
+      if (loadedTherapies.isEmpty) {
+        final metaTherapies = _db.auth.currentUser?.userMetadata?['therapies'];
+        if (metaTherapies is List && metaTherapies.isNotEmpty) {
+          for (final raw in metaTherapies) {
+            if (raw is Map) {
+              final n = raw['name']?.toString() ?? '';
+              final t = raw['time']?.toString() ?? '';
+              if (n.isNotEmpty && t.isNotEmpty) {
+                try {
+                  await _service.insertTherapy(name: n, time: t);
+                } catch (_) {}
+              }
+            }
+          }
+          final reloaded = await _service.fetchTherapies();
+          if (reloaded.isNotEmpty) {
+            loadedTherapies = reloaded;
+          }
+        }
+      }
+      _therapyItems = loadedTherapies;
       _therapyLogs = logs;
       _applyTakenToday();
       _hasLoaded = true;

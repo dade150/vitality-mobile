@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/request/registration_request.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/error_handler.dart';
+import '../../services/health_service.dart';
 import '../../theme/app_colors.dart';
 import 'email_confirmation.dart';
 import 'register_step1.dart';
+import 'register_step_therapy.dart';
 import 'register_step2.dart';
 import 'register_step3.dart';
 
@@ -16,7 +19,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  static const _totalSteps = 3;
+  static const _totalSteps = 4;
 
   final _pageController = PageController();
   final _data = RegistrationData();
@@ -48,7 +51,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     }
 
-    if (_step == 1) {
+    // Step 1: Terapia farmacologica (facoltativa) - nessun blocco, si prosegue sempre
+
+    if (_step == 2) {
       if (!(_step2FormKey.currentState?.validate() ?? false)) return;
       if (!_data.termsAccepted) {
         _showSnack('Devi accettare i Termini e Condizioni di Servizio per proseguire.');
@@ -94,6 +99,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
 
     if (ok) {
+      // Inserimento farmaci della terapia se la sessione è già attiva
+      if (_data.therapies.isNotEmpty && !auth.pendingEmailConfirmation) {
+        for (final t in _data.therapies) {
+          try {
+            await HealthService().insertTherapy(name: t.name, time: t.time);
+          } catch (e, st) {
+            ErrorHandler.logOnly(e, st, 'RegisterScreen.insertTherapy');
+          }
+        }
+      }
+
       if (auth.pendingEmailConfirmation) {
         // Confirm email ON: utente creato ma sessione nulla, serve la conferma.
         Navigator.of(context).pushReplacement(
@@ -133,6 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
                   RegisterStep1Profile(formKey: _step1FormKey, data: _data),
+                  RegisterStepTherapy(data: _data, onSkip: _goNext),
                   RegisterStep2Credentials(formKey: _step2FormKey, data: _data),
                   RegisterStep3Settings(data: _data),
                 ],

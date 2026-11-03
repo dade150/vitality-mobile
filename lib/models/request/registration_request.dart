@@ -1,4 +1,6 @@
-/// Contenitore mutabile dei dati raccolti nei tre step della registrazione.
+import '../therapy_item.dart';
+
+/// Contenitore mutabile dei dati raccolti nei quattro step della registrazione.
 ///
 /// Un'unica istanza viene creata da [RegisterScreen] e passata per
 /// riferimento a ciascuno step: ogni step scrive direttamente sui suoi campi,
@@ -14,7 +16,10 @@ class RegistrationData {
   double? peso; // kg
   String noteAnamnestiche = '';
 
-  // Step 2 - Credenziali e Consensi Legali (GDPR Art. 6.1.b, Art. 7, Art. 9.2.a)
+  // Step 2 - Terapia farmacologica (configurabile subito o saltabile)
+  final List<TherapyItem> therapies = [];
+
+  // Step 3 - Credenziali e Consensi Legali (GDPR Art. 6.1.b, Art. 7, Art. 9.2.a)
   static const String currentTermsVersion = '1.0';
   static const String currentPrivacyVersion = '1.0';
 
@@ -23,7 +28,7 @@ class RegistrationData {
   bool termsAccepted = false;
   bool consensoPrivacy = false;
 
-  // Step 3 - Preferenze e notifiche
+  // Step 4 - Preferenze e notifiche
   bool showActivities = true;
   bool showMeals = true;
   bool showAppointments = true;
@@ -46,6 +51,7 @@ class RegistrationData {
       'altezza': altezza,
       'peso': peso,
       'note_anamnestiche': noteAnamnestiche.isEmpty ? null : noteAnamnestiche,
+      'therapies': therapies.map((t) => {'name': t.name, 'time': t.time}).toList(),
       'terms_accepted': termsAccepted,
       'terms_accepted_at': termsAccepted ? nowIso : null,
       'terms_version': currentTermsVersion,
