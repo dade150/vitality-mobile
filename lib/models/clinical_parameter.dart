@@ -142,8 +142,14 @@ enum ClinicalParameterType {
   }
 
   static ClinicalParameterType? fromDb(String? code) {
+    if (code == null) return null;
+    final normalized = code.trim().toUpperCase().replaceAll(RegExp(r'[\s\-]+'), '_');
     for (final t in values) {
-      if (t.dbCode == code) return t;
+      if (t.dbCode == normalized ||
+          t.dbCode == code.trim() ||
+          t.name.toUpperCase() == normalized) {
+        return t;
+      }
     }
     return null;
   }

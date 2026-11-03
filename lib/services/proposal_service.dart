@@ -120,9 +120,10 @@ class ProposalService {
       return;
     }
 
-    // Inserimento diretto generico in diabetes_data
+    // Inserimento diretto generico in diabetes_data (normalizza spazi in underscore per l'enum postgres)
+    final cleanType = rawType.trim().replaceAll(RegExp(r'[\s\-]+'), '_');
     await _db.from('diabetes_data').insert({
-      'metric_type': rawType,
+      'metric_type': cleanType,
       'metric_value': rawVal.toString().trim(),
       'measured_at': _iso(when),
     });
