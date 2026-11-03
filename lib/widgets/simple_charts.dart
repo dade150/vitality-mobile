@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 /// Grafico a barre semplice, senza dipendenze esterne: usato per calorie pasti
 /// e minuti attività nella vista settimanale del Diario e nello Storico Salute.
@@ -495,10 +496,10 @@ class _GlucoseChartPainter extends CustomPainter {
 }
 
 /// Grafico a doppia barra affiancata per la pressione arteriosa (Massima e Minima).
-/// Per ciascun giorno mostra due colonne affiancate ben distinte:
-/// - Sistolica (Massima): colonna a sinistra
-/// - Diastolica (Minima): colonna a destra
-class BloodPressureGroupedBarChart extends StatelessWidget {
+/// - Sistolica (Massima): colonna a sinistra (rosso/corallo)
+/// - Diastolica (Minima): colonna a destra (blu)
+/// Include numeri verticali separati ad alta leggibilità e ispezione interattiva del giorno al tocco.
+class BloodPressureGroupedBarChart extends StatefulWidget {
   final List<String> labels;
   final List<int> systolic;
   final List<int> diastolic;
@@ -519,97 +520,249 @@ class BloodPressureGroupedBarChart extends StatelessWidget {
   });
 
   @override
+  State<BloodPressureGroupedBarChart> createState() => _BloodPressureGroupedBarChartState();
+}
+
+class _BloodPressureGroupedBarChartState extends State<BloodPressureGroupedBarChart> {
+  int? _selectedDayIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    // Seleziona di default l'ultimo giorno con misurazioni valide
+    for (int i = widget.systolic.length - 1; i >= 0; i--) {
+      if (widget.systolic[i] > 0 && (i < widget.diastolic.length && widget.diastolic[i] > 0)) {
+        _selectedDayIndex = i;
+        break;
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final safeMax = maxValue <= 0 ? 190.0 : maxValue;
+    final isDark = theme.brightness == Brightness.dark;
+    final safeMax = widget.maxValue <= 0 ? 190.0 : widget.maxValue;
+    final labels = widget.labels;
+    final systolic = widget.systolic;
+    final diastolic = widget.diastolic;
+    final height = widget.height;
 
-    return SizedBox(
-      height: height + 54,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(labels.length, (i) {
-          final sys = i < systolic.length ? systolic[i] : 0;
-          final dia = i < diastolic.length ? diastolic[i] : 0;
-          final hasData = sys > 0 && dia > 0;
+    final selIdx = _selectedDayIndex;
+    final hasSelectedData = selIdx != null &&
+        selIdx < systolic.length &&
+        selIdx < diastolic.length &&
+        systolic[selIdx] > 0 &&
+        diastolic[selIdx] > 0;
+    final selSys = hasSelectedData ? systolic[selIdx] : 0;
+    final selDia = hasSelectedData ? diastolic[selIdx] : 0;
 
-          final sysHeight = hasData ? (sys / safeMax * height).clamp(10.0, height) : 4.0;
-          final diaHeight = hasData ? (dia / safeMax * height).clamp(8.0, height) : 4.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: height + 66,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: List.generate(labels.length, (i) {
+              final sys = i < systolic.length ? systolic[i] : 0;
+              final dia = i < diastolic.length ? diastolic[i] : 0;
+              final hasData = sys > 0 && dia > 0;
+              final isSelected = _selectedDayIndex == i;
 
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      hasData ? '$sys/$dia' : '-',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                        color: hasData ? cs.onSurface : cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  if (!hasData)
-                    SizedBox(
-                      height: 4,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: cs.outlineVariant.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    )
-                  else
-                    SizedBox(
-                      height: height,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Colonna Sistolica (Massima)
-                          Container(
-                            width: 8,
-                            height: sysHeight,
-                            decoration: BoxDecoration(
-                              color: systolicColor,
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              final sysHeight = hasData ? (sys / safeMax * height).clamp(12.0, height) : 4.0;
+              final diaHeight = hasData ? (dia / safeMax * height).clamp(10.0, height) : 4.0;
+
+              return Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _selectedDayIndex = i),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        // 1. Valori numerici separati e impilati verticalmente (leggibilità assoluta)
+                        if (hasData) ...[
+                          Text(
+                            '$sys',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12.5,
+                              color: widget.systolicColor,
+                              height: 1.1,
                             ),
                           ),
-                          const SizedBox(width: 3),
-                          // Colonna Diastolica (Minima)
-                          Container(
-                            width: 8,
-                            height: diaHeight,
-                            decoration: BoxDecoration(
-                              color: diastolicColor,
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                          const SizedBox(height: 1),
+                          Text(
+                            '$dia',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11.5,
+                              color: widget.diastolicColor,
+                              height: 1.1,
                             ),
                           ),
+                        ] else ...[
+                          Text(
+                            '-',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: cs.onSurfaceVariant.withValues(alpha: 0.4),
+                              height: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 14), // Mantiene la stessa altezza verticale di sys+dia
                         ],
-                      ),
-                    ),
-                  const SizedBox(height: 6),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      labels[i],
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
-                      ),
+                        const SizedBox(height: 6),
+
+                        // 2. Colonne delle barre sistolica e diastolica
+                        if (!hasData)
+                          SizedBox(
+                            height: 4,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: cs.outlineVariant.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            height: height,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // Colonna Sistolica (Massima)
+                                Container(
+                                  width: 9,
+                                  height: sysHeight,
+                                  decoration: BoxDecoration(
+                                    color: widget.systolicColor,
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: widget.systolicColor.withValues(alpha: 0.4),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, -1),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                ),
+                                const SizedBox(width: 3),
+                                // Colonna Diastolica (Minima)
+                                Container(
+                                  width: 9,
+                                  height: diaHeight,
+                                  decoration: BoxDecoration(
+                                    color: widget.diastolicColor,
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: widget.diastolicColor.withValues(alpha: 0.4),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, -1),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+
+                        // 3. Etichetta del giorno con pillola se selezionato
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? (isDark ? cs.surfaceContainerHigh : AppColors.lightPeach)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isSelected
+                                  ? (isDark ? cs.primary : AppColors.accent).withValues(alpha: 0.4)
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          child: Text(
+                            labels[i],
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                              color: isSelected
+                                  ? (isDark ? cs.primary : AppColors.accentText)
+                                  : cs.onSurface,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
+              );
+            }),
+          ),
+        ),
+
+        // 4. Banner di dettaglio interattivo del giorno toccato
+        if (hasSelectedData)
+          Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? cs.surfaceContainerHigh : AppColors.lightPeach.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: (isDark ? cs.primary : AppColors.accent).withValues(alpha: 0.25),
+                width: 1.0,
               ),
             ),
-          );
-        }),
-      ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.touch_app_rounded,
+                  size: 16,
+                  color: isDark ? cs.primary : AppColors.accentText,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${labels[selIdx!]}: ',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                Text(
+                  '$selSys / $selDia mmHg',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? cs.primary : AppColors.accentText,
+                    fontSize: 14.5,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'Max $selSys • Min $selDia',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
