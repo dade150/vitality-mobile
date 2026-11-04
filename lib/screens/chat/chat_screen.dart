@@ -64,6 +64,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
   final _spokenMessageController = TextEditingController();
   final _scrollController = ScrollController();
+  final _focusNode = FocusNode();
   String _liveSpokenText = '';
   bool _hasSpokenMessage = false;
 
@@ -76,6 +77,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _controller.dispose();
     _spokenMessageController.dispose();
     _scrollController.dispose();
+    _focusNode.dispose();
     try {
       context.read<VoiceService>().stopSpeaking();
       context.read<VoiceService>().stopListening();
@@ -431,6 +433,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _toggleListening() async {
+    // Chiudi subito la tastiera virtuale se aperta
+    FocusScope.of(context).unfocus();
+    _focusNode.unfocus();
+
     final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
     if (!hasAiConsent) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -451,6 +457,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _hasSpokenMessage = true;
           _liveSpokenText = '';
         });
+        _scrollToEnd();
       }
       return;
     }
@@ -476,6 +483,7 @@ class _ChatScreenState extends State<ChatScreen> {
             _hasSpokenMessage = true;
             _liveSpokenText = '';
           });
+          _scrollToEnd();
         }
       },
     );
@@ -595,81 +603,31 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildListeningBanner(ThemeData theme, ColorScheme cs) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: cs.primaryContainer.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: AppColors.accent.withValues(alpha: 0.6),
+          color: AppColors.accent.withValues(alpha: 0.7),
           width: 1.5,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: const BoxDecoration(
-                  color: AppColors.accent,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'In ascolto... Parla pure',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: AppColors.accentText,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: _toggleListening,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.stop_rounded, size: 16, color: AppColors.accent),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Termina',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.accentText,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: cs.surface,
-              borderRadius: BorderRadius.circular(10),
-            ),
+          const _AudioWaveformLines(color: AppColors.accent),
+          const SizedBox(width: 10),
+          Expanded(
             child: Text(
               _liveSpokenText.isNotEmpty
                   ? _liveSpokenText
-                  : 'Ti sto ascoltando, pronuncia il tuo messaggio...',
+                  : 'In ascolto... Parla pure',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
-                fontStyle: _liveSpokenText.isEmpty ? FontStyle.italic : FontStyle.normal,
-                color: _liveSpokenText.isEmpty ? cs.onSurfaceVariant : cs.onSurface,
+                color: _liveSpokenText.isNotEmpty ? cs.onSurface : cs.onSurfaceVariant,
+                fontStyle: _liveSpokenText.isNotEmpty ? FontStyle.normal : FontStyle.italic,
+                fontWeight: _liveSpokenText.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           ),
@@ -678,98 +636,133 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildSpokenMessageEditor(ThemeData theme, ColorScheme cs) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.accent.withValues(alpha: 0.6),
-          width: 1.5,
+  Widget _buildSpokenDraftBubble(ThemeData theme, ColorScheme cs) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final bubbleMaxWidth = screenWidth > 640 ? 540.0 : (screenWidth * 0.82);
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
+        decoration: BoxDecoration(
+          color: cs.primary,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(4),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: cs.primary.withValues(alpha: 0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.record_voice_over_rounded, size: 20, color: AppColors.accent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Messaggio vocale riconosciuto',
-                  style: theme.textTheme.titleSmall?.copyWith(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.record_voice_over_rounded,
+                  size: 16,
+                  color: cs.onPrimary.withValues(alpha: 0.85),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Messaggio vocale',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: cs.onPrimary.withValues(alpha: 0.9),
                     fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    setState(() {
+                      _hasSpokenMessage = false;
+                      _spokenMessageController.clear();
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: cs.onPrimary.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _spokenMessageController,
+              maxLines: null,
+              keyboardType: TextInputType.multiline,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: cs.onPrimary,
+                height: 1.35,
+              ),
+              cursorColor: cs.onPrimary,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: EdgeInsets.zero,
+                hintText: 'Modifica il testo...',
+                hintStyle: TextStyle(
+                  color: cs.onPrimary.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                elevation: 2,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => _send(overrideText: _spokenMessageController.text),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Invia',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: cs.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 16,
+                          color: cs.primary,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.close_rounded, size: 20),
-                tooltip: 'Annulla',
-                visualDensity: VisualDensity.compact,
-                onPressed: () {
-                  setState(() {
-                    _hasSpokenMessage = false;
-                    _spokenMessageController.clear();
-                  });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _spokenMessageController,
-            minLines: 2,
-            maxLines: 6,
-            keyboardType: TextInputType.multiline,
-            style: theme.textTheme.bodyMedium,
-            decoration: InputDecoration(
-              hintText: 'Modifica il messaggio se necessario...',
-              filled: true,
-              fillColor: cs.surface,
-              contentPadding: const EdgeInsets.all(12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: cs.outlineVariant),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: cs.outlineVariant),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.accent, width: 2),
-              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Text(
-                'Puoi correggerlo prima di inviare',
-                style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-              ),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: () => _send(overrideText: _spokenMessageController.text),
-                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                label: const Text('Invia'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
   }
 
   Widget _buildAttachmentBadge(
@@ -1058,8 +1051,11 @@ class _ChatScreenState extends State<ChatScreen> {
                         ? ListView.builder(
                             controller: _scrollController,
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                            itemCount: chat.messages.length,
+                            itemCount: chat.messages.length + (_hasSpokenMessage ? 1 : 0),
                             itemBuilder: (context, index) {
+                              if (_hasSpokenMessage && index == chat.messages.length) {
+                                return _buildSpokenDraftBubble(theme, cs);
+                              }
                               final message = chat.messages[index];
                               if (message.isUser) {
                                 return _bubble(
@@ -1261,7 +1257,17 @@ class _ChatScreenState extends State<ChatScreen> {
                               );
                             },
                           )
-                        : _ChatGreeting(greeting: _greeting),
+                        : _hasSpokenMessage
+                            ? ListView(
+                                controller: _scrollController,
+                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                                children: [
+                                  _ChatGreeting(greeting: _greeting),
+                                  const SizedBox(height: 12),
+                                  _buildSpokenDraftBubble(theme, cs),
+                                ],
+                              )
+                            : _ChatGreeting(greeting: _greeting),
                   ),
                 ),
               ),
@@ -1370,36 +1376,67 @@ class _ChatScreenState extends State<ChatScreen> {
                         children: [
                           if (_pendingAttachment != null)
                             _buildAttachmentPreview(theme, cs),
-                          if (voice.isListening)
-                            _buildListeningBanner(theme, cs),
-                          if (_hasSpokenMessage && !voice.isListening)
-                            _buildSpokenMessageEditor(theme, cs),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Expanded(
-                                child: TextField(
-                                  controller: _controller,
-                                  keyboardType: TextInputType.multiline,
-                                  minLines: 1,
-                                  maxLines: 5,
-                                  textInputAction: TextInputAction.newline,
-                                  decoration: InputDecoration(
-                                    hintText: 'Scrivi un messaggio...',
-                                    prefixIcon: IconButton(
-                                      icon: const Icon(Icons.attach_file_rounded),
-                                      tooltip: 'Allega file',
-                                      onPressed: _showAttachmentModal,
-                                    ),
-                                  ),
-                                ),
+                                child: voice.isListening
+                                    ? _buildListeningBanner(theme, cs)
+                                    : TextField(
+                                        controller: _controller,
+                                        focusNode: _focusNode,
+                                        keyboardType: TextInputType.multiline,
+                                        minLines: 1,
+                                        maxLines: 5,
+                                        textInputAction: TextInputAction.newline,
+                                        style: theme.textTheme.bodyMedium,
+                                        decoration: InputDecoration(
+                                          isDense: true,
+                                          filled: true,
+                                          fillColor: cs.surfaceContainerLowest,
+                                          contentPadding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 11,
+                                          ),
+                                          hintText: 'Scrivi un messaggio...',
+                                          prefixIcon: IconButton(
+                                            icon: const Icon(Icons.attach_file_rounded, size: 22),
+                                            tooltip: 'Allega file',
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                                            onPressed: _showAttachmentModal,
+                                          ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(24),
+                                            borderSide: BorderSide(
+                                              color: cs.outlineVariant.withValues(alpha: 0.8),
+                                              width: 1.2,
+                                            ),
+                                          ),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(24),
+                                            borderSide: BorderSide(
+                                              color: cs.outlineVariant.withValues(alpha: 0.8),
+                                              width: 1.2,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(24),
+                                            borderSide: BorderSide(
+                                              color: cs.primary,
+                                              width: 1.8,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
                               SizedBox(
-                                width: 56,
-                                height: 56,
+                                width: 48,
+                                height: 48,
                                 child: FloatingActionButton(
                                   heroTag: 'mic',
+                                  elevation: 1,
                                   tooltip: voice.isListening ? 'Ferma ascolto' : 'Parla al microfono',
                                   onPressed: _toggleListening,
                                   backgroundColor: voice.isListening
@@ -1410,20 +1447,28 @@ class _ChatScreenState extends State<ChatScreen> {
                                     color: voice.isListening
                                         ? Colors.white
                                         : cs.onPrimaryContainer,
+                                    size: 24,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              SizedBox(
-                                width: 56,
-                                height: 56,
-                                child: FloatingActionButton(
-                                  heroTag: 'send',
-                                  onPressed: chat.isSending ? null : _send,
-                                  backgroundColor: cs.primary,
-                                  child: Icon(Icons.send_rounded, color: cs.onPrimary),
+                              if (!voice.isListening) ...[
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: FloatingActionButton(
+                                    heroTag: 'send',
+                                    elevation: 1,
+                                    onPressed: chat.isSending ? null : _send,
+                                    backgroundColor: cs.primary,
+                                    child: Icon(
+                                      Icons.send_rounded,
+                                      color: cs.onPrimary,
+                                      size: 22,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                           const SizedBox(height: 6),
@@ -1771,4 +1816,63 @@ class _OrbBackgroundPainter extends CustomPainter {
   @override
   bool shouldRepaint(_OrbBackgroundPainter old) =>
       old.t != t || old.isDark != isDark || old.cs != cs;
+}
+
+/// Visualizzatore ad onde sonore animate per il feedback vocale in tempo reale.
+class _AudioWaveformLines extends StatefulWidget {
+  final Color color;
+  const _AudioWaveformLines({required this.color});
+
+  @override
+  State<_AudioWaveformLines> createState() => _AudioWaveformLinesState();
+}
+
+class _AudioWaveformLinesState extends State<_AudioWaveformLines>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        final t = _anim.value * 2 * math.pi;
+        const barHeights = [14.0, 22.0, 28.0, 20.0, 12.0];
+        const barPhases = [0.0, 1.2, 2.4, 3.6, 4.8];
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: List.generate(5, (i) {
+            final wave = (math.sin(t * 2 + barPhases[i]) + 1.0) / 2.0;
+            final h = 6.0 + (barHeights[i] - 6.0) * wave;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 1.5),
+              width: 3.0,
+              height: h,
+              decoration: BoxDecoration(
+                color: widget.color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
 }
