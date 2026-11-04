@@ -65,6 +65,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _spokenMessageController = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
+  final _draftFocusNode = FocusNode();
   String _liveSpokenText = '';
   bool _hasSpokenMessage = false;
 
@@ -78,6 +79,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _spokenMessageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _draftFocusNode.dispose();
     try {
       context.read<VoiceService>().stopSpeaking();
       context.read<VoiceService>().stopListening();
@@ -644,7 +646,7 @@ class _ChatScreenState extends State<ChatScreen> {
       alignment: Alignment.centerRight,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
         constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
         decoration: BoxDecoration(
           color: cs.primary,
@@ -668,59 +670,76 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.record_voice_over_rounded,
-                  size: 16,
-                  color: cs.onPrimary.withValues(alpha: 0.85),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Messaggio vocale',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: cs.onPrimary.withValues(alpha: 0.9),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
                 const Spacer(),
-                InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
+                IconButton(
+                  icon: const Icon(Icons.edit_rounded, size: 18, color: Colors.white),
+                  tooltip: 'Modifica testo',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: () {
+                    _draftFocusNode.requestFocus();
+                    _spokenMessageController.selection = TextSelection.collapsed(
+                      offset: _spokenMessageController.text.length,
+                    );
+                  },
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20, color: Colors.white),
+                  tooltip: 'Annulla',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: () {
                     setState(() {
                       _hasSpokenMessage = false;
                       _spokenMessageController.clear();
                     });
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: Icon(
-                      Icons.close_rounded,
-                      size: 18,
-                      color: cs.onPrimary.withValues(alpha: 0.85),
-                    ),
-                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _spokenMessageController,
-              maxLines: null,
-              keyboardType: TextInputType.multiline,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: cs.onPrimary,
-                height: 1.35,
-              ),
-              cursorColor: cs.onPrimary,
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: EdgeInsets.zero,
-                hintText: 'Modifica il testo...',
-                hintStyle: TextStyle(
-                  color: cs.onPrimary.withValues(alpha: 0.6),
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () {
+                _draftFocusNode.requestFocus();
+                _spokenMessageController.selection = TextSelection.collapsed(
+                  offset: _spokenMessageController.text.length,
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.28),
+                    width: 1,
+                  ),
+                ),
+                child: TextField(
+                  controller: _spokenMessageController,
+                  focusNode: _draftFocusNode,
+                  maxLines: null,
+                  keyboardType: TextInputType.multiline,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                  cursorColor: Colors.white,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    contentPadding: EdgeInsets.zero,
+                    hintText: 'Modifica testo...',
+                    hintStyle: TextStyle(color: Colors.white60),
+                  ),
                 ),
               ),
             ),
