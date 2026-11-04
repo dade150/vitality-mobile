@@ -397,8 +397,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
             id: m.id!,
             title: m.type.label,
             subtitle: m.hasExplicitTime
-                ? 'Ore ${_hhmm(m.date)} · ${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams} g carb' : ''}'
-                : '${m.description} · ${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams} g carb' : ''}',
+                ? 'Ore ${_hhmm(m.date)}: ${m.description} (${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ', ${m.carbsGrams} g carb' : ''})'
+                : '${m.description} (${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ', ${m.carbsGrams} g carb' : ''})',
             initialDateTime: m.date,
             whenLabel: 'Giorno del pasto',
             showTimeInWhen: false,
@@ -1501,38 +1501,60 @@ class _DiaryScreenState extends State<DiaryScreen> {
               style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             )
           else
-            for (final m in meals)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: m.type.label,
-                              style: const TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            if (m.hasExplicitTime)
+            for (int i = 0; i < meals.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
                               TextSpan(
-                                text: ' (${_hhmm(m.date)})',
-                                style: TextStyle(color: cs.onSurfaceVariant),
+                                text: meals[i].type.label,
+                                style: const TextStyle(fontWeight: FontWeight.w700),
                               ),
-                            TextSpan(text: ' · ${m.description}'),
-                          ],
+                              if (meals[i].hasExplicitTime)
+                                TextSpan(
+                                  text: ' (${_hhmm(meals[i].date)})',
+                                  style: TextStyle(
+                                    color: cs.onSurfaceVariant,
+                                    fontWeight: FontWeight.normal,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          style: theme.textTheme.bodyMedium,
                         ),
-                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${meals[i].isEstimated ? '~' : ''}${meals[i].calories} kcal${meals[i].carbsGrams != null ? ', ${meals[i].carbsGrams} g carb' : ''}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (meals[i].description.trim().isNotEmpty &&
+                      meals[i].description.trim().toLowerCase() != meals[i].type.label.toLowerCase()) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      meals[i].description,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurface,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${m.isEstimated ? '~' : ''}${m.calories} kcal${m.carbsGrams != null ? ' · ${m.carbsGrams} g carb' : ''}',
-                      style: theme.textTheme.bodySmall,
-                    ),
                   ],
-                ),
+                ],
               ),
+            ],
           const SizedBox(height: 12),
           _buildCardAddButton(
             label: 'Aggiungi pasto',
