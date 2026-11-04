@@ -23,6 +23,9 @@ class Profile {
 
   final String? noteAnamnestiche;
 
+  /// Consenso esplicito al trattamento dati sanitari con IA (GDPR Art. 9.2.a e Art. 7.3).
+  final bool aiHealthConsent;
+
   const Profile({
     required this.id,
     required this.name,
@@ -34,7 +37,36 @@ class Profile {
     required this.altezza,
     required this.sesso,
     this.noteAnamnestiche,
+    this.aiHealthConsent = false,
   });
+
+  Profile copyWith({
+    String? id,
+    String? name,
+    String? surname,
+    DateTime? birth,
+    String? email,
+    String? phone,
+    double? peso,
+    int? altezza,
+    String? sesso,
+    String? noteAnamnestiche,
+    bool? aiHealthConsent,
+  }) {
+    return Profile(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      surname: surname ?? this.surname,
+      birth: birth ?? this.birth,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      peso: peso ?? this.peso,
+      altezza: altezza ?? this.altezza,
+      sesso: sesso ?? this.sesso,
+      noteAnamnestiche: noteAnamnestiche ?? this.noteAnamnestiche,
+      aiHealthConsent: aiHealthConsent ?? this.aiHealthConsent,
+    );
+  }
 
   /// Valori di `sesso` che l'app scrive nel database: devono essere presenti
   /// nell'enum Postgres (quelli non inclusi vengono mostri ma non proposti).
@@ -58,6 +90,8 @@ class Profile {
       noteAnamnestiche: '${physical['note_anamnestiche'] ?? ''}'.isEmpty
           ? null
           : physical['note_anamnestiche'] as String?,
+      aiHealthConsent: user['ai_health_consent'] == true ||
+          user['ai_health_consent']?.toString().toLowerCase() == 'true',
     );
   }
 

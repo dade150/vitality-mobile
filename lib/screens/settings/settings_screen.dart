@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/user_settings.dart';
+import '../../providers/profile_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
@@ -17,6 +18,7 @@ class SettingsScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final settings = context.watch<SettingsProvider>();
+    final profile = context.watch<ProfileProvider>();
 
     if (settings.isLoading && !settings.hasLoaded) {
       return Scaffold(
@@ -156,6 +158,57 @@ class SettingsScreen extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   child: Column(
                     children: [
+                      SwitchListTile(
+                        secondary: const Icon(Icons.smart_toy_outlined),
+                        title: const Text('Assistente e analisi con IA'),
+                        subtitle: const Text('Consenso al trattamento dati sanitari con Google Vertex AI (GDPR Art. 9)'),
+                        value: profile.profile?.aiHealthConsent ?? false,
+                        onChanged: (value) async {
+                          if (!value) {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Revocare il consenso IA?'),
+                                content: const Text(
+                                  'Disattivando il consenso, l\'assistente conversazionale e '
+                                  'l\'estrazione automatica dei referti saranno disabilitati.\n\n'
+                                  'Il tuo diario glicemico, i pasti, le attività e le terapie '
+                                  'rimarranno conservati e continueranno a funzionare regolarmente.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(false),
+                                    child: const Text('Annulla'),
+                                  ),
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(backgroundColor: cs.error),
+                                    onPressed: () => Navigator.of(ctx).pop(true),
+                                    child: const Text('Revoca consenso'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm != true) return;
+                          }
+                          if (context.mounted) {
+                            final ok = await context.read<ProfileProvider>().setAiHealthConsent(value);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    ok
+                                        ? (value
+                                            ? 'Consenso IA attivato.'
+                                            : 'Consenso IA revocato. L\'assistente è ora disattivato.')
+                                        : 'Impossibile aggiornare il consenso. Riprova.',
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.description_outlined),
                         title: const Text('Termini e condizioni di servizio'),

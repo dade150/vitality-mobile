@@ -24,6 +24,7 @@ import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/clinical_proposal_card.dart';
 import '../../widgets/formatted_chat_message.dart';
 import '../../widgets/report_privacy_mask_dialog.dart';
+import '../settings/settings_screen.dart';
 import 'chat_drawer.dart';
 
 class _PendingAttachment {
@@ -183,6 +184,17 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showAttachmentModal() {
+    final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
+    if (!hasAiConsent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Consenso al trattamento dati sanitari con IA revocato. Riattivalo dalle Impostazioni.',
+          ),
+        ),
+      );
+      return;
+    }
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
@@ -343,6 +355,17 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _send() async {
+    final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
+    if (!hasAiConsent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Consenso al trattamento dati sanitari con IA revocato. Riattivalo dalle Impostazioni per chattare.',
+          ),
+        ),
+      );
+      return;
+    }
     final chat = context.read<ChatProvider>();
     final voice = context.read<VoiceService>();
     final text = _controller.text;
@@ -400,6 +423,17 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _toggleListening() async {
+    final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
+    if (!hasAiConsent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Consenso al trattamento dati sanitari con IA revocato. Riattivalo dalle Impostazioni per usare il microfono.',
+          ),
+        ),
+      );
+      return;
+    }
     final voice = context.read<VoiceService>();
     if (voice.isListening) {
       await voice.stopListening();
@@ -738,6 +772,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final cs = theme.colorScheme;
     final chat = context.watch<ChatProvider>();
     final voice = context.watch<VoiceService>();
+    final profile = context.watch<ProfileProvider>();
 
     return _AnimatedChatBackground(
       child: Scaffold(
@@ -1055,81 +1090,144 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
-              // Barra di inserimento messaggio, allegato, microfono e invio.
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_pendingAttachment != null)
-                          _buildAttachmentPreview(theme, cs),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _controller,
-                                decoration: InputDecoration(
-                                  hintText: 'Scrivi un messaggio...',
-                                  prefixIcon: IconButton(
-                                    icon: const Icon(Icons.attach_file_rounded),
-                                    tooltip: 'Allega file',
-                                    onPressed: _showAttachmentModal,
-                                  ),
-                                ),
-                                onSubmitted: (_) => _send(),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            SizedBox(
-                              width: 60,
-                              height: 60,
-                              child: FloatingActionButton(
-                                heroTag: 'mic',
-                                tooltip: voice.isListening ? 'Ferma ascolto' : 'Parla al microfono',
-                                onPressed: _toggleListening,
-                                backgroundColor: voice.isListening
-                                    ? AppColors.accent
-                                    : cs.primaryContainer,
-                                child: Icon(
-                                  voice.isListening ? Icons.stop_rounded : Icons.mic_rounded,
-                                  color: voice.isListening
-                                      ? Colors.white
-                                      : cs.onPrimaryContainer,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            SizedBox(
-                              width: 60,
-                              height: 60,
-                              child: FloatingActionButton(
-                                heroTag: 'send',
-                                onPressed: chat.isSending ? null : _send,
-                                backgroundColor: cs.primary,
-                                child: Icon(Icons.send_rounded, color: cs.onPrimary),
-                              ),
-                            ),
-                          ],
+              // Se il consenso IA è stato revocato (GDPR Art. 7.3 e Art. 9), mostra banner informativo dedicato
+              if (profile.hasLoaded && !profile.aiHealthConsent)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: Card(
+                        color: cs.surfaceContainerHighest,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.6)),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Sono un\'AI. NON sostituisco il medico.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: theme.brightness == Brightness.dark ? cs.onSurface : Colors.black,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.smart_toy_outlined, color: cs.primary, size: 28),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Assistente IA disattivato',
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Hai revocato il consenso al trattamento dei dati sanitari con l\'Intelligenza Artificiale (GDPR Art. 9). '
+                                'Il tuo diario glicemico e i tuoi dati personali restano al sicuro.\n'
+                                'Per riattivare l\'assistente conversazionale, concedi nuovamente il consenso nelle Impostazioni.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: FilledButton.tonalIcon(
+                                  icon: const Icon(Icons.settings_outlined, size: 18),
+                                  label: const Text('Apri Impostazioni'),
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                // Barra di inserimento messaggio, allegato, microfono e invio.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_pendingAttachment != null)
+                            _buildAttachmentPreview(theme, cs),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _controller,
+                                  decoration: InputDecoration(
+                                    hintText: 'Scrivi un messaggio...',
+                                    prefixIcon: IconButton(
+                                      icon: const Icon(Icons.attach_file_rounded),
+                                      tooltip: 'Allega file',
+                                      onPressed: _showAttachmentModal,
+                                    ),
+                                  ),
+                                  onSubmitted: (_) => _send(),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              SizedBox(
+                                width: 60,
+                                height: 60,
+                                child: FloatingActionButton(
+                                  heroTag: 'mic',
+                                  tooltip: voice.isListening ? 'Ferma ascolto' : 'Parla al microfono',
+                                  onPressed: _toggleListening,
+                                  backgroundColor: voice.isListening
+                                      ? AppColors.accent
+                                      : cs.primaryContainer,
+                                  child: Icon(
+                                    voice.isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                                    color: voice.isListening
+                                        ? Colors.white
+                                        : cs.onPrimaryContainer,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              SizedBox(
+                                width: 60,
+                                height: 60,
+                                child: FloatingActionButton(
+                                  heroTag: 'send',
+                                  onPressed: chat.isSending ? null : _send,
+                                  backgroundColor: cs.primary,
+                                  child: Icon(Icons.send_rounded, color: cs.onPrimary),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Sono un\'AI. NON sostituisco il medico.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: theme.brightness == Brightness.dark ? cs.onSurface : Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

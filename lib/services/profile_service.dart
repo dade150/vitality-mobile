@@ -113,4 +113,37 @@ class ProfileService {
       await _db.from(_profileTable).insert({'user_id': userId, ...values});
     }
   }
+
+  /// Aggiorna il consenso esplicito al trattamento dati sanitari con IA (GDPR Art. 7.3 e Art. 9).
+  Future<void> updateAiHealthConsent(String userId, bool consent) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    // 1. Prova prima tramite RPC SECURITY DEFINER (se la migrazione SQL è eseguita)
+    bool rpcOk = false;
+    try {
+      await _db.rpc('set_ai_health_consent', params: {'p_consent': consent});
+      rpcOk = true;
+    } catch (_) {
+      rpcOk = false;
+    }
+
+    // 2. Fallback su UPDATE diretto della tabella `user`
+    if (!rpcOk) {
+      final rows = await _db.from(_userTable).update({
+        'ai_health_consent': consent,
+        'ai_health_consent_at': consent ? nowIso : null,
+        'consent_revoked_at': consent ? null : nowIso,
+      }).eq('id', userId).select('id');
+      _requireAffected(rows, what: _userTable);
+    }
+
+    // 3. Allinea i metadati utente in Supabase Auth per aggiornare subito il claim nel token JWT
+    try {
+      await _db.auth.updateUser(
+        UserAttributes(data: {'ai_health_consent': consent}),
+      );
+    } catch (e, st) {
+      ErrorHandler.handle(e, st, 'ProfileService.updateAiHealthConsent(auth.updateUser)');
+    }
+  }
 }

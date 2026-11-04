@@ -45,6 +45,7 @@ class ProfileProvider extends ChangeNotifier with ErrorReporting {
   bool get loadFailed => _loadFailed;
   bool get hasLoaded => _hasLoaded;
   bool get isLoggedIn => _profile != null;
+  bool get aiHealthConsent => _profile?.aiHealthConsent ?? false;
 
   // --------------------------------------------------------------- Caricamento
 
@@ -138,6 +139,23 @@ class ProfileProvider extends ChangeNotifier with ErrorReporting {
       _loadFailed = true;
       notifyListeners();
     }
+    return true;
+  }
+
+  /// Aggiorna o revoca il consenso esplicito al trattamento dati sanitari con IA (GDPR Art. 7.3 e Art. 9).
+  Future<bool> setAiHealthConsent(bool consent) async {
+    final uid = _userId;
+    final p = _profile;
+    if (uid == null || p == null) return false;
+
+    final ok = await guard(
+      () => _service.updateAiHealthConsent(uid, consent),
+      where: 'ProfileProvider.setAiHealthConsent',
+    );
+    if (!ok) return false;
+
+    _profile = p.copyWith(aiHealthConsent: consent);
+    notifyListeners();
     return true;
   }
 
