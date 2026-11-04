@@ -763,7 +763,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
-  }
 
   Widget _buildAttachmentBadge(
     ThemeData theme,
