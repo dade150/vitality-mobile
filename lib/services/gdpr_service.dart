@@ -51,16 +51,17 @@ class GdprService {
       safeTable('therapies', 'id, therapy_type, drug_name, dosage, frequency, scheduled_time, notes, is_active, created_at'),
       safeTable('therapy_logs', 'id, therapy_id, taken_at, status, created_at'),
       safeTable('appointments', 'id, title, doctor_name, appointment_at, notes, created_at'),
-      safeTable('patient_reports', 'id, source_name, report_type, clean_summary, extracted_params, report_at, created_at'),
+      safeTable('patient_reports', 'id, source_name, source_path, report_type, clean_summary, content, extracted_params, report_at, created_at'),
       safeTable('chat_session', 'id, title, created_at'),
       safeTable('chat_message', 'id, session_id, role, content, created_at'),
+      safeTable('app_logs', 'id, level, message, route, created_at'),
     ]);
 
     final bundle = {
       'metadata': {
         'application': 'diaLog2',
         'gdpr_reference': 'Art. 20 Regolamento (UE) 2016/679 (Diritto alla portabilità dei dati)',
-        'schema_version': '1.0',
+        'schema_version': '1.1',
         'exported_at': DateTime.now().toUtc().toIso8601String(),
         'user_id': user.id,
         'email': user.email,
@@ -81,6 +82,7 @@ class GdprService {
         'sessions': results[10],
         'messages': results[11],
       },
+      'application_logs': results[12],
     };
 
     final prettyJson = const JsonEncoder.withIndent('  ').convert(bundle);
@@ -100,7 +102,7 @@ class GdprService {
     final now = DateTime.now();
     final dateTag =
         '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-    final defaultFileName = 'Vitality_Assist_Dati_GDPR_$dateTag.json';
+    final defaultFileName = 'diaLog2_Dati_GDPR_$dateTag.json';
 
     final String? outputPath = await FilePicker.platform.saveFile(
       dialogTitle: 'Salva Archivio Dati Sanitari (JSON - GDPR Art. 20)',
