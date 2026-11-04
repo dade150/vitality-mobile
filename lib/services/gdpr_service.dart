@@ -145,6 +145,20 @@ class GdprService {
 
   /// Elimina definitivamente l'account e tutti i dati sanitari (GDPR Art. 17).
   static Future<void> deleteAccountAndAllData() async {
+    // 1. Pulizia preventiva dei file nello Storage privato dell'utente (B1)
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId != null) {
+        final files = await supabase.storage.from('patient-reports').list(path: userId);
+        if (files.isNotEmpty) {
+          final paths = files.map((f) => '$userId/${f.name}').toList();
+          await supabase.storage.from('patient-reports').remove(paths);
+        }
+      }
+    } catch (e) {
+      debugPrint('[GdprService] pulizia storage pre-eliminazione ignorata: $e');
+    }
+
     bool backendDeleted = false;
     try {
       await ApiService.delete('/api/me', timeout: _exportTimeout);
@@ -153,7 +167,8 @@ class GdprService {
       backendDeleted = false;
     }
 
-    // Invoca anche la RPC Supabase diretta se il backend non l'ha già completata
+    // 2. Se il backend non è raggiungibile o ha restituito errore (es. fallback senza cancellazione auth),
+    // invoca la RPC Supabase `delete_own_account` direttamente con il token autenticato
     if (!backendDeleted) {
       await supabase.rpc('delete_own_account');
     }
