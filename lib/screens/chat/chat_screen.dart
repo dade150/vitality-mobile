@@ -121,6 +121,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       Uint8List finalBytes = bytes;
       if (isReport) {
+        if (!mounted) return;
         final sanitized = await ReportPrivacyMaskDialog.show(
           context,
           imageBytes: bytes,

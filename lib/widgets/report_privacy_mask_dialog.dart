@@ -225,7 +225,7 @@ class _ReportPrivacyMaskDialogState extends State<ReportPrivacyMaskDialog> {
                         style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                       ),
                       value: _maskEnabled,
-                      activeColor: AppColors.accent,
+                      activeThumbColor: AppColors.accent,
                       onChanged: (val) => setState(() => _maskEnabled = val),
                     ),
                     if (_maskEnabled) ...[

@@ -84,8 +84,6 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final accentColor = isDark ? cs.primary : AppColors.accentText;
 
     // La PopScope blocca back e predictive back finché il salvataggio è in
     // corso: se la schermata venisse chiusa durante l'await, l'esito non

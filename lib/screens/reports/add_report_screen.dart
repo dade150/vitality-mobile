@@ -332,7 +332,6 @@ class _AddReportScreenState extends State<AddReportScreen> {
     final result = _result;
 
     final isDark = theme.brightness == Brightness.dark;
-    final accentTitle = isDark ? cs.primary : AppColors.accentText;
 
     return AppScaffold(
       navIndex: 2,

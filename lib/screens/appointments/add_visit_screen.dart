@@ -182,8 +182,6 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final accentTitle = isDark ? cs.primary : AppColors.accentText;
     final isEdit = _editing != null;
 
     return Scaffold(
