@@ -350,7 +350,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
               Text(
                 'Aggiungi referto',
                 style: theme.textTheme.headlineLarge?.copyWith(
-                  color: accentTitle,
+                  color: cs.onSurface,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -387,9 +387,18 @@ class _AddReportScreenState extends State<AddReportScreen> {
               onPressed: _uploading ? null : _pickFile,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                textStyle: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
               ),
               icon: const Icon(Icons.attach_file_rounded),
-              label: Text(_filename ?? 'Scegli il documento (PDF o immagine)'),
+              label: Text(
+                _filename ?? 'Allega PDF o immagine',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -399,6 +408,11 @@ class _AddReportScreenState extends State<AddReportScreen> {
                 onPressed: _uploading ? null : _upload,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  textStyle: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15.5,
+                  ),
                 ),
                 icon: _uploading
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -552,8 +566,17 @@ class _AddReportScreenState extends State<AddReportScreen> {
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
+              height: 50,
               child: FilledButton.icon(
                 onPressed: _saving || _uploading ? null : _saveValues,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  textStyle: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15.5,
+                  ),
+                ),
                 icon: _saving
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.save_rounded),
@@ -563,6 +586,14 @@ class _AddReportScreenState extends State<AddReportScreen> {
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: _saving || _uploading ? null : _pickFile,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                textStyle: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
               icon: const Icon(Icons.swap_horiz_rounded),
               label: const Text('Scegli un altro documento'),
             ),

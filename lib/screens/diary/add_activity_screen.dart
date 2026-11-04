@@ -115,7 +115,7 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
                           child: Text(
                             'Aggiungi attività',
                             style: theme.textTheme.headlineLarge?.copyWith(
-                              color: accentColor,
+                              color: cs.onSurface,
                               fontWeight: FontWeight.w800,
                             ),
                           ),

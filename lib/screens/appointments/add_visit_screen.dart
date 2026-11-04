@@ -208,7 +208,7 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
                         child: Text(
                           isEdit ? 'Modifica visita' : 'Nuova visita',
                           style: theme.textTheme.displaySmall?.copyWith(
-                            color: accentTitle,
+                            color: cs.onSurface,
                             fontWeight: FontWeight.w800,
                           ),
                         ),

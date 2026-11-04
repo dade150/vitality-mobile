@@ -363,7 +363,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
                           child: Text(
                             'Aggiungi pasto',
                             style: theme.textTheme.headlineLarge?.copyWith(
-                              color: accentColor,
+                              color: cs.onSurface,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
