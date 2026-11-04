@@ -607,7 +607,7 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: cs.primaryContainer.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: AppColors.accent.withValues(alpha: 0.7),
           width: 1.5,
@@ -1393,34 +1393,46 @@ class _ChatScreenState extends State<ChatScreen> {
                                           isDense: true,
                                           filled: true,
                                           fillColor: cs.surfaceContainerLowest,
-                                          contentPadding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 11,
-                                          ),
                                           hintText: 'Scrivi un messaggio...',
+                                          hintMaxLines: 1,
+                                          hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                                            color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                                            fontSize: 14.5,
+                                          ),
+                                          contentPadding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 12,
+                                          ),
+                                          prefixIconConstraints: const BoxConstraints(
+                                            minWidth: 40,
+                                            minHeight: 48,
+                                          ),
                                           prefixIcon: IconButton(
                                             icon: const Icon(Icons.attach_file_rounded, size: 22),
                                             tooltip: 'Allega file',
                                             padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                                            constraints: const BoxConstraints(
+                                              minWidth: 40,
+                                              minHeight: 48,
+                                            ),
                                             onPressed: _showAttachmentModal,
                                           ),
                                           border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(24),
+                                            borderRadius: BorderRadius.circular(16),
                                             borderSide: BorderSide(
                                               color: cs.outlineVariant.withValues(alpha: 0.8),
                                               width: 1.2,
                                             ),
                                           ),
                                           enabledBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(24),
+                                            borderRadius: BorderRadius.circular(16),
                                             borderSide: BorderSide(
                                               color: cs.outlineVariant.withValues(alpha: 0.8),
                                               width: 1.2,
                                             ),
                                           ),
                                           focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(24),
+                                            borderRadius: BorderRadius.circular(16),
                                             borderSide: BorderSide(
                                               color: cs.primary,
                                               width: 1.8,
