@@ -20,8 +20,8 @@ class RegistrationData {
   final List<TherapyItem> therapies = [];
 
   // Step 3 - Credenziali e Consensi Legali (GDPR Art. 6.1.b, Art. 7, Art. 9.2.a)
-  static const String currentTermsVersion = '1.0';
-  static const String currentPrivacyVersion = '1.0';
+  static const String currentTermsVersion = '1.1';
+  static const String currentPrivacyVersion = '1.1';
 
   String email = '';
   String password = '';

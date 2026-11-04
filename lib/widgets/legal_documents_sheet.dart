@@ -14,8 +14,8 @@ class LegalDocumentsSheet extends StatelessWidget {
     required this.sections,
   });
 
-  static const String currentTermsVersion = '1.0';
-  static const String currentPrivacyVersion = '1.0';
+  static const String currentTermsVersion = '1.1';
+  static const String currentPrivacyVersion = '1.1';
 
   static Future<void> showTermsOfService(BuildContext context) {
     return showModalBottomSheet<void>(
@@ -53,67 +53,74 @@ class LegalDocumentsSheet extends StatelessWidget {
 
   static const List<LegalSection> _termsSections = [
     LegalSection(
-      heading: '1. Natura del Servizio (Health Coaching Educazionale)',
+      heading: '1. Cos\'è diaLog2',
       body:
-          'diaLog2 è un assistente conversazionale di supporto motivazionale, educazionale e di stile di vita dedicato alle persone con Diabete Mellito di Tipo 2.\n'
-          'L\'applicazione aiuta l\'utente a tenere traccia del proprio diario giornaliero (glicemie, pasti, attività fisica, terapie prescritte dal medico, appuntamenti e referti) e fornisce informazioni educative basate su linee guida cliniche ufficiali.',
+          'diaLog2 è un assistente conversazionale di supporto per persone con Diabete Mellito di Tipo 2.\n'
+          'Ti aiuta a registrare e consultare il tuo diario quotidiano (glicemie, pressione, pasti, attività fisica, terapie prescritte dal medico, visite e referti) e offre indicazioni educazionali e motivazionali basate su linee guida cliniche ufficiali.',
     ),
     LegalSection(
-      heading: '2. Esclusione di Dispositivo Medico (MDR UE 2017/745)',
+      heading: '2. Cosa NON è (Esclusione Dispositivo Medico MDR UE 2017/745)',
       body:
-          'diaLog2 NON è un dispositivo medico ai sensi del Regolamento (UE) 2017/745 (MDR) e non sostituisce in alcun modo il medico curante o il diabetologo.\n'
-          '• L\'assistente AI non formula diagnosi mediche.\n'
-          '• L\'assistente AI non prescrive farmaci e non suggerisce né modifica dosaggi di insulina o di ipoglicemizzanti orali.\n'
-          '• Qualsiasi decisione terapeutica o clinica deve essere sempre concordata con il proprio medico.',
+          'diaLog2 NON è un dispositivo medico e non sostituisce in alcun modo il medico curante o il diabetologo.\n'
+          '• L\'applicazione non effettua diagnosi mediche.\n'
+          '• L\'assistente non prescrive farmaci né modifica dosaggi di insulina o di ipoglicemizzanti orali.\n'
+          '• Qualsiasi scelta terapeutica o variazione di cura deve essere sempre concordata con il proprio medico.',
     ),
     LegalSection(
       heading: '3. Gestione delle Emergenze Sanitarie',
       body:
-          'diaLog2 non è un servizio di pronto soccorso né di telemedicina d\'urgenza. In presenza di sintomi acuti (ipoglicemia severa, iperglicemia critica, dolore toracico, difficoltà respiratoria, stato confusionale o malessere improvviso), non attendere la risposta dell\'app: contatta immediatamente il 112 o recati al Pronto Soccorso.',
+          'diaLog2 non è un servizio di pronto soccorso né di telemedicina d\'urgenza. In caso di sintomi acuti o malessere improvviso (ipoglicemie severe, chetoacidosi, dolore toracico, difficoltà respiratoria, perdita di sensi), non attendere le risposte dell\'app: contatta immediatamente il 112/118 o recati al Pronto Soccorso.',
     ),
     LegalSection(
-      heading: '4. Conferma Umana dei Dati Estratti (Human-in-the-Loop)',
+      heading: '4. Controllo e Conferma Umana dei Dati (Art. 14 EU AI Act)',
       body:
-          'Ai sensi dell\'Art. 14 dell\'EU AI Act, nessun dato clinico estratto dalla conversazione o dalle foto/PDF dei referti viene salvato automaticamente nel diario senza la tua verifica e conferma esplicita tramite le apposite schede di proposta.',
+          'Tutti i valori clinici estratti dalle conversazioni o dai documenti caricati vengono salvati nel diario solo ed esclusivamente dopo che li hai verificati e confermati tramite le apposite schede di proposta.',
+    ),
+    LegalSection(
+      heading: '5. Finalità di Tesi Accademica e Responsabilità',
+      body:
+          'L\'applicazione è un prototipo di ricerca sviluppato a scopo accademico e di tesi di laurea, fornito "così com\'è". L\'utente è responsabile della veridicità e accuratezza delle informazioni inserite.',
     ),
   ];
 
   static const List<LegalSection> _privacySections = [
     LegalSection(
-      heading: '1. Categorie di Dati Trattati (Art. 9 GDPR)',
+      heading: '1. Titolare del Trattamento e Categorie di Dati (Art. 9 GDPR)',
       body:
-          'Per erogare il servizio di diario e coaching, diaLog2 tratta:\n'
-          '• Dati anagrafici e di contatto (nome, cognome, data di nascita, sesso biologico, email).\n'
-          '• Categorie particolari di dati relativi alla salute (Art. 9 GDPR): misurazioni glicemiche, pressione arteriosa, emoglobina glicata (HbA1c), profilo lipidico, diario alimentare, attività fisica, piano terapeutico, visite mediche, testo/immagini di referti caricati e cronologia della chat.',
+          'Titolare del trattamento: Davide Cruciata (progetto di tesi accademica).\n'
+          'Trattiamo le seguenti categorie di dati:\n'
+          '• Dati anagrafici e di account: nome, cognome, data di nascita, sesso biologico ed email.\n'
+          '• Dati particolari sulla salute (Art. 9 GDPR): glicemie, pressione arteriosa, HbA1c, esami ematochimici, diario pasti, attività fisica, terapie, appuntamenti, referti medici e messaggi scambiati con l\'assistente.',
     ),
     LegalSection(
       heading: '2. Basi Giuridiche del Trattamento (Art. 6 e Art. 9 GDPR)',
       body:
-          '• Esecuzione del contratto di servizio (Art. 6.1.b GDPR): per la gestione dell\'account e delle funzionalità base dell\'applicazione.\n'
-          '• Consenso esplicito dell\'interessato (Art. 9.2.a e Art. 22 GDPR): per il trattamento dei dati relativi alla salute e per la loro elaborazione – previa rigorosa de-identificazione – tramite modelli di Intelligenza Artificiale (Google Cloud Vertex AI, regione Unione Europea).',
+          '• Esecuzione del contratto di servizio (Art. 6.1.b GDPR): per l\'erogazione delle funzionalità dell\'applicazione e la gestione del profilo.\n'
+          '• Consenso esplicito dell\'interessato (Art. 9.2.a GDPR): per il trattamento dei dati relativi alla salute e la loro elaborazione tramite modelli di Intelligenza Artificiale a fini di coaching educazionale.',
     ),
     LegalSection(
-      heading: '3. Privacy-by-Design e De-identificazione prima dell\'IA',
+      heading: '3. Elaborazione con Intelligenza Artificiale e Trattamento Documenti',
       body:
-          'Prima di inviare qualsiasi quesito o testo di referto al modello linguistico (Vertex AI EU):\n'
-          '• I metadati EXIF/GPS vengono rimossi dalle immagini caricate.\n'
-          '• I PDF digitali vengono ispezionati in memoria RAM rimuovendo Codici Fiscali, numeri di telefono, indirizzi email, indirizzi fisici e nomi di ospedali.\n'
-          '• Il nome del paziente e del medico vengono sostituiti con segnaposto anonimi ({{NOME}}, {{MEDICO}}) e re-idratati solo sul tuo dispositivo.\n'
-          '• I dati non vengono mai utilizzati per addestrare modelli di Intelligenza Artificiale di terze parti.',
+          'L\'elaborazione dell\'assistente conversazionale avviene tramite Google Cloud Vertex AI (modelli Gemini) nella regione Unione Europea:\n'
+          '• PDF digitali nativi: il testo viene estratto in memoria e pseudonimizzato prima dell\'invio (rimozione automatica di Codice Fiscale, nominativi, contatti, indirizzi e strutture ospedaliere).\n'
+          '• Immagini e PDF scansionati: vengono trasmessi in modalità multimodale protetta per la sola lettura ottica ed estrazione clinica. Si raccomanda di coprire o non inquadrare il nome e il Codice Fiscale prima dello scatto o del caricamento.\n'
+          '• Archiviazione del file originale: una copia del documento caricato (con metadati EXIF e GPS rimossi) viene conservata nel tuo spazio cloud privato protetto da isolamento Row-Level Security (RLS), accessibile solo a te, per consentirti di consultarlo e riscaricarlo in qualunque momento.\n'
+          '• I dati non vengono mai utilizzati per addestrare modelli di Intelligenza Artificiale pubblici o di terze parti.',
     ),
     LegalSection(
-      heading: '4. Conservazione dei Dati e Sicurezza (Art. 5.1.e e Art. 32 GDPR)',
+      heading: '4. Conservazione dei Dati e Misure di Sicurezza (Art. 5 e Art. 32 GDPR)',
       body:
-          'I dati sono protetti nel database Supabase tramite isolamento crittografico Row-Level Security (RLS) associato esclusivamente al tuo utente. La cronologia delle conversazioni può essere cancellata in ogni momento dall\'utente ed è soggetta a limitazione della conservazione.',
+          'I dati risiedono su infrastruttura Supabase (regione UE) con trasmissione protetta da cifratura TLS 1.3 e isolamento dei dati per singolo utente tramite politiche PostgreSQL Row-Level Security (RLS).\n'
+          'Le conversazioni di chat sono conservate fino a un massimo di 12 mesi o fino alla cancellazione manuale.',
     ),
     LegalSection(
-      heading: '5. Diritti dell\'Interessato (Art. 7.3 e Artt. 15–22 GDPR)',
+      heading: '5. Diritti dell\'Interessato e Revoca del Consenso (Artt. 15–22 GDPR)',
       body:
-          'Dalla sezione Impostazioni > Privacy e Dati Sanitari puoi in qualsiasi momento:\n'
-          '• Consultare lo stato dei consensi prestati e i presenti documenti.\n'
-          '• Scaricare una copia integrale dei tuoi dati sanitari in formato strutturato JSON (Diritto alla Portabilità - Art. 20 GDPR).\n'
-          '• Cancellare l\'intera cronologia delle conversazioni con l\'assistente.\n'
-          '• Revocare il consenso ed eliminare definitivamente il tuo account e tutti i dati sanitari associati (Diritto all\'Oblio - Art. 17 GDPR).',
+          'Dalla sezione Impostazioni > Privacy e Dati Sanitari puoi in qualunque momento:\n'
+          '• Esportare una copia integrale dei tuoi dati sanitari in formato JSON strutturato (Diritto alla Portabilità - Art. 20 GDPR).\n'
+          '• Cancellare l\'intera cronologia delle conversazioni.\n'
+          '• Eliminare definitivamente il tuo account e tutti i dati associati (Diritto all\'Oblio - Art. 17 GDPR), revocando contemporaneamente il consenso prestato.\n'
+          'Hai inoltre il diritto di proporre reclamo all\'Autorità Garante per la Protezione dei Dati Personali (www.garanteprivacy.it).',
     ),
   ];
 
