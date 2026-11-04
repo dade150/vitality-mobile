@@ -174,7 +174,11 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
   Future<void> _handleConfirm() async {
     if (!_formKey.currentState!.validate()) return;
     final finalData = _collectFinalData();
-    await widget.onConfirm(finalData);
+    final ok = await widget.onConfirm(finalData);
+    if (ok) {
+      SystemSound.play(SystemSoundType.click);
+      HapticFeedback.mediumImpact();
+    }
   }
 
   Future<void> _pickFutureAppointmentDateTime() async {

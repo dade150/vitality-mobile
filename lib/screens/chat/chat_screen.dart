@@ -62,8 +62,10 @@ class _ChatScreenState extends State<ChatScreen> {
   ];
 
   final _controller = TextEditingController();
+  final _spokenMessageController = TextEditingController();
   final _scrollController = ScrollController();
-  String _textBeforeListening = '';
+  String _liveSpokenText = '';
+  bool _hasSpokenMessage = false;
 
   // Lazy: con l'hot reload initState non viene ri-eseguito sugli stati già
   // vivi, un late assegnato lì andrebbe in LateInitializationError.
@@ -72,6 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _spokenMessageController.dispose();
     _scrollController.dispose();
     try {
       context.read<VoiceService>().stopSpeaking();
@@ -354,7 +357,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Future<void> _send() async {
+  Future<void> _send({String? overrideText}) async {
     final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
     if (!hasAiConsent) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -368,9 +371,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     final chat = context.read<ChatProvider>();
     final voice = context.read<VoiceService>();
-    final text = _controller.text;
+    final text = (overrideText ?? _controller.text).trim();
     final att = _pendingAttachment;
-    if ((text.trim().isEmpty && att == null) || chat.isSending) return;
+    if ((text.isEmpty && att == null) || chat.isSending) return;
 
     if (voice.isListening) {
       await voice.stopListening();
@@ -391,9 +394,14 @@ class _ChatScreenState extends State<ChatScreen> {
       attachmentFileName = att.fileName;
     }
 
-    _controller.clear();
+    if (overrideText == null) {
+      _controller.clear();
+    }
     setState(() {
       _pendingAttachment = null;
+      _hasSpokenMessage = false;
+      _liveSpokenText = '';
+      _spokenMessageController.clear();
     });
 
     final pending = chat.sendMessage(
@@ -437,20 +445,38 @@ class _ChatScreenState extends State<ChatScreen> {
     final voice = context.read<VoiceService>();
     if (voice.isListening) {
       await voice.stopListening();
+      if (_liveSpokenText.trim().isNotEmpty) {
+        setState(() {
+          _spokenMessageController.text = _liveSpokenText.trim();
+          _hasSpokenMessage = true;
+          _liveSpokenText = '';
+        });
+      }
       return;
     }
 
-    _textBeforeListening = _controller.text.trimRight();
+    setState(() {
+      _liveSpokenText = '';
+      _hasSpokenMessage = false;
+      _spokenMessageController.clear();
+    });
+
     final started = await voice.startListening(
       onResult: (words) {
         if (!mounted) return;
-        final newText = _textBeforeListening.isEmpty
-            ? words
-            : '$_textBeforeListening $words';
         setState(() {
-          _controller.text = newText;
-          _controller.selection = TextSelection.collapsed(offset: newText.length);
+          _liveSpokenText = words;
         });
+      },
+      onDone: () {
+        if (!mounted) return;
+        if (_liveSpokenText.trim().isNotEmpty && !_hasSpokenMessage) {
+          setState(() {
+            _spokenMessageController.text = _liveSpokenText.trim();
+            _hasSpokenMessage = true;
+            _liveSpokenText = '';
+          });
+        }
       },
     );
 
@@ -561,6 +587,185 @@ class _ChatScreenState extends State<ChatScreen> {
             icon: const Icon(Icons.close_rounded, size: 20),
             tooltip: 'Rimuovi allegato',
             onPressed: () => setState(() => _pendingAttachment = null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListeningBanner(ThemeData theme, ColorScheme cs) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.accent.withValues(alpha: 0.6),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(
+                  color: AppColors.accent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'In ascolto... Parla pure',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: AppColors.accentText,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: _toggleListening,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.stop_rounded, size: 16, color: AppColors.accent),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Termina',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppColors.accentText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: cs.surface,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              _liveSpokenText.isNotEmpty
+                  ? _liveSpokenText
+                  : 'Ti sto ascoltando, pronuncia il tuo messaggio...',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontStyle: _liveSpokenText.isEmpty ? FontStyle.italic : FontStyle.normal,
+                color: _liveSpokenText.isEmpty ? cs.onSurfaceVariant : cs.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpokenMessageEditor(ThemeData theme, ColorScheme cs) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.accent.withValues(alpha: 0.6),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.record_voice_over_rounded, size: 20, color: AppColors.accent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Messaggio vocale riconosciuto',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 20),
+                tooltip: 'Annulla',
+                visualDensity: VisualDensity.compact,
+                onPressed: () {
+                  setState(() {
+                    _hasSpokenMessage = false;
+                    _spokenMessageController.clear();
+                  });
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _spokenMessageController,
+            minLines: 2,
+            maxLines: 6,
+            keyboardType: TextInputType.multiline,
+            style: theme.textTheme.bodyMedium,
+            decoration: InputDecoration(
+              hintText: 'Modifica il messaggio se necessario...',
+              filled: true,
+              fillColor: cs.surface,
+              contentPadding: const EdgeInsets.all(12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.outlineVariant),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.outlineVariant),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.accent, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                'Puoi correggerlo prima di inviare',
+                style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () => _send(overrideText: _spokenMessageController.text),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: const Text('Invia'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1165,11 +1370,20 @@ class _ChatScreenState extends State<ChatScreen> {
                         children: [
                           if (_pendingAttachment != null)
                             _buildAttachmentPreview(theme, cs),
+                          if (voice.isListening)
+                            _buildListeningBanner(theme, cs),
+                          if (_hasSpokenMessage && !voice.isListening)
+                            _buildSpokenMessageEditor(theme, cs),
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Expanded(
                                 child: TextField(
                                   controller: _controller,
+                                  keyboardType: TextInputType.multiline,
+                                  minLines: 1,
+                                  maxLines: 5,
+                                  textInputAction: TextInputAction.newline,
                                   decoration: InputDecoration(
                                     hintText: 'Scrivi un messaggio...',
                                     prefixIcon: IconButton(
@@ -1178,13 +1392,12 @@ class _ChatScreenState extends State<ChatScreen> {
                                       onPressed: _showAttachmentModal,
                                     ),
                                   ),
-                                  onSubmitted: (_) => _send(),
                                 ),
                               ),
                               const SizedBox(width: 10),
                               SizedBox(
-                                width: 60,
-                                height: 60,
+                                width: 56,
+                                height: 56,
                                 child: FloatingActionButton(
                                   heroTag: 'mic',
                                   tooltip: voice.isListening ? 'Ferma ascolto' : 'Parla al microfono',
@@ -1202,8 +1415,8 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                               const SizedBox(width: 10),
                               SizedBox(
-                                width: 60,
-                                height: 60,
+                                width: 56,
+                                height: 56,
                                 child: FloatingActionButton(
                                   heroTag: 'send',
                                   onPressed: chat.isSending ? null : _send,

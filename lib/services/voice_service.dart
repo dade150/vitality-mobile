@@ -18,6 +18,7 @@ class VoiceService extends ChangeNotifier {
   bool _isSpeaking = false;
   String? _speakingMessageKey;
   String? _lastError;
+  VoidCallback? _onListeningDone;
 
   // Velocità di lettura normale e fluida
   static const double _normalSpeechRate = 0.55;
@@ -38,6 +39,9 @@ class VoiceService extends ChangeNotifier {
           if (status == 'done' || status == 'notListening') {
             if (_isListening) {
               _isListening = false;
+              final cb = _onListeningDone;
+              _onListeningDone = null;
+              cb?.call();
               notifyListeners();
             }
           }
@@ -45,6 +49,9 @@ class VoiceService extends ChangeNotifier {
         onError: (errorNotification) {
           _lastError = errorNotification.errorMsg;
           _isListening = false;
+          final cb = _onListeningDone;
+          _onListeningDone = null;
+          cb?.call();
           notifyListeners();
         },
       );
@@ -59,6 +66,7 @@ class VoiceService extends ChangeNotifier {
 
   Future<bool> startListening({
     required void Function(String words) onResult,
+    VoidCallback? onDone,
     String localeId = 'it_IT',
   }) async {
     if (_isSpeaking) {
@@ -74,6 +82,7 @@ class VoiceService extends ChangeNotifier {
 
     _lastError = null;
     _isListening = true;
+    _onListeningDone = onDone;
     notifyListeners();
 
     try {
@@ -86,7 +95,7 @@ class VoiceService extends ChangeNotifier {
           cancelOnError: true,
           listenMode: stt.ListenMode.dictation,
           localeId: localeId,
-          pauseFor: const Duration(seconds: 5),
+          pauseFor: const Duration(seconds: 4),
           listenFor: const Duration(seconds: 60),
         ),
       );
@@ -94,6 +103,9 @@ class VoiceService extends ChangeNotifier {
     } catch (e) {
       _lastError = e.toString();
       _isListening = false;
+      final cb = _onListeningDone;
+      _onListeningDone = null;
+      cb?.call();
       notifyListeners();
       return false;
     }
@@ -105,6 +117,9 @@ class VoiceService extends ChangeNotifier {
       await _speech.stop();
     } catch (_) {}
     _isListening = false;
+    final cb = _onListeningDone;
+    _onListeningDone = null;
+    cb?.call();
     notifyListeners();
   }
 
