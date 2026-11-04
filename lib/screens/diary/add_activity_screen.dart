@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../providers/health_provider.dart';
 import '../../models/activity_entry.dart';
 import '../../services/health_service.dart';
-import '../../theme/app_colors.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/vital_entry_sheet.dart';
 

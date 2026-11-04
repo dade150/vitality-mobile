@@ -9,7 +9,6 @@ import '../../providers/clinical_provider.dart';
 import '../../providers/reports_provider.dart';
 import '../../services/error_handler.dart';
 import '../../services/report_service.dart';
-import '../../theme/app_colors.dart';
 import '../../utils/app_date_picker.dart';
 import '../../utils/date_format.dart';
 import '../../widgets/app_scaffold.dart';

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../models/appointment.dart';
 import '../../providers/appointments_provider.dart';
-import '../../theme/app_colors.dart';
 import '../../utils/app_date_picker.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 
