@@ -13,6 +13,7 @@ import '../../theme/app_colors.dart';
 import '../../utils/app_date_picker.dart';
 import '../../utils/date_format.dart';
 import '../../widgets/app_scaffold.dart';
+import '../../widgets/report_privacy_mask_dialog.dart';
 import '../../widgets/section_card.dart';
 
 /// Carica un referto (PDF) al backend, che lo salva su Storage ed estrae i
@@ -84,9 +85,24 @@ class _AddReportScreenState extends State<AddReportScreen> {
       setState(() => _error = 'Non riesco a leggere il file selezionato.');
       return;
     }
+
+    final ext = file.name.split('.').last.toLowerCase();
+    Uint8List processedBytes = Uint8List.fromList(bytes);
+
+    // Se il referto è un'immagine/scansione, apre il visual privacy mask per oscurare l'intestazione
+    if (['jpg', 'jpeg', 'png', 'webp'].contains(ext)) {
+      final sanitized = await ReportPrivacyMaskDialog.show(
+        context,
+        imageBytes: processedBytes,
+        fileName: file.name,
+      );
+      if (sanitized == null || !mounted) return;
+      processedBytes = sanitized;
+    }
+
     setState(() {
       _filename = file.name;
-      _bytes = bytes;
+      _bytes = processedBytes;
       _result = null;
       _selected.clear();
       _disposeValueControllers();

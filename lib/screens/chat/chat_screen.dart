@@ -23,6 +23,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/clinical_proposal_card.dart';
 import '../../widgets/formatted_chat_message.dart';
+import '../../widgets/report_privacy_mask_dialog.dart';
 import 'chat_drawer.dart';
 
 class _PendingAttachment {
@@ -92,7 +93,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   _PendingAttachment? _pendingAttachment;
 
-  Future<void> _pickImage(ImageSource source, {required String kind}) async {
+  Future<void> _pickImage(ImageSource source, {required String kind, bool isReport = false}) async {
     try {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(
@@ -110,12 +111,23 @@ class _ChatScreenState extends State<ChatScreen> {
       if (ext == 'png') mimeType = 'image/png';
       if (ext == 'webp') mimeType = 'image/webp';
 
+      Uint8List finalBytes = bytes;
+      if (isReport) {
+        final sanitized = await ReportPrivacyMaskDialog.show(
+          context,
+          imageBytes: bytes,
+          fileName: name,
+        );
+        if (sanitized == null || !mounted) return;
+        finalBytes = sanitized;
+      }
+
       setState(() {
         _pendingAttachment = _PendingAttachment(
           fileName: name,
           kind: kind,
           mimeType: mimeType,
-          bytes: bytes,
+          bytes: finalBytes,
         );
       });
     } catch (e) {
@@ -199,12 +211,25 @@ class _ChatScreenState extends State<ChatScreen> {
                 ListTile(
                   leading: const CircleAvatar(
                     backgroundColor: AppColors.lightPeach,
-                    child: Icon(Icons.camera_alt_rounded, color: AppColors.accent),
+                    child: Icon(Icons.restaurant_rounded, color: AppColors.accent),
                   ),
-                  title: const Text('Fotocamera', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: const Text('Foto Pasto o Glucometro', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Riconoscimento alimenti CREA o valore glicemia', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.pop(modalContext);
-                    _pickImage(ImageSource.camera, kind: 'generic_image');
+                    _pickImage(ImageSource.camera, kind: 'meal_photo', isReport: false);
+                  },
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.lightPeach,
+                    child: Icon(Icons.document_scanner_rounded, color: AppColors.accent),
+                  ),
+                  title: const Text('Foto Referto Clinico', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Con Privacy Mask per oscurare Nome e CF', style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(modalContext);
+                    _pickImage(ImageSource.camera, kind: 'medical_report', isReport: true);
                   },
                 ),
                 ListTile(
@@ -212,10 +237,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     backgroundColor: AppColors.lightPeach,
                     child: Icon(Icons.photo_library_rounded, color: AppColors.accent),
                   ),
-                  title: const Text('Galleria', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: const Text('Scegli da Galleria', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Seleziona un\'immagine salvata sul dispositivo', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.pop(modalContext);
-                    _pickImage(ImageSource.gallery, kind: 'generic_image');
+                    _showGalleryChoiceDialog();
                   },
                 ),
                 ListTile(
@@ -224,6 +250,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Icon(Icons.picture_as_pdf_rounded, color: AppColors.accent),
                   ),
                   title: const Text('Documento PDF', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Referto nativo con de-identificazione in RAM', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.pop(modalContext);
                     _pickPdf();
@@ -245,7 +272,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Tutela privacy: per foto o scansioni di referti cartacei, ti consigliamo di non inquadrare o coprire l\'intestazione con Nome e Codice Fiscale.',
+                          'Privacy by Design: per le foto dei referti puoi regolare l\'oscuramento dei dati anagrafici nell\'anteprima prima dell\'invio.',
                           style: theme.textTheme.bodySmall?.copyWith(
                             height: 1.35,
                             color: cs.onSurfaceVariant,
@@ -254,6 +281,58 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ],
                   ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showGalleryChoiceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(
+                    'Cosa contiene l\'immagine selezionata?',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.lightPeach,
+                    child: Icon(Icons.restaurant_rounded, color: AppColors.accent),
+                  ),
+                  title: const Text('Foto Pasto o Glucometro', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Nessun dato anagrafico da oscurare', style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(ImageSource.gallery, kind: 'meal_photo', isReport: false);
+                  },
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.lightPeach,
+                    child: Icon(Icons.document_scanner_rounded, color: AppColors.accent),
+                  ),
+                  title: const Text('Referto Medico Cartaceo', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Apre l\'anteprima con Privacy Mask per annerire l\'intestazione', style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(ImageSource.gallery, kind: 'medical_report', isReport: true);
+                  },
                 ),
               ],
             ),
