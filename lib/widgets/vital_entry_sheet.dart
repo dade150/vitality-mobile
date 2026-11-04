@@ -54,6 +54,7 @@ class WhenSelector extends StatefulWidget {
   final DateTime value;
   final bool enabled;
   final bool showTime;
+  final bool showPresets;
   final ValueChanged<DateTime> onChanged;
 
   const WhenSelector({
@@ -62,6 +63,7 @@ class WhenSelector extends StatefulWidget {
     required this.value,
     this.enabled = true,
     this.showTime = true,
+    this.showPresets = true,
     required this.onChanged,
   });
 
@@ -184,37 +186,39 @@ class _WhenSelectorState extends State<WhenSelector> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _QuickTimeChip(
-                label: 'Adesso',
-                selected: isNowSelected,
-                enabled: widget.enabled,
-                onTap: () => _applyPreset(DateTime.now()),
-              ),
-              _QuickTimeChip(
-                label: '08:00',
-                selected: !isNowSelected && v.hour == 8 && v.minute == 0,
-                enabled: widget.enabled,
-                onTap: () => _applyPreset(DateTime(v.year, v.month, v.day, 8, 0)),
-              ),
-              _QuickTimeChip(
-                label: '13:00',
-                selected: !isNowSelected && v.hour == 13 && v.minute == 0,
-                enabled: widget.enabled,
-                onTap: () => _applyPreset(DateTime(v.year, v.month, v.day, 13, 0)),
-              ),
-              _QuickTimeChip(
-                label: '20:00',
-                selected: !isNowSelected && v.hour == 20 && v.minute == 0,
-                enabled: widget.enabled,
-                onTap: () => _applyPreset(DateTime(v.year, v.month, v.day, 20, 0)),
-              ),
-            ],
-          ),
+          if (widget.showPresets) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _QuickTimeChip(
+                  label: 'Adesso',
+                  selected: isNowSelected,
+                  enabled: widget.enabled,
+                  onTap: () => _applyPreset(DateTime.now()),
+                ),
+                _QuickTimeChip(
+                  label: '08:00',
+                  selected: !isNowSelected && v.hour == 8 && v.minute == 0,
+                  enabled: widget.enabled,
+                  onTap: () => _applyPreset(DateTime(v.year, v.month, v.day, 8, 0)),
+                ),
+                _QuickTimeChip(
+                  label: '13:00',
+                  selected: !isNowSelected && v.hour == 13 && v.minute == 0,
+                  enabled: widget.enabled,
+                  onTap: () => _applyPreset(DateTime(v.year, v.month, v.day, 13, 0)),
+                ),
+                _QuickTimeChip(
+                  label: '20:00',
+                  selected: !isNowSelected && v.hour == 20 && v.minute == 0,
+                  enabled: widget.enabled,
+                  onTap: () => _applyPreset(DateTime(v.year, v.month, v.day, 20, 0)),
+                ),
+              ],
+            ),
+          ],
         ],
       ],
     );

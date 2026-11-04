@@ -565,6 +565,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
           value: _selectedDateTime,
           enabled: !readOnly,
           showTime: clinicalType == null,
+          showPresets: false,
           label: 'Quando è stata effettuata la misurazione?',
           onChanged: (newDate) => setState(() => _selectedDateTime = newDate),
         ),
@@ -630,6 +631,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
         WhenSelector(
           value: _selectedDateTime,
           enabled: !readOnly,
+          showPresets: false,
           label: 'Orario del pasto',
           onChanged: (newDate) => setState(() => _selectedDateTime = newDate),
         ),
@@ -702,6 +704,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
         WhenSelector(
           value: _selectedDateTime,
           enabled: !readOnly,
+          showPresets: false,
           label: 'Quando hai svolto l\'attività?',
           onChanged: (newDate) => setState(() => _selectedDateTime = newDate),
         ),
@@ -765,6 +768,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
         WhenSelector(
           value: _selectedDateTime,
           enabled: !readOnly,
+          showPresets: false,
           label: 'Orario di assunzione',
           onChanged: (newDate) => setState(() => _selectedDateTime = newDate),
         ),
@@ -978,7 +982,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
           ),
         ),
         const SizedBox(width: 10),
-        // Pulsante Conferma e Salva
+        // Pulsante Conferma
         Expanded(
           flex: 6,
           child: FilledButton.icon(
@@ -992,7 +996,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
                 : const Icon(Icons.check_rounded, size: 18),
             label: FittedBox(
               fit: BoxFit.scaleDown,
-              child: Text(isSaving ? 'Salvataggio...' : 'Conferma e Salva'),
+              child: Text(isSaving ? 'Salvataggio...' : 'Conferma'),
             ),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.accent,
