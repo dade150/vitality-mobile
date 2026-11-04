@@ -1511,33 +1511,34 @@ class _DiaryScreenState extends State<DiaryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Expanded(
-                        child: Text.rich(
-                          TextSpan(
-                            children: [
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: meals[i].type.label,
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            if (meals[i].hasExplicitTime)
                               TextSpan(
-                                text: meals[i].type.label,
-                                style: const TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                              if (meals[i].hasExplicitTime)
-                                TextSpan(
-                                  text: ' (${_hhmm(meals[i].date)})',
-                                  style: TextStyle(
-                                    color: cs.onSurfaceVariant,
-                                    fontWeight: FontWeight.normal,
-                                  ),
+                                text: '\u00A0(${_hhmm(meals[i].date)})',
+                                style: TextStyle(
+                                  color: cs.onSurfaceVariant,
+                                  fontWeight: FontWeight.normal,
                                 ),
-                            ],
-                          ),
-                          style: theme.textTheme.bodyMedium,
+                              ),
+                          ],
                         ),
+                        style: theme.textTheme.bodyMedium,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        '${meals[i].isEstimated ? '~' : ''}${meals[i].calories} kcal${meals[i].carbsGrams != null ? ', ${meals[i].carbsGrams} g carb' : ''}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          '${meals[i].isEstimated ? '~' : ''}${meals[i].calories} kcal${meals[i].carbsGrams != null ? ', ${meals[i].carbsGrams} g carb' : ''}',
+                          textAlign: TextAlign.end,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
