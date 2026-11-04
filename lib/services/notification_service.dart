@@ -275,6 +275,7 @@ class NotificationService {
       channelDescription: _therapyChannelDesc,
       importance: Importance.max,
       priority: Priority.high,
+      visibility: NotificationVisibility.private,
       enableVibration: true,
       playSound: true,
       actions: _buildTherapyActions(snoozeCount),
@@ -385,6 +386,7 @@ class NotificationService {
         channelDescription: _therapyChannelDesc,
         importance: Importance.max,
         priority: Priority.high,
+        visibility: NotificationVisibility.private,
         enableVibration: true,
         playSound: true,
         actions: _buildTherapyActions(0),
@@ -496,6 +498,7 @@ class NotificationService {
           channelDescription: _appointmentsChannelDesc,
           importance: Importance.max,
           priority: Priority.high,
+          visibility: NotificationVisibility.private,
           enableVibration: true,
           playSound: true,
           styleInformation: BigTextStyleInformation(
@@ -550,6 +553,7 @@ class NotificationService {
           channelDescription: _appointmentsChannelDesc,
           importance: Importance.max,
           priority: Priority.high,
+          visibility: NotificationVisibility.private,
           enableVibration: true,
           playSound: true,
           styleInformation: BigTextStyleInformation(

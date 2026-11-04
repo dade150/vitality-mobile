@@ -122,7 +122,8 @@ class ErrorHandler {
   // ---------------------------------------------------------------------
   static void _log(AppFailure f, String? where, {bool forceRemote = false}) {
     debugPrint('[ErrorHandler]${where != null ? ' ($where)' : ''} $f\n${f.stackTrace ?? ''}');
-    if (f.unexpected || forceRemote) {
+    // D3: Invia i log remoti su app_logs solo per errori imprevisti in modalità release (o se forzato)
+    if ((f.unexpected || forceRemote) && (kReleaseMode || forceRemote)) {
       unawaited(_remoteLog(f, where));
     }
   }
@@ -134,12 +135,24 @@ class ErrorHandler {
           '[REDACTED_JWT]',
         )
         .replaceAll(
+          RegExp(r'\bBearer\s+[A-Za-z0-9._-]+', caseSensitive: false),
+          'Bearer [REDACTED_TOKEN]',
+        )
+        .replaceAll(
           RegExp(r'\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b', caseSensitive: false),
           '[REDACTED_CF]',
         )
         .replaceAll(
           RegExp(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'),
           '[REDACTED_EMAIL]',
+        )
+        .replaceAll(
+          RegExp(r'(?:\+39\s?)?3\d{2}[\s.-]?\d{3}[\s.-]?\d{3,4}\b'),
+          '[REDACTED_PHONE]',
+        )
+        .replaceAll(
+          RegExp(r'Failing row contains \([^)]+\)', caseSensitive: false),
+          'Failing row contains ([REDACTED_DB_ROW])',
         );
   }
 
