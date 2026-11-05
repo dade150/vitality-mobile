@@ -34,6 +34,8 @@ app.*.symbols
 app.*.map.json
 
 # Android Studio & Android generated
+/android/build/
+/android/app/build/
 /android/app/debug
 /android/app/profile
 /android/app/release
