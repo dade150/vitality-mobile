@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../services/error_handler.dart';
 import '../services/gdpr_service.dart';
+import '../utils/app_feedback.dart';
 
 /// Avvia il download dell'archivio JSON dei dati personali e sanitari (GDPR Art. 20)
 /// mostrando un indicatore di caricamento.
@@ -52,14 +53,11 @@ Future<void> triggerGdprJsonExport(BuildContext context) async {
     }
     final failure = ErrorHandler.handle(e, st, 'triggerGdprJsonExport');
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            failure.message.isNotEmpty
-                ? failure.message
-                : 'Impossibile esportare i dati in questo momento. Riprova.',
-          ),
-        ),
+      AppFeedback.showErrorDialog(
+        context,
+        message: failure.message.isNotEmpty
+            ? failure.message
+            : 'Impossibile esportare i dati in questo momento. Riprova.',
       );
     }
   }

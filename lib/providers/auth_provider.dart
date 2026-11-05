@@ -55,8 +55,13 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _authService.signIn(email: email, password: password);
       return true;
-    } on AuthException catch (e) {
-      _errorMessage = _mapAuthError(e);
+    } on AuthException catch (e, st) {
+      final known = ErrorHandler.mapKnownAuthError(e);
+      if (known != null) {
+        _errorMessage = known;
+      } else {
+        _errorMessage = ErrorHandler.handle(e, st, 'AuthProvider.signIn').message;
+      }
       return false;
     } catch (e, st) {
       _errorMessage = ErrorHandler.handle(e, st, 'AuthProvider.signIn').message;
@@ -90,8 +95,13 @@ class AuthProvider extends ChangeNotifier {
 
       _pendingEmailConfirmation = response.session == null;
       return true;
-    } on AuthException catch (e) {
-      _errorMessage = _mapAuthError(e);
+    } on AuthException catch (e, st) {
+      final known = ErrorHandler.mapKnownAuthError(e);
+      if (known != null) {
+        _errorMessage = known;
+      } else {
+        _errorMessage = ErrorHandler.handle(e, st, 'AuthProvider.signUp').message;
+      }
       return false;
     } catch (e, st) {
       _errorMessage = ErrorHandler.handle(e, st, 'AuthProvider.signUp').message;
@@ -108,8 +118,13 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _authService.resendSignupConfirmation(email);
       return true;
-    } on AuthException catch (e) {
-      _errorMessage = _mapAuthError(e);
+    } on AuthException catch (e, st) {
+      final known = ErrorHandler.mapKnownAuthError(e);
+      if (known != null) {
+        _errorMessage = known;
+      } else {
+        _errorMessage = ErrorHandler.handle(e, st, 'AuthProvider.resendConfirmation').message;
+      }
       return false;
     } catch (e, st) {
       _errorMessage = ErrorHandler.handle(e, st, 'AuthProvider.resendConfirmation').message;
@@ -132,25 +147,5 @@ class AuthProvider extends ChangeNotifier {
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
-  }
-
-  String _mapAuthError(AuthException e) {
-    final msg = e.message;
-    if (msg.contains('Invalid login credentials')) {
-      return 'Email o password non corretti.';
-    }
-    if (msg.contains('Email not confirmed')) {
-      return 'Devi prima confermare l\'indirizzo email. Controlla la tua posta.';
-    }
-    if (msg.contains('User already registered') || msg.contains('already been registered')) {
-      return 'Esiste già un account con questa email.';
-    }
-    if (msg.contains('For security purposes') || msg.contains('rate limit')) {
-      return 'Troppi tentativi. Riprova tra qualche minuto.';
-    }
-    if (msg.contains('Password should be')) {
-      return 'Password non accettata: prova una combinazione più forte.';
-    }
-    return msg;
   }
 }

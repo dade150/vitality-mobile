@@ -4,6 +4,7 @@ import '../../providers/health_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../models/therapy_item.dart';
 import '../../widgets/section_card.dart';
+import '../../utils/app_feedback.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/therapy_dialog.dart';
 
@@ -13,7 +14,7 @@ class TherapyConfigScreen extends StatelessWidget {
   static const String _genericError = 'Operazione non riuscita. Controlla la connessione e riprova.';
 
   void _showMessage(BuildContext context, String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    AppFeedback.showErrorDialog(context, message: text);
   }
 
   Future<void> _addOrEditTherapy(BuildContext context, {TherapyItem? existing}) {

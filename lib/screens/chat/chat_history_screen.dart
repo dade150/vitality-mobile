@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../models/chat_models.dart';
 import '../../providers/chat_provider.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/app_feedback.dart';
 
 /// Schermata per visualizzare lo storico delle sessioni di chat precedenti.
 class ChatHistoryScreen extends StatefulWidget {
@@ -57,14 +58,11 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     final ok = await chat.deleteSession(session.id);
     if (!mounted) return;
     if (!ok && chat.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(chat.errorMessage!)),
-      );
+      AppFeedback.showErrorDialog(context, message: chat.errorMessage!);
     }
   }
 
   Future<void> _selectSession(ChatProvider chat, ChatSessionItem session) async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final nav = Navigator.of(context);
 
     final ok = await chat.loadSession(session.id);
@@ -73,9 +71,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     if (ok) {
       nav.pop();
     } else if (chat.errorMessage != null) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text(chat.errorMessage!)),
-      );
+      AppFeedback.showErrorDialog(context, message: chat.errorMessage!);
     }
   }
 

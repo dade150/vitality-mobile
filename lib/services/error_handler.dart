@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -40,6 +41,29 @@ class ErrorHandler {
   static bool _remoteLogDisabled = false;
 
   // ---------------------------------------------------------------------
+  // Mappatura errori Auth noti all'utente
+  // ---------------------------------------------------------------------
+  static String? mapKnownAuthError(AuthException e) {
+    final msg = e.message.toLowerCase();
+    if (msg.contains('invalid login credentials') || msg.contains('invalid credentials')) {
+      return 'Email o password non corretti.';
+    }
+    if (msg.contains('email not confirmed')) {
+      return 'Devi prima confermare l\'indirizzo email. Controlla la tua posta.';
+    }
+    if (msg.contains('user already registered') || msg.contains('already been registered')) {
+      return 'Esiste già un account con questa email.';
+    }
+    if (msg.contains('for security purposes') || msg.contains('rate limit')) {
+      return 'Troppi tentativi ravvicinati. Riprova tra qualche minuto.';
+    }
+    if (msg.contains('password should be') || msg.contains('weak password')) {
+      return 'Password non accettata: prova una combinazione più forte.';
+    }
+    return null;
+  }
+
+  // ---------------------------------------------------------------------
   // Classificazione
   // ---------------------------------------------------------------------
   static AppFailure classify(Object error, [StackTrace? st]) {
@@ -54,13 +78,38 @@ class ErrorHandler {
           cause: error, stackTrace: st);
     }
 
-    // Auth: i messaggi utente li mappa già AuthProvider; qui distinguiamo
-    // solo i 5xx (server Supabase giù) dagli errori "normali".
+    // Eccezioni di piattaforma (plugin nativi, permessi negati, ecc.)
+    if (error is PlatformException) {
+      final msg = (error.message ?? '').toLowerCase();
+      if (msg.contains('permission') || msg.contains('permessi') || msg.contains('denied')) {
+        return AppFailure('Permesso negato. Puoi abilitarlo dalle impostazioni del dispositivo.',
+            cause: error, stackTrace: st);
+      }
+      return AppFailure(genericMessage, unexpected: true, cause: error, stackTrace: st);
+    }
+
+    // Auth: verifichiamo se è un errore utente atteso (credenziali errate, email duplicata...).
+    // Se è un errore del database, 5xx o non mappato, è classificato come imprevisto.
     if (error is AuthException) {
       final code = int.tryParse(error.statusCode ?? '');
-      final serverSide = code != null && code >= 500;
-      return AppFailure(serverSide ? genericMessage : error.message,
-          unexpected: serverSide, cause: error, stackTrace: st);
+      final msg = error.message.toLowerCase();
+      final isServerOrDbError = (code != null && code >= 500) ||
+          msg.contains('database error') ||
+          msg.contains('unexpected_failure') ||
+          msg.contains('saving new user') ||
+          msg.contains('internal server error') ||
+          error.message.trim().startsWith('{');
+
+      if (isServerOrDbError) {
+        return AppFailure(genericMessage, unexpected: true, cause: error, stackTrace: st);
+      }
+
+      final known = mapKnownAuthError(error);
+      if (known != null) {
+        return AppFailure(known, unexpected: false, cause: error, stackTrace: st);
+      }
+
+      return AppFailure(genericMessage, unexpected: true, cause: error, stackTrace: st);
     }
 
     // Postgres / PostgREST: i codici SQLSTATE di validazione sono attesi
@@ -81,11 +130,36 @@ class ErrorHandler {
       return AppFailure(genericMessage, unexpected: true, cause: error, stackTrace: st);
     }
 
-    // Validazione lato client (HealthService._check*, parsing dei campi):
-    // è l'utente a dover correggere, non un bug -> resta in UI.
-    if (error is ArgumentError || error is FormatException) {
+    // Validazione lato client (HealthService._check*, parsing dei campi)
+    if (error is ArgumentError) {
+      final msg = error.message?.toString();
+      final isFriendly = msg != null &&
+          msg.isNotEmpty &&
+          !msg.startsWith('{') &&
+          !msg.contains('Exception:');
+      return AppFailure(
+        isFriendly ? msg : 'Uno dei valori inseriti non è valido o è fuori dai limiti consentiti.',
+        cause: error,
+        stackTrace: st,
+      );
+    }
+    if (error is FormatException) {
       return AppFailure('Uno dei valori inseriti non è valido o è fuori dai limiti consentiti.',
           cause: error, stackTrace: st);
+    }
+
+    // Rileva stringhe di errore JSON grezze (es. {"code": "...", "message": "..."}) o dump DB
+    final errStr = error.toString().trim();
+    if (errStr.startsWith('{') && (errStr.contains('"code"') || errStr.contains('"message"'))) {
+      return AppFailure(genericMessage, unexpected: true, cause: error, stackTrace: st);
+    }
+    if (errStr.contains('duplicate key value') ||
+        errStr.contains('violates foreign key') ||
+        errStr.contains('relation "') ||
+        errStr.contains('column "') ||
+        errStr.contains('syntax error at or near') ||
+        errStr.contains('Database error')) {
+      return AppFailure(genericMessage, unexpected: true, cause: error, stackTrace: st);
     }
 
     // Tutto il resto (StateError, TypeError, errori Dart generici…) è un

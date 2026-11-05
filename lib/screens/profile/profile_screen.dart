@@ -5,6 +5,7 @@ import '../../models/profile.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/app_date_picker.dart';
+import '../../utils/app_feedback.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/pill_button.dart';
 import '../../widgets/section_card.dart';
@@ -166,10 +167,11 @@ class ProfileScreen extends StatelessWidget {
                             if (!sheetContext.mounted) return;
                             if (!ok) {
                               // Errore atteso: resta nel form con il motivo.
-                              ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(
-                                content: Text(profileProvider.errorMessage ??
-                                    'Salvataggio non riuscito. Riprova.'),
-                              ));
+                              AppFeedback.showErrorDialog(
+                                sheetContext,
+                                message: profileProvider.errorMessage ??
+                                    'Salvataggio non riuscito. Riprova.',
+                              );
                               return;
                             }
                             Navigator.of(sheetContext).pop();

@@ -20,6 +20,7 @@ import '../../providers/reports_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/voice_service.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/app_feedback.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/clinical_proposal_card.dart';
 import '../../widgets/formatted_chat_message.dart';
@@ -139,10 +140,11 @@ class _ChatScreenState extends State<ChatScreen> {
           bytes: finalBytes,
         );
       });
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Impossibile selezionare l\'immagine: $e')),
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'Impossibile selezionare l\'immagine. Riprova.',
         );
       }
     }
@@ -167,8 +169,9 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       if (bytes == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Impossibile leggere il file selezionato')),
+          AppFeedback.showErrorDialog(
+            context,
+            message: 'Impossibile leggere il file selezionato.',
           );
         }
         return;
@@ -182,10 +185,11 @@ class _ChatScreenState extends State<ChatScreen> {
           bytes: bytes!,
         );
       });
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Impossibile selezionare il PDF: $e')),
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'Impossibile selezionare il PDF. Riprova.',
         );
       }
     }
@@ -194,12 +198,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showAttachmentModal() {
     final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
     if (!hasAiConsent) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Consenso al trattamento dati sanitari con IA revocato. Riattivalo dalle Impostazioni.',
-          ),
-        ),
+      AppFeedback.showErrorDialog(
+        context,
+        title: 'Consenso richiesto',
+        message: 'Il consenso al trattamento dati sanitari con IA è disattivato. Riattivalo dalle Impostazioni per allegare documenti.',
       );
       return;
     }
@@ -365,12 +367,10 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _send({String? overrideText}) async {
     final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
     if (!hasAiConsent) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Consenso al trattamento dati sanitari con IA revocato. Riattivalo dalle Impostazioni per chattare.',
-          ),
-        ),
+      AppFeedback.showErrorDialog(
+        context,
+        title: 'Consenso richiesto',
+        message: 'Il consenso al trattamento dati sanitari con IA è disattivato. Riattivalo dalle Impostazioni per chattare.',
       );
       return;
     }
@@ -419,7 +419,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     _scrollToEnd();
     if (!ok && chat.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(chat.errorMessage!)));
+      AppFeedback.showErrorDialog(context, message: chat.errorMessage!);
     } else if (ok) {
       if (attachmentIn != null) {
         unawaited(context.read<ReportsProvider>().refresh());
@@ -442,12 +442,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
     if (!hasAiConsent) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Consenso al trattamento dati sanitari con IA revocato. Riattivalo dalle Impostazioni per usare il microfono.',
-          ),
-        ),
+      AppFeedback.showErrorDialog(
+        context,
+        title: 'Consenso richiesto',
+        message: 'Il consenso al trattamento dati sanitari con IA è disattivato. Riattivalo dalle Impostazioni per usare il microfono.',
       );
       return;
     }
@@ -492,9 +490,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     if (!started && mounted && voice.lastError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(voice.lastError!)),
-      );
+      AppFeedback.showErrorDialog(context, message: voice.lastError!);
     }
   }
 

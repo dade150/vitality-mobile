@@ -49,14 +49,18 @@ class _ErrorScreenState extends State<ErrorScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Image.asset(
-                      'assets/images/error.png',
-                      height: 220,
-                      fit: BoxFit.contain,
-                      semanticLabel: 'Illustrazione di errore',
-                      // Fallback finché non aggiungi l'immagine.
-                      errorBuilder: (_, __, ___) =>
-                          Icon(Icons.error_outline_rounded, size: 120, color: cs.primary),
+                    Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        color: cs.error.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.error_outline_rounded,
+                        size: 64,
+                        color: cs.error,
+                      ),
                     ),
                     const SizedBox(height: 32),
                     Text('Ops, qualcosa è andato storto',
@@ -72,7 +76,14 @@ class _ErrorScreenState extends State<ErrorScreen> {
                     const SizedBox(height: 40),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(onPressed: _confirm, child: const Text('OK')),
+                      height: 50,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        onPressed: _confirm,
+                        child: const Text('OK', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
                     ),
                   ],
                 ),

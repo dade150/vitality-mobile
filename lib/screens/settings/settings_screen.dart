@@ -5,6 +5,7 @@ import '../../models/user_settings.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/notification_service.dart';
+import '../../utils/app_feedback.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/gdpr_account_dialogs.dart';
 import '../../widgets/legal_documents_sheet.dart';
@@ -193,17 +194,19 @@ class SettingsScreen extends StatelessWidget {
                           if (context.mounted) {
                             final ok = await context.read<ProfileProvider>().setAiHealthConsent(value);
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    ok
-                                        ? (value
-                                            ? 'Consenso IA attivato.'
-                                            : 'Consenso IA revocato. L\'assistente è ora disattivato.')
-                                        : 'Impossibile aggiornare il consenso. Riprova.',
-                                  ),
-                                ),
-                              );
+                              if (ok) {
+                                AppFeedback.showSuccess(
+                                  context,
+                                  value
+                                      ? 'Consenso IA attivato.'
+                                      : 'Consenso IA revocato. L\'assistente è ora disattivato.',
+                                );
+                              } else {
+                                AppFeedback.showErrorDialog(
+                                  context,
+                                  message: 'Impossibile aggiornare il consenso. Riprova.',
+                                );
+                              }
                             }
                           }
                         },

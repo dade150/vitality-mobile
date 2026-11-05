@@ -7,6 +7,7 @@ import '../../providers/reports_provider.dart';
 import '../../services/report_service.dart';
 import '../../services/voice_service.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/app_feedback.dart';
 import '../../utils/date_format.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/clinical_entry_sheet.dart';
@@ -559,9 +560,7 @@ class _ReportsTabSectionState extends State<_ReportsTabSection> {
     );
 
     if (!started && mounted && voice.lastError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(voice.lastError!)),
-      );
+      AppFeedback.showErrorDialog(context, message: voice.lastError!);
     }
   }
 

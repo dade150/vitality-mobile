@@ -5,6 +5,7 @@ import '../models/chat_message.dart';
 import '../models/chat_models.dart';
 import '../models/proposed_entry.dart';
 import '../services/chat_service.dart';
+import '../services/error_handler.dart';
 import '../services/proposal_service.dart';
 import 'error_provider.dart';
 
@@ -289,11 +290,10 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
       targetProposal.saveError = null;
       notifyListeners();
       return true;
-    } catch (e) {
+    } catch (e, st) {
       if (epoch != _epoch) return false;
       targetProposal.status = ProposalStatus.pending;
-      targetProposal.saveError =
-          e is ArgumentError ? e.message?.toString() : e.toString().replaceFirst('Exception: ', '');
+      targetProposal.saveError = ErrorHandler.handle(e, st, 'ChatProvider.saveProposal').message;
       notifyListeners();
       return false;
     }

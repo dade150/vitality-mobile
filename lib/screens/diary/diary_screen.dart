@@ -12,6 +12,7 @@ import '../../widgets/entry_edit_sheet.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets/simple_charts.dart';
 import '../../widgets/vital_entry_sheet.dart';
+import '../../utils/app_feedback.dart';
 import '../../utils/date_format.dart';
 import '../../theme/app_colors.dart';
 
@@ -95,7 +96,12 @@ class _DiaryScreenState extends State<DiaryScreen> {
   String _fmtNum(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
 
   void _showMessage(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    if (!mounted) return;
+    if (text.toLowerCase().contains('non riuscit') || text.toLowerCase().contains('non puoi')) {
+      AppFeedback.showErrorDialog(context, message: text);
+    } else {
+      AppFeedback.showWarning(context, text);
+    }
   }
 
   /// Inizio del periodo corrente (inclusivo) secondo la vista attiva.

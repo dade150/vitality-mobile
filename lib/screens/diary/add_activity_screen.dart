@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/health_provider.dart';
 import '../../models/activity_entry.dart';
 import '../../services/health_service.dart';
+import '../../utils/app_feedback.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/vital_entry_sheet.dart';
 
@@ -45,7 +46,7 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
   bool _saving = false;
 
   void _showMessage(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    AppFeedback.showErrorDialog(context, message: text);
   }
 
   Future<void> _save() async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/request/login_request.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/app_feedback.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -39,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (!ok && auth.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(auth.errorMessage!)));
+      AppFeedback.showErrorDialog(context, message: auth.errorMessage!);
     }
   }
 

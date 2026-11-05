@@ -8,6 +8,7 @@ import '../../services/health_service.dart';
 import '../../services/nutrition_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/app_date_picker.dart';
+import '../../utils/app_feedback.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/vital_entry_sheet.dart';
 
@@ -66,7 +67,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
 
   void _showMessage(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    AppFeedback.showErrorDialog(context, message: text);
   }
 
   Future<void> _pickDate() async {

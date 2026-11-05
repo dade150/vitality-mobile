@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/error_handler.dart';
 import '../../services/health_service.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/app_feedback.dart';
 import 'email_confirmation.dart';
 import 'register_step1.dart';
 import 'register_step_therapy.dart';
@@ -35,7 +36,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    AppFeedback.showErrorDialog(context, message: message);
   }
 
   void _goNext() {

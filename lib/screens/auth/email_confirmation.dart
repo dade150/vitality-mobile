@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/app_feedback.dart';
 
 /// Mostrata dopo una registrazione riuscita quando "Confirm email" è attivo
 /// su Supabase (comportamento di default): a questo punto esiste un utente
@@ -19,13 +20,17 @@ class _EmailConfirmationScreenState extends State<EmailConfirmationScreen> {
     final auth = context.read<AuthProvider>();
     final ok = await auth.resendConfirmation(widget.email);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? 'Email inviata di nuovo.' : (auth.errorMessage ?? 'Errore. Riprova.'),
-        ),
-      ),
-    );
+    if (ok) {
+      AppFeedback.showSuccess(
+        context,
+        'Email di conferma inviata di nuovo. Controlla la tua posta.',
+      );
+    } else {
+      AppFeedback.showErrorDialog(
+        context,
+        message: auth.errorMessage ?? 'Impossibile inviare l\'email di conferma. Riprova più tardi.',
+      );
+    }
   }
 
   @override

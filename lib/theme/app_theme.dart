@@ -196,10 +196,15 @@ class AppTheme {
       ),
       dividerTheme: DividerThemeData(color: cs.outlineVariant, space: 32),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: cs.inverseSurface,
-        contentTextStyle: TextStyle(color: cs.onInverseSurface, fontWeight: FontWeight.w600),
+        backgroundColor: const Color(0xFF1E293B),
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }

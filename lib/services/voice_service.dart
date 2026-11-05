@@ -47,7 +47,7 @@ class VoiceService extends ChangeNotifier {
           }
         },
         onError: (errorNotification) {
-          _lastError = errorNotification.errorMsg;
+          _lastError = _mapSpeechError(errorNotification.errorMsg);
           _isListening = false;
           final cb = _onListeningDone;
           _onListeningDone = null;
@@ -56,7 +56,7 @@ class VoiceService extends ChangeNotifier {
         },
       );
     } catch (e) {
-      _lastError = e.toString();
+      _lastError = _mapSpeechException(e);
       _isSpeechInitialized = false;
     }
 
@@ -101,7 +101,7 @@ class VoiceService extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      _lastError = e.toString();
+      _lastError = _mapSpeechException(e);
       _isListening = false;
       final cb = _onListeningDone;
       _onListeningDone = null;
@@ -147,7 +147,7 @@ class VoiceService extends ChangeNotifier {
       _tts.setErrorHandler((dynamic msg) {
         _isSpeaking = false;
         _speakingMessageKey = null;
-        _lastError = msg?.toString();
+        _lastError = _mapTtsError(msg);
         notifyListeners();
       });
 
@@ -320,7 +320,7 @@ class VoiceService extends ChangeNotifier {
     } catch (e) {
       _isSpeaking = false;
       _speakingMessageKey = null;
-      _lastError = e.toString();
+      _lastError = _mapTtsError(e);
       notifyListeners();
     }
   }
@@ -332,6 +332,39 @@ class VoiceService extends ChangeNotifier {
     _isSpeaking = false;
     _speakingMessageKey = null;
     notifyListeners();
+  }
+
+  static String _mapSpeechError(String? code) {
+    switch (code) {
+      case 'error_no_match':
+        return 'Nessuna voce riconosciuta. Riprova parlando vicino al microfono.';
+      case 'error_speech_timeout':
+        return 'Tempo di ascolto scaduto. Riprova.';
+      case 'error_audio':
+        return 'Errore di registrazione audio. Controlla il microfono.';
+      case 'error_busy':
+        return 'Il microfono è attualmente occupato da un\'altra applicazione.';
+      case 'error_network':
+      case 'error_network_timeout':
+        return 'Connessione di rete non sufficiente per il riconoscimento vocale.';
+      case 'error_permission':
+      case 'error_insufficient_permissions':
+        return 'Permesso per l\'uso del microfono negato.';
+      default:
+        return 'Riconoscimento vocale non riuscito. Riprova tra qualche istante.';
+    }
+  }
+
+  static String _mapSpeechException(Object e) {
+    final str = e.toString().toLowerCase();
+    if (str.contains('permission') || str.contains('denied')) {
+      return 'Permesso microfono non concesso. Puoi abilitarlo dalle impostazioni.';
+    }
+    return 'Riconoscimento vocale non disponibile o permessi negati.';
+  }
+
+  static String _mapTtsError(dynamic err) {
+    return 'Impossibile riprodurre la sintesi vocale in questo momento.';
   }
 
   @override
