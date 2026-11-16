@@ -1,78 +1,42 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../models/medical_report.dart';
 import '../services/error_handler.dart';
-import 'error_provider.dart';
+import 'auth_scoped_provider.dart';
 
 /// Stato dei referti medici caricati dall'utente, collegato alla tabella
 /// `patient_reports` di Supabase (nessun dato mockato).
-class ReportsProvider extends ChangeNotifier with ErrorReporting {
+class ReportsProvider extends AuthScopedProvider {
   static const _table = 'patient_reports';
 
-  ReportsProvider([SupabaseClient? client]) : _db = client ?? Supabase.instance.client {
-    final auth = _db.auth;
-    _authSub = auth.onAuthStateChange.listen(_onAuthChange);
+  ReportsProvider([super.client]);
 
-    final user = auth.currentUser;
-    if (user != null) {
-      _userId = user.id;
-      Future.microtask(refresh);
-    }
-  }
-
-  final SupabaseClient _db;
-  StreamSubscription<AuthState>? _authSub;
-
-  String? _userId;
-  bool _loading = false;
-  bool _hasLoaded = false;
   final List<MedicalReport> _reports = [];
 
   List<MedicalReport> get reports => List.unmodifiable(_reports);
-  bool get isLoading => _loading;
-  bool get hasLoaded => _hasLoaded;
 
-  void _onAuthChange(AuthState data) {
-    final uid = data.session?.user.id;
-    if (data.event == AuthChangeEvent.signedOut || uid == null) {
-      _clear();
-      return;
-    }
-    if (uid != _userId) {
-      _clear(notify: false);
-      _userId = uid;
-      unawaited(refresh());
-    }
-  }
-
-  void _clear({bool notify = true}) {
-    _userId = null;
-    _loading = false;
-    _hasLoaded = false;
-    errorMessage = null;
+  @override
+  void onClearState() {
     _reports.clear();
-    if (notify) notifyListeners();
   }
 
+  @override
   Future<void> refresh() async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return;
 
-    _loading = true;
+    isLoading = true;
     errorMessage = null;
     notifyListeners();
 
     try {
-      final rows = await _db
+      final rows = await db
           .from(_table)
           .select()
           .order('created_at', ascending: false)
           .limit(200);
 
-      if (uid != _userId) return;
+      if (uid != userId) return;
 
       final loaded = <MedicalReport>[];
       for (final r in rows) {
@@ -112,13 +76,13 @@ class ReportsProvider extends ChangeNotifier with ErrorReporting {
       _reports
         ..clear()
         ..addAll(loaded);
-      _hasLoaded = true;
+      hasLoaded = true;
     } catch (e, st) {
       ErrorHandler.logOnly(e, st, 'ReportsProvider.refresh');
-      _hasLoaded = true;
+      hasLoaded = true;
     } finally {
-      if (uid == _userId) {
-        _loading = false;
+      if (uid == userId) {
+        isLoading = false;
         notifyListeners();
       }
     }
@@ -133,7 +97,7 @@ class ReportsProvider extends ChangeNotifier with ErrorReporting {
   Future<bool> deleteReport(String id) async {
     final ok = await guard(
       () async {
-        await _db.from(_table).delete().eq('id', id);
+        await db.from(_table).delete().eq('id', id);
       },
       where: 'ReportsProvider.deleteReport',
     );
@@ -142,11 +106,5 @@ class ReportsProvider extends ChangeNotifier with ErrorReporting {
       notifyListeners();
     }
     return ok;
-  }
-
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
   }
 }

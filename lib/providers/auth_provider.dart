@@ -29,11 +29,23 @@ class AuthProvider extends ChangeNotifier {
     // un'eccezione non gestita e farebbe crashare l'app.
     _authService.onAuthStateChange.listen(
       (data) {
-        _session = data.session;
+        final prevUserId = _session?.user.id;
+        final nextSession = data.session;
+        final nextUserId = nextSession?.user.id;
+        final wasPending = _pendingEmailConfirmation;
+
+        _session = nextSession;
         if (data.event == AuthChangeEvent.signedIn) {
           _pendingEmailConfirmation = false;
         }
-        notifyListeners();
+
+        // Evita rebuild globali sui refresh silenziosi del token per lo stesso utente.
+        final authChanged = prevUserId != nextUserId ||
+            (prevUserId == null) != (nextUserId == null) ||
+            wasPending != _pendingEmailConfirmation;
+        if (authChanged) {
+          notifyListeners();
+        }
       },
       onError: (Object error, StackTrace stackTrace) {
         debugPrint('Auth stream error: $error');

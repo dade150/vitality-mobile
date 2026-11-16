@@ -98,8 +98,11 @@ class AppTheme {
     );
   }
 
-  static ThemeData light() => _build(Brightness.light);
-  static ThemeData dark() => _build(Brightness.dark);
+  static final ThemeData _lightTheme = _build(Brightness.light);
+  static final ThemeData _darkTheme = _build(Brightness.dark);
+
+  static ThemeData light() => _lightTheme;
+  static ThemeData dark() => _darkTheme;
 
   static ThemeData _build(Brightness brightness) {
     final cs = _scheme(brightness);

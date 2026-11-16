@@ -39,7 +39,7 @@ class _ClinicalParametersScreenState extends State<ClinicalParametersScreen> {
       final clinical = context.read<ClinicalProvider>();
       if (!clinical.hasLoaded && !clinical.isLoading) clinical.refresh();
       final reports = context.read<ReportsProvider>();
-      if (!reports.isLoading) reports.refresh();
+      if (!reports.hasLoaded && !reports.isLoading) reports.refresh();
     });
   }
 

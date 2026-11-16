@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/activity_entry.dart';
@@ -9,7 +8,7 @@ import '../models/therapy_item.dart';
 import '../models/vital_readings.dart';
 import '../services/error_handler.dart';
 import '../services/health_service.dart';
-import 'error_provider.dart';
+import 'auth_scoped_provider.dart';
 
 /// Stato "salute" dell'app, collegato a Supabase.
 ///
@@ -22,29 +21,14 @@ import 'error_provider.dart';
 ///                       messaggio (snackbar/errore inline nel form)
 /// - errore imprevisto -> [errorMessage] resta null, compare la
 ///                       schermata di errore (ErrorHandler)
-class HealthProvider extends ChangeNotifier with ErrorReporting {
-  HealthProvider({HealthService? service}) : _service = service ?? HealthService() {
-    final auth = Supabase.instance.client.auth;
-    _authSub = auth.onAuthStateChange.listen(_onAuthChange);
-
-    // Provider creato (lazy) dopo il login: lo stato iniziale non arriva dallo stream.
-    final user = auth.currentUser;
-    if (user != null) {
-      _userId = user.id;
-      Future.microtask(refresh);
-    }
-  }
+class HealthProvider extends AuthScopedProvider {
+  HealthProvider({HealthService? service}) : _service = service ?? HealthService();
 
   static const int _windowDays = 30;
 
   final HealthService _service;
-  StreamSubscription<AuthState>? _authSub;
 
-  String? _userId;
   DateTime? _loadedSince;
-  bool _loading = false;
-  bool _loadFailed = false;
-  bool _hasLoaded = false;
 
   List<TherapyItem> _therapyItems = [];
   List<TherapyLog> _therapyLogs = [];
@@ -61,10 +45,6 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
   List<BloodPressureReading> get pressureReadings => List.unmodifiable(_pressure);
   List<ActivityEntry> get activityEntries => List.unmodifiable(_activities);
   List<MealEntry> get mealEntries => List.unmodifiable(_meals);
-
-  bool get isLoading => _loading;
-  bool get loadFailed => _loadFailed;
-  bool get hasLoaded => _hasLoaded;
 
   GlucoseReading? get lastGlucose => _glucose.isNotEmpty ? _glucose.last : null;
   BloodPressureReading? get lastPressure => _pressure.isNotEmpty ? _pressure.last : null;
@@ -101,42 +81,25 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
       _loadedSince ??= DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)
           .subtract(const Duration(days: _windowDays));
 
-  void _onAuthChange(AuthState data) {
-    final uid = data.session?.user.id;
-    if (data.event == AuthChangeEvent.signedOut || uid == null) {
-      _clear();
-      return;
-    }
-    if (uid != _userId) {
-      _clear(notify: false);
-      _userId = uid;
-      unawaited(refresh());
-    }
-  }
-
-  void _clear({bool notify = true}) {
-    _userId = null;
+  @override
+  void onClearState() {
     _loadedSince = null;
-    _loading = false;
-    _loadFailed = false;
-    _hasLoaded = false;
-    errorMessage = null;
     _therapyItems = [];
     _therapyLogs = [];
     _glucose = [];
     _pressure = [];
     _activities = [];
     _meals = [];
-    if (notify) notifyListeners();
   }
 
   /// Ricarica tutto dalla finestra corrente.
+  @override
   Future<void> refresh() async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return;
 
-    _loading = true;
-    _loadFailed = false;
+    isLoading = true;
+    loadFailed = false;
     errorMessage = null;
     notifyListeners();
 
@@ -150,7 +113,7 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
         _service.fetchTherapyLogs(since),
       ).wait;
 
-      if (uid != _userId) return; // utente cambiato durante il caricamento
+      if (uid != userId) return; // utente cambiato durante il caricamento
 
       _glucose = vitals.glucose;
       _pressure = vitals.pressure;
@@ -180,13 +143,13 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
       _therapyItems = loadedTherapies;
       _therapyLogs = logs;
       _applyTakenToday();
-      _hasLoaded = true;
+      hasLoaded = true;
     } catch (e, st) {
       ErrorHandler.handle(e, st, 'HealthProvider.refresh');
-      if (uid == _userId) _loadFailed = true;
+      if (uid == userId) loadFailed = true;
     } finally {
-      if (uid == _userId) {
-        _loading = false;
+      if (uid == userId) {
+        isLoading = false;
         notifyListeners();
       }
     }
@@ -226,7 +189,7 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
       await reload();
     } catch (e, st) {
       ErrorHandler.handle(e, st, 'HealthProvider.reload');
-      _loadFailed = true;
+      loadFailed = true;
       notifyListeners();
     }
     return true;
@@ -236,12 +199,12 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
   /// durante la chiamata (stessa difesa di [refresh]).
   Future<T?> _reloadIfSameUser<T>(String? uid, Future<T> Function() fetch) async {
     final value = await fetch();
-    if (uid != _userId) return null;
+    if (uid != userId) return null;
     return value;
   }
 
   Future<void> _reloadVitals() async {
-    final uid = _userId;
+    final uid = userId;
     final v = await _reloadIfSameUser(uid, () => _service.fetchVitals(_since));
     if (v == null) return;
     _glucose = v.glucose;
@@ -250,7 +213,7 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
   }
 
   Future<void> _reloadMeals() async {
-    final uid = _userId;
+    final uid = userId;
     final meals = await _reloadIfSameUser(uid, () => _service.fetchMeals(_since));
     if (meals == null) return;
     _meals = meals;
@@ -258,7 +221,7 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
   }
 
   Future<void> _reloadActivities() async {
-    final uid = _userId;
+    final uid = userId;
     final activities = await _reloadIfSameUser(uid, () => _service.fetchActivities(_since));
     if (activities == null) return;
     _activities = activities;
@@ -266,7 +229,7 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
   }
 
   Future<void> _reloadTherapies() async {
-    final uid = _userId;
+    final uid = userId;
     final result = await _reloadIfSameUser(
         uid, () => (_service.fetchTherapies(), _service.fetchTherapyLogs(_since)).wait);
     if (result == null) return;
@@ -387,10 +350,4 @@ class HealthProvider extends ChangeNotifier with ErrorReporting {
   }
 
   Future<bool> deleteMeal(String id) => _write(() => _service.deleteMeal(id), _reloadMeals);
-
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
-  }
 }

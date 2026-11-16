@@ -1,11 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../models/user_settings.dart';
 import '../services/settings_service.dart';
-import 'error_provider.dart';
+import 'auth_scoped_provider.dart';
 
 /// Provider per le impostazioni dell'utente caricate e salvate in Supabase (`public.user_settings`).
 ///
@@ -14,33 +11,16 @@ import 'error_provider.dart';
 /// - caricamento automatico all'accesso
 /// - pulizia dello stato al logout
 /// - aggiornamenti ottimistici con persistenza su database protetto da RLS
-class SettingsProvider extends ChangeNotifier with ErrorReporting {
-  SettingsProvider([SettingsService? service]) : _service = service ?? SettingsService() {
-    final auth = Supabase.instance.client.auth;
-    _authSub = auth.onAuthStateChange.listen(_onAuthChange);
-
-    final user = auth.currentUser;
-    if (user != null) {
-      _userId = user.id;
-      Future.microtask(refresh);
-    }
-  }
+class SettingsProvider extends AuthScopedProvider {
+  SettingsProvider({SettingsService? service}) : _service = service ?? SettingsService();
 
   final SettingsService _service;
-  StreamSubscription<AuthState>? _authSub;
 
-  String? _userId;
   UserSettings? _settings;
-  bool _loading = false;
-  bool _loadFailed = false;
-  bool _hasLoaded = false;
 
   // ----------------------------------------------------------------- Getters
 
   UserSettings? get settings => _settings;
-  bool get isLoading => _loading;
-  bool get loadFailed => _loadFailed;
-  bool get hasLoaded => _hasLoaded;
 
   AppFontSize get fontSize => _settings?.fontSize ?? AppFontSize.grande;
   bool get darkMode => _settings?.darkMode ?? false;
@@ -65,63 +45,46 @@ class SettingsProvider extends ChangeNotifier with ErrorReporting {
 
   // --------------------------------------------------------------- Sessione
 
-  void _onAuthChange(AuthState data) {
-    final uid = data.session?.user.id;
-    if (data.event == AuthChangeEvent.signedOut || uid == null) {
-      _clear();
-      return;
-    }
-    if (uid != _userId) {
-      _clear(notify: false);
-      _userId = uid;
-      unawaited(refresh());
-    }
-  }
-
-  void _clear({bool notify = true}) {
-    _userId = null;
-    _settings = null;
-    _loading = false;
-    _loadFailed = false;
-    _hasLoaded = false;
-    errorMessage = null;
-    if (notify) notifyListeners();
-  }
-
   @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
+  void onClearState() {
+    _settings = null;
   }
 
   // ------------------------------------------------------------- Caricamento
 
+  @override
   Future<void> refresh() async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return;
 
-    _loading = true;
-    _loadFailed = false;
+    isLoading = true;
+    loadFailed = false;
     errorMessage = null;
     notifyListeners();
 
     try {
-      _settings = await _service.fetch(uid);
-      _hasLoaded = true;
-      _loadFailed = false;
+      final fetched = await _service.fetch(uid);
+      if (uid != userId) return;
+      _settings = fetched;
+      hasLoaded = true;
+      loadFailed = false;
     } catch (e, st) {
-      _loadFailed = true;
-      guard(() => Future.error(e, st), where: 'SettingsProvider.refresh');
+      if (uid == userId) {
+        loadFailed = true;
+        guard(() => Future.error(e, st), where: 'SettingsProvider.refresh');
+      }
     } finally {
-      _loading = false;
-      notifyListeners();
+      if (uid == userId) {
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
   // --------------------------------------------------------------- Scritture
 
   Future<bool> setDarkMode(bool value) async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return false;
     if (_settings != null && _settings!.darkMode == value) return true;
 
@@ -143,7 +106,7 @@ class SettingsProvider extends ChangeNotifier with ErrorReporting {
   }
 
   Future<bool> setFontSize(AppFontSize size) async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return false;
     if (_settings != null && _settings!.fontSize == size) return true;
 
@@ -165,7 +128,7 @@ class SettingsProvider extends ChangeNotifier with ErrorReporting {
   }
 
   Future<bool> setNotifyTherapy(bool value) async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return false;
     if (_settings != null && _settings!.notifyTherapy == value) return true;
 
@@ -189,7 +152,7 @@ class SettingsProvider extends ChangeNotifier with ErrorReporting {
   Future<bool> setNotificheTerapia(bool value) => setNotifyTherapy(value);
 
   Future<bool> setNotifyAppointments(bool value) async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return false;
     if (_settings != null && _settings!.notifyAppointments == value) return true;
 
@@ -211,7 +174,7 @@ class SettingsProvider extends ChangeNotifier with ErrorReporting {
   }
 
   Future<bool> setAutoTts(bool value) async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return false;
     if (_settings != null && _settings!.autoTts == value) return true;
 

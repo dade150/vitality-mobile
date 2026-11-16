@@ -98,11 +98,13 @@ class ProfileService {
     if (peso == null && altezza == null && sesso == null && noteAnamnestiche == null) return;
 
     // Sesso vuoto == "non specificato": non si scrive '' in un enum.
+    final normalizedNote = noteAnamnestiche?.trim();
     final values = <String, dynamic>{
       if (peso != null) 'peso': peso,
       if (altezza != null) 'altezza': altezza,
       if (sesso != null && sesso.trim().isNotEmpty) 'sesso': sesso.trim().toLowerCase(),
-      if (noteAnamnestiche != null) 'note_anamnestiche': noteAnamnestiche,
+      if (normalizedNote != null)
+        'note_anamnestiche': normalizedNote.isEmpty ? null : normalizedNote,
     };
     if (values.isEmpty) return;
 

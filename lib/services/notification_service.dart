@@ -56,6 +56,20 @@ class NotificationService {
   String? _pendingRoute;
   bool _initialized = false;
 
+  // Snapshot e serializzazione per evitare chiamate ridondanti ad AlarmManager.
+  Future<void> _syncQueue = Future<void>.value();
+  String? _lastTherapiesSignature;
+  String? _lastAppointmentsSignature;
+  bool? _lastInactivityEnabled;
+  DateTime? _lastInactivityResetAt;
+  static const Duration _inactivityDebounce = Duration(minutes: 15);
+
+  Future<void> _enqueueSync(Future<void> Function() task) {
+    final next = _syncQueue.then((_) => task(), onError: (_) => task());
+    _syncQueue = next.catchError((_) {});
+    return next;
+  }
+
   /// Callback invocato quando una terapia viene segnata come assunta direttamente
   /// dalla notifica (notifica a [HealthProvider] di eseguire un refresh).
   VoidCallback? onTherapyMarkedTaken;
@@ -324,6 +338,21 @@ class NotificationService {
   }) async {
     if (kIsWeb) return;
 
+    final sortedKeys = therapies
+        .map((t) => '${t.id}|${t.time}|${t.taken}')
+        .toList()
+      ..sort();
+    final signature = '$enabled|${sortedKeys.join(';')}';
+    if (signature == _lastTherapiesSignature) return;
+    _lastTherapiesSignature = signature;
+
+    await _enqueueSync(() => _applySyncTherapies(therapies: therapies, enabled: enabled));
+  }
+
+  Future<void> _applySyncTherapies({
+    required List<TherapyItem> therapies,
+    required bool enabled,
+  }) async {
     // Cancella le notifiche delle terapie schedulate in precedenza
     final idsToCancel = _scheduledTherapyIds.toList();
     _scheduledTherapyIds.clear();
@@ -462,6 +491,21 @@ class NotificationService {
   }) async {
     if (kIsWeb) return;
 
+    final sortedKeys = appointments
+        .map((a) => '${a.id}|${a.dateTime.millisecondsSinceEpoch}|${a.type}|${a.doctorName}|${a.location}|${a.notes}')
+        .toList()
+      ..sort();
+    final signature = '$enabled|${sortedKeys.join(';')}';
+    if (signature == _lastAppointmentsSignature) return;
+    _lastAppointmentsSignature = signature;
+
+    await _enqueueSync(() => _applySyncAppointments(appointments: appointments, enabled: enabled));
+  }
+
+  Future<void> _applySyncAppointments({
+    required List<Appointment> appointments,
+    required bool enabled,
+  }) async {
     final idsToCancel = _scheduledAppointmentIds.toList();
     _scheduledAppointmentIds.clear();
     for (final id in idsToCancel) {
@@ -603,61 +647,82 @@ class NotificationService {
   Future<void> resetInactivityTimer({required bool enabled}) async {
     if (kIsWeb) return;
 
-    try {
-      await _plugin.cancel(_inactivityNotificationId);
-    } catch (_) {}
-
-    if (!enabled) return;
-
-    final now = tz.TZDateTime.now(tz.local);
-    var target = now.add(const Duration(hours: 20));
-
-    // Quiet Hours: dalle 21:00 alle 08:59 non inviare notifiche
-    if (target.hour >= 21) {
-      // Slitta alle 09:00 del giorno successivo
-      final nextDay = target.add(const Duration(days: 1));
-      target = tz.TZDateTime(tz.local, nextDay.year, nextDay.month, nextDay.day, 9, 0);
-    } else if (target.hour < 9) {
-      // Slitta alle 09:00 dello stesso giorno
-      target = tz.TZDateTime(tz.local, target.year, target.month, target.day, 9, 0);
+    if (!enabled) {
+      if (_lastInactivityEnabled == false) return;
+      _lastInactivityEnabled = false;
+      _lastInactivityResetAt = null;
+      await _enqueueSync(() async {
+        try {
+          await _plugin.cancel(_inactivityNotificationId);
+        } catch (_) {}
+      });
+      return;
     }
 
-    final payload = jsonEncode({
-      'type': 'inactivity',
-      'route': '/diary',
-    });
+    final nowWall = DateTime.now();
+    if (_lastInactivityEnabled == true &&
+        _lastInactivityResetAt != null &&
+        nowWall.difference(_lastInactivityResetAt!) < _inactivityDebounce) {
+      return;
+    }
+    _lastInactivityEnabled = true;
+    _lastInactivityResetAt = nowWall;
 
-    const title = 'Come stai oggi?';
-    const body =
-        'Non aggiorni il tuo Diario da più di 20 ore. Tocca qui per registrare i tuoi parametri o le attività di oggi.';
+    await _enqueueSync(() async {
+      try {
+        await _plugin.cancel(_inactivityNotificationId);
+      } catch (_) {}
 
-    const details = AndroidNotificationDetails(
-      _inactivityChannelId,
-      _inactivityChannelName,
-      channelDescription: _inactivityChannelDesc,
-      importance: Importance.high,
-      priority: Priority.high,
-      styleInformation: BigTextStyleInformation(
-        body,
-        contentTitle: title,
-      ),
-    );
+      final now = tz.TZDateTime.now(tz.local);
+      var target = now.add(const Duration(hours: 20));
 
-    try {
-      await _plugin.zonedSchedule(
-        _inactivityNotificationId,
-        title,
-        body,
-        target,
-        const NotificationDetails(android: details),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        payload: payload,
+      // Quiet Hours: dalle 21:00 alle 08:59 non inviare notifiche
+      if (target.hour >= 21) {
+        // Slitta alle 09:00 del giorno successivo
+        final nextDay = target.add(const Duration(days: 1));
+        target = tz.TZDateTime(tz.local, nextDay.year, nextDay.month, nextDay.day, 9, 0);
+      } else if (target.hour < 9) {
+        // Slitta alle 09:00 dello stesso giorno
+        target = tz.TZDateTime(tz.local, target.year, target.month, target.day, 9, 0);
+      }
+
+      final payload = jsonEncode({
+        'type': 'inactivity',
+        'route': '/diary',
+      });
+
+      const title = 'Come stai oggi?';
+      const body =
+          'Non aggiorni il tuo Diario da più di 20 ore. Tocca qui per registrare i tuoi parametri o le attività di oggi.';
+
+      const details = AndroidNotificationDetails(
+        _inactivityChannelId,
+        _inactivityChannelName,
+        channelDescription: _inactivityChannelDesc,
+        importance: Importance.high,
+        priority: Priority.high,
+        styleInformation: BigTextStyleInformation(
+          body,
+          contentTitle: title,
+        ),
       );
-    } catch (e, st) {
-      ErrorHandler.logOnly(e, st, 'NotificationService.resetInactivityTimer');
-    }
+
+      try {
+        await _plugin.zonedSchedule(
+          _inactivityNotificationId,
+          title,
+          body,
+          target,
+          const NotificationDetails(android: details),
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          payload: payload,
+        );
+      } catch (e, st) {
+        ErrorHandler.logOnly(e, st, 'NotificationService.resetInactivityTimer');
+      }
+    });
   }
 
   // ----------------------------------------------------------------- Cleanup
@@ -665,12 +730,18 @@ class NotificationService {
   /// Cancella tutte le notifiche schedulate (invocato al logout per GDPR).
   Future<void> cancelAll() async {
     if (kIsWeb) return;
-    try {
-      await _plugin.cancelAll();
-      _scheduledTherapyIds.clear();
-      _scheduledAppointmentIds.clear();
-    } catch (e, st) {
-      ErrorHandler.logOnly(e, st, 'NotificationService.cancelAll');
-    }
+    _lastTherapiesSignature = null;
+    _lastAppointmentsSignature = null;
+    _lastInactivityEnabled = null;
+    _lastInactivityResetAt = null;
+    await _enqueueSync(() async {
+      try {
+        await _plugin.cancelAll();
+        _scheduledTherapyIds.clear();
+        _scheduledAppointmentIds.clear();
+      } catch (e, st) {
+        ErrorHandler.logOnly(e, st, 'NotificationService.cancelAll');
+      }
+    });
   }
 }

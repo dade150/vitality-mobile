@@ -1,24 +1,51 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 /// Servizio per la gestione vocale (Speech-to-Text e Text-to-Speech)
 /// per la chat di Vitality Assist.
-class VoiceService extends ChangeNotifier {
+class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
   VoiceService() {
-    _initTts();
+    WidgetsBinding.instance.addObserver(this);
   }
 
   final stt.SpeechToText _speech = stt.SpeechToText();
   final FlutterTts _tts = FlutterTts();
 
   bool _isSpeechInitialized = false;
+  bool _isTtsInitialized = false;
+  Future<void>? _ttsInitFuture;
   bool _isListening = false;
   bool _isSpeaking = false;
+  bool _disposed = false;
   String? _speakingMessageKey;
   String? _lastError;
   VoidCallback? _onListeningDone;
+
+  // Regex precompilate una sola volta per la sanitizzazione TTS.
+  static final _lineSplitRe = RegExp(r'[\r\n]+');
+  static final _tableSepRe = RegExp(r'^\|?(\s*:?-+:?\s*\|?)+$');
+  static final _headingRe = RegExp(r'^\s*#+\s*');
+  static final _bulletRe = RegExp(r'^\s*[\*\-•▪▫–—\+]\s+');
+  static final _quoteRe = RegExp(r'^\s*>\s*');
+  static final _edgePipeRe = RegExp(r'^\||\|$');
+  static final _mdLinkRe = RegExp(r'\[([^\]]+)\]\([^\)]+\)');
+  static final _mdImgRe = RegExp(r'!\[[^\]]*\]\([^\)]+\)');
+  static final _urlRe = RegExp(r'https?://\S+');
+  static final _boldItalicRe = RegExp(r'\*\*\*(.*?)\*\*\*');
+  static final _boldRe = RegExp(r'\*\*(.*?)\*\*');
+  static final _italicRe = RegExp(r'\*([^*]+)\*');
+  static final _underscoreRe = RegExp(r'_{1,3}(.*?)_{1,3}');
+  static final _strikeRe = RegExp(r'~~(.*?)~~');
+  static final _codeInlineRe = RegExp(r'`([^`]+)`');
+  static final _xmlTagRe = RegExp(r'<[^>]+>');
+  static final _bpRe = RegExp(r'\b(\d{2,3})/(\d{2,3})\b');
+  static final _specialMdRe = RegExp(r'[_~#>`\\{}[\]]');
+  static final _multiSpaceRe = RegExp(r'\s+');
+  static final _multiDotRe = RegExp(r'\.{2,}');
+  static final _commaDotRe = RegExp(r',\s*\.');
+  static final _colonDotRe = RegExp(r':\s*\.');
 
   // Velocità di lettura normale e fluida
   static const double _normalSpeechRate = 0.55;
@@ -27,6 +54,20 @@ class VoiceService extends ChangeNotifier {
   bool get isSpeaking => _isSpeaking;
   String? get speakingMessageKey => _speakingMessageKey;
   String? get lastError => _lastError;
+
+  void _notifySafe() {
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      if (_isListening) unawaited(stopListening());
+      if (_isSpeaking) unawaited(stopSpeaking());
+    }
+  }
 
   // ------------------------------------------------------------- STT (Microfono)
 
@@ -120,35 +161,42 @@ class VoiceService extends ChangeNotifier {
     final cb = _onListeningDone;
     _onListeningDone = null;
     cb?.call();
-    notifyListeners();
+    _notifySafe();
   }
 
   // ------------------------------------------------------------- TTS (Lettura)
+
+  Future<void> _ensureTtsInitialized() {
+    if (_isTtsInitialized) return Future<void>.value();
+    return _ttsInitFuture ??= _initTts().whenComplete(() {
+      _ttsInitFuture = null;
+    });
+  }
 
   Future<void> _initTts() async {
     try {
       _tts.setStartHandler(() {
         _isSpeaking = true;
-        notifyListeners();
+        _notifySafe();
       });
 
       _tts.setCompletionHandler(() {
         _isSpeaking = false;
         _speakingMessageKey = null;
-        notifyListeners();
+        _notifySafe();
       });
 
       _tts.setCancelHandler(() {
         _isSpeaking = false;
         _speakingMessageKey = null;
-        notifyListeners();
+        _notifySafe();
       });
 
       _tts.setErrorHandler((dynamic msg) {
         _isSpeaking = false;
         _speakingMessageKey = null;
         _lastError = _mapTtsError(msg);
-        notifyListeners();
+        _notifySafe();
       });
 
       await _tts.setLanguage('it-IT');
@@ -188,6 +236,7 @@ class VoiceService extends ChangeNotifier {
           }
         }
       }
+      _isTtsInitialized = true;
     } catch (e) {
       debugPrint('VoiceService initTts warning: $e');
     }
@@ -199,7 +248,7 @@ class VoiceService extends ChangeNotifier {
   String sanitizeForTts(String raw) {
     if (raw.trim().isEmpty) return '';
 
-    final lines = raw.split(RegExp(r'[\r\n]+'));
+    final lines = raw.split(_lineSplitRe);
     final buffer = <String>[];
 
     for (final line in lines) {
@@ -207,64 +256,64 @@ class VoiceService extends ChangeNotifier {
       if (l.isEmpty) continue;
 
       // Salta righe di separazione tabelle markdown (es. |---|---|)
-      if (RegExp(r'^\|?(\s*:?-+:?\s*\|?)+$').hasMatch(l)) continue;
+      if (_tableSepRe.hasMatch(l)) continue;
 
       // Salta delimitatori blocco codice (``` o ```json)
       if (l.startsWith('```')) continue;
 
       // Rimuovi intestazioni markdown (# Titolo, ## Sotto-titolo)
-      l = l.replaceAll(RegExp(r'^\s*#+\s*'), '');
+      l = l.replaceAll(_headingRe, '');
 
       // Rimuovi marcatori di elenchi puntati a inizio riga (*, -, +, •, ▪, etc.)
-      l = l.replaceAll(RegExp(r'^\s*[\*\-•▪▫–—\+]\s+'), '');
+      l = l.replaceAll(_bulletRe, '');
 
       // Rimuovi prefissi di citazione (> Citazione)
-      l = l.replaceAll(RegExp(r'^\s*>\s*'), '');
+      l = l.replaceAll(_quoteRe, '');
 
       // Rimuovi pipe a inizio o fine riga (tabelle)
-      l = l.replaceAll(RegExp(r'^\||\|$'), '');
+      l = l.replaceAll(_edgePipeRe, '');
 
       // Sostituisci pipe interne di tabella con virgola per pausa naturale
       l = l.replaceAll('|', ', ');
 
       // Markdown link: [testo](url) -> testo
-      l = l.replaceAllMapped(RegExp(r'\[([^\]]+)\]\([^\)]+\)'), (m) => m[1] ?? '');
+      l = l.replaceAllMapped(_mdLinkRe, (m) => m[1] ?? '');
 
       // Immagini markdown: ![alt](url) -> rimuovi
-      l = l.replaceAll(RegExp(r'!\[[^\]]*\]\([^\)]+\)'), '');
+      l = l.replaceAll(_mdImgRe, '');
 
       // URL web crudi -> rimuovi per evitare la sillabazione dell'indirizzo
-      l = l.replaceAll(RegExp(r'https?://\S+'), '');
+      l = l.replaceAll(_urlRe, '');
 
       // Grassetto e corsivo con 3 asterischi: ***testo*** -> testo
-      l = l.replaceAllMapped(RegExp(r'\*\*\*(.*?)\*\*\*'), (m) => m[1] ?? '');
+      l = l.replaceAllMapped(_boldItalicRe, (m) => m[1] ?? '');
 
       // Grassetto: **testo** -> testo
-      l = l.replaceAllMapped(RegExp(r'\*\*(.*?)\*\*'), (m) => m[1] ?? '');
+      l = l.replaceAllMapped(_boldRe, (m) => m[1] ?? '');
 
       // Corsivo: *testo* -> testo
-      l = l.replaceAllMapped(RegExp(r'\*([^*]+)\*'), (m) => m[1] ?? '');
+      l = l.replaceAllMapped(_italicRe, (m) => m[1] ?? '');
 
       // Underscore grassetto/corsivo: ___testo___, __testo__, _testo_
-      l = l.replaceAllMapped(RegExp(r'_{1,3}(.*?)_{1,3}'), (m) => m[1] ?? '');
+      l = l.replaceAllMapped(_underscoreRe, (m) => m[1] ?? '');
 
       // Testo barrato: ~~testo~~ -> testo
-      l = l.replaceAllMapped(RegExp(r'~~(.*?)~~'), (m) => m[1] ?? '');
+      l = l.replaceAllMapped(_strikeRe, (m) => m[1] ?? '');
 
       // Codice inline: `codice` -> codice
-      l = l.replaceAllMapped(RegExp(r'`([^`]+)`'), (m) => m[1] ?? '');
+      l = l.replaceAllMapped(_codeInlineRe, (m) => m[1] ?? '');
 
       // Tag XML / HTML residui
-      l = l.replaceAll(RegExp(r'<[^>]+>'), '');
+      l = l.replaceAll(_xmlTagRe, '');
 
       // Pressione arteriosa (es. 120/80 -> "120 su 80" per lettura naturale in italiano)
-      l = l.replaceAllMapped(RegExp(r'\b(\d{2,3})/(\d{2,3})\b'), (m) => '${m[1]} su ${m[2]}');
+      l = l.replaceAllMapped(_bpRe, (m) => '${m[1]} su ${m[2]}');
 
       // ELIMINA TOTALMENTE qualsiasi asterisco residuo (garanzia assoluta: nessun "asterisco" letto a voce)
       l = l.replaceAll('*', '');
 
       // Rimuovi altri caratteri speciali markdown che il TTS leggerebbe letteralmente
-      l = l.replaceAll(RegExp(r'[_~#>`\\{}[\]]'), ' ');
+      l = l.replaceAll(_specialMdRe, ' ');
 
       l = l.trim();
       if (l.isEmpty) continue;
@@ -280,11 +329,11 @@ class VoiceService extends ChangeNotifier {
 
     var result = buffer.join(' ');
     // Normalizza spazi multipli
-    result = result.replaceAll(RegExp(r'\s+'), ' ');
+    result = result.replaceAll(_multiSpaceRe, ' ');
     // Pulisci doppie punteggiature generate dalle concatenazioni
-    result = result.replaceAll(RegExp(r'\.{2,}'), '.');
-    result = result.replaceAll(RegExp(r',\s*\.'), '.');
-    result = result.replaceAll(RegExp(r':\s*\.'), ':');
+    result = result.replaceAll(_multiDotRe, '.');
+    result = result.replaceAll(_commaDotRe, '.');
+    result = result.replaceAll(_colonDotRe, ':');
 
     return result.trim();
   }
@@ -310,9 +359,11 @@ class VoiceService extends ChangeNotifier {
     final cleanText = sanitizeForTts(text);
     if (cleanText.isEmpty) return;
 
+    await _ensureTtsInitialized();
+
     _speakingMessageKey = messageKey;
     _isSpeaking = true;
-    notifyListeners();
+    _notifySafe();
 
     try {
       await _tts.setSpeechRate(_normalSpeechRate);
@@ -321,17 +372,19 @@ class VoiceService extends ChangeNotifier {
       _isSpeaking = false;
       _speakingMessageKey = null;
       _lastError = _mapTtsError(e);
-      notifyListeners();
+      _notifySafe();
     }
   }
 
   Future<void> stopSpeaking() async {
-    try {
-      await _tts.stop();
-    } catch (_) {}
+    if (_isTtsInitialized) {
+      try {
+        await _tts.stop();
+      } catch (_) {}
+    }
     _isSpeaking = false;
     _speakingMessageKey = null;
-    notifyListeners();
+    _notifySafe();
   }
 
   static String _mapSpeechError(String? code) {
@@ -369,6 +422,8 @@ class VoiceService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    WidgetsBinding.instance.removeObserver(this);
     stopListening();
     stopSpeaking();
     super.dispose();

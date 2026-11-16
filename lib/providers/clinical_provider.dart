@@ -1,38 +1,19 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../models/clinical_parameter.dart';
 import '../services/clinical_service.dart';
 import '../services/error_handler.dart';
-import 'error_provider.dart';
+import 'auth_scoped_provider.dart';
 
 /// Stato dei parametri clinici (HbA1c, eGFR, UACR, profilo lipidico).
 ///
 /// Stesso schema di [HealthProvider]: carica all'accesso, si svuota al
 /// logout, le scritture restituiscono `bool` e gli errori passano da
 /// [ErrorHandler] (atteso -> [errorMessage]; imprevisto -> schermata /error).
-class ClinicalProvider extends ChangeNotifier with ErrorReporting {
-  ClinicalProvider({ClinicalService? service}) : _service = service ?? ClinicalService() {
-    final auth = Supabase.instance.client.auth;
-    _authSub = auth.onAuthStateChange.listen(_onAuthChange);
-
-    // Provider creato (lazy) dopo il login: lo stato iniziale non arriva dallo stream.
-    final user = auth.currentUser;
-    if (user != null) {
-      _userId = user.id;
-      Future.microtask(refresh);
-    }
-  }
+class ClinicalProvider extends AuthScopedProvider {
+  ClinicalProvider({ClinicalService? service}) : _service = service ?? ClinicalService();
 
   final ClinicalService _service;
-  StreamSubscription<AuthState>? _authSub;
-
-  String? _userId;
-  bool _loading = false;
-  bool _loadFailed = false;
-  bool _hasLoaded = false;
 
   /// Per ogni parametro, i valori dal più recente al più vecchio.
   Map<ClinicalParameterType, List<ClinicalReading>> _byType = _empty();
@@ -41,10 +22,6 @@ class ClinicalProvider extends ChangeNotifier with ErrorReporting {
       {for (final t in ClinicalParameterType.values) t: <ClinicalReading>[]};
 
   // ----------------------------------------------------------------- Getter
-
-  bool get isLoading => _loading;
-  bool get loadFailed => _loadFailed;
-  bool get hasLoaded => _hasLoaded;
 
   /// Ultimo valore registrato per [type] (per data d'esame), se esiste.
   ClinicalReading? latest(ClinicalParameterType type) => _byType[type]?.firstOrNull;
@@ -55,27 +32,9 @@ class ClinicalProvider extends ChangeNotifier with ErrorReporting {
 
   // --------------------------------------------------------------- Caricamento
 
-  void _onAuthChange(AuthState data) {
-    final uid = data.session?.user.id;
-    if (data.event == AuthChangeEvent.signedOut || uid == null) {
-      _clear();
-      return;
-    }
-    if (uid != _userId) {
-      _clear(notify: false);
-      _userId = uid;
-      unawaited(refresh());
-    }
-  }
-
-  void _clear({bool notify = true}) {
-    _userId = null;
-    _loading = false;
-    _loadFailed = false;
-    _hasLoaded = false;
-    errorMessage = null;
+  @override
+  void onClearState() {
     _byType = _empty();
-    if (notify) notifyListeners();
   }
 
   void _setReadings(List<ClinicalReading> rows) {
@@ -86,36 +45,37 @@ class ClinicalProvider extends ChangeNotifier with ErrorReporting {
     _byType = next;
   }
 
+  @override
   Future<void> refresh() async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return;
 
-    _loading = true;
-    _loadFailed = false;
+    isLoading = true;
+    loadFailed = false;
     errorMessage = null;
     notifyListeners();
 
     try {
       final rows = await _service.fetchAll();
-      if (uid != _userId) return; // utente cambiato durante il caricamento
+      if (uid != userId) return; // utente cambiato durante il caricamento
       _setReadings(rows);
-      _hasLoaded = true;
+      hasLoaded = true;
     } catch (e, st) {
       // Nessuna schermata: la UI mostra già il banner "Riprova".
       ErrorHandler.handle(e, st, 'ClinicalProvider.refresh');
-      if (uid == _userId) _loadFailed = true;
+      if (uid == userId) loadFailed = true;
     } finally {
-      if (uid == _userId) {
-        _loading = false;
+      if (uid == userId) {
+        isLoading = false;
         notifyListeners();
       }
     }
   }
 
   Future<void> _reload() async {
-    final uid = _userId;
+    final uid = userId;
     final rows = await _service.fetchAll();
-    if (uid != _userId) return;
+    if (uid != userId) return;
     _setReadings(rows);
     notifyListeners();
   }
@@ -130,7 +90,7 @@ class ClinicalProvider extends ChangeNotifier with ErrorReporting {
       await _reload();
     } catch (e, st) {
       ErrorHandler.handle(e, st, 'ClinicalProvider.$where.reload');
-      _loadFailed = true;
+      loadFailed = true;
       notifyListeners();
     }
     return true;
@@ -147,10 +107,4 @@ class ClinicalProvider extends ChangeNotifier with ErrorReporting {
 
   Future<bool> deleteReading(String id) =>
       _write(() => _service.delete(id), where: 'deleteReading');
-
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
-  }
 }

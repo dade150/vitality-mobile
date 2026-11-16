@@ -1,4 +1,6 @@
 // lib/providers/chat_provider.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/chat_message.dart';
@@ -87,6 +89,20 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
       String? assistantMsgId;
       var proposals = <ProposedEntry>[];
       String? attKind;
+      Timer? streamThrottleTimer;
+      var hasPendingFlush = false;
+
+      void flushStreamingBubble() {
+        hasPendingFlush = false;
+        if (epoch != _epoch) return;
+        if (assistantIndex < messages.length) {
+          messages[assistantIndex] = messages[assistantIndex].copyWith(
+            text: accumulatedText,
+            isStreaming: true,
+          );
+          notifyListeners();
+        }
+      }
 
       try {
         final stream = _chatService.streamMessage(request);
@@ -97,14 +113,21 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
           if (type == 'delta') {
             final deltaText = event['text']?.toString() ?? '';
             accumulatedText += deltaText;
-            if (assistantIndex < messages.length) {
-              messages[assistantIndex] = messages[assistantIndex].copyWith(
-                text: accumulatedText,
-                isStreaming: true,
-              );
-              notifyListeners();
+            if (streamThrottleTimer == null) {
+              flushStreamingBubble();
+              streamThrottleTimer = Timer(const Duration(milliseconds: 45), () {
+                streamThrottleTimer = null;
+                if (hasPendingFlush) {
+                  flushStreamingBubble();
+                }
+              });
+            } else {
+              hasPendingFlush = true;
             }
           } else if (type == 'done') {
+            streamThrottleTimer?.cancel();
+            streamThrottleTimer = null;
+            hasPendingFlush = false;
             final sessId = event['session_id'];
             if (sessId is int) {
               currentSessionId = sessId;
@@ -151,6 +174,8 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
           }
         }
       } catch (e) {
+        streamThrottleTimer?.cancel();
+        streamThrottleTimer = null;
         // Se si verifica un errore e non avevamo ricevuto testo, rimuoviamo la bolla vuota
         if (assistantIndex < messages.length && accumulatedText.isEmpty) {
           messages.removeAt(assistantIndex);
@@ -160,6 +185,8 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
           notifyListeners();
         }
         rethrow;
+      } finally {
+        streamThrottleTimer?.cancel();
       }
     }, where: 'ChatProvider.sendMessage');
 

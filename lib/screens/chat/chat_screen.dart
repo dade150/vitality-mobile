@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -1069,33 +1069,35 @@ class _ChatScreenState extends State<ChatScreen> {
                             itemCount: chat.messages.length + (_hasSpokenMessage ? 1 : 0),
                             itemBuilder: (context, index) {
                               if (_hasSpokenMessage && index == chat.messages.length) {
-                                return _buildSpokenDraftBubble(theme, cs);
+                                return RepaintBoundary(child: _buildSpokenDraftBubble(theme, cs));
                               }
                               final message = chat.messages[index];
                               if (message.isUser) {
-                                return _bubble(
-                                  theme: theme,
-                                  isUser: true,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (message.attachmentKind != null)
-                                        _buildAttachmentBadge(
-                                          theme,
-                                          true,
-                                          message.attachmentKind!,
-                                          message.attachmentFileName,
-                                        ),
-                                      if (message.text.isNotEmpty)
-                                        FormattedChatMessage(
-                                          text: message.text,
-                                          isUser: true,
-                                          style: theme.textTheme.bodyLarge?.copyWith(
-                                            color: cs.onPrimary,
+                                return RepaintBoundary(
+                                  child: _bubble(
+                                    theme: theme,
+                                    isUser: true,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (message.attachmentKind != null)
+                                          _buildAttachmentBadge(
+                                            theme,
+                                            true,
+                                            message.attachmentKind!,
+                                            message.attachmentFileName,
                                           ),
-                                        ),
-                                    ],
+                                        if (message.text.isNotEmpty)
+                                          FormattedChatMessage(
+                                            text: message.text,
+                                            isUser: true,
+                                            style: theme.textTheme.bodyLarge?.copyWith(
+                                              color: cs.onPrimary,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 );
                               }
@@ -1106,9 +1108,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
                               final isDark = theme.brightness == Brightness.dark;
 
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(
+                              return RepaintBoundary(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Container(
@@ -1267,7 +1270,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                         ],
                                       ),
                                     ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               );
                             },
@@ -1534,21 +1538,61 @@ class _AnimatedChatBackground extends StatefulWidget {
 }
 
 class _AnimatedChatBackgroundState extends State<_AnimatedChatBackground>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  // 20 step/s su un ciclo di 14s: movimento fluido identico, ma riduce ~75-80%
+  // i repaint GPU degli shader rispetto a 60-120 FPS continui.
+  static const int _fpsSteps = 280;
+
   late final AnimationController _controller;
+  final ValueNotifier<int> _paintStep = ValueNotifier<int>(0);
+  bool _disableAnimations = false;
+  bool _isForeground = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 14),
-    )..repeat();
+    )..addListener(_onAnimationTick);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _disableAnimations = MediaQuery.disableAnimationsOf(context);
+    _syncTickerState();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isForeground = state == AppLifecycleState.resumed;
+    _syncTickerState();
+  }
+
+  void _syncTickerState() {
+    final shouldRun = _isForeground && !_disableAnimations;
+    if (shouldRun && !_controller.isAnimating) {
+      _controller.repeat();
+    } else if (!shouldRun && _controller.isAnimating) {
+      _controller.stop();
+    }
+  }
+
+  void _onAnimationTick() {
+    final step = (_controller.value * _fpsSteps).floor();
+    if (step != _paintStep.value) {
+      _paintStep.value = step;
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.removeListener(_onAnimationTick);
     _controller.dispose();
+    _paintStep.dispose();
     super.dispose();
   }
 
@@ -1557,23 +1601,23 @@ class _AnimatedChatBackgroundState extends State<_AnimatedChatBackground>
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final disableAnimations = MediaQuery.disableAnimationsOf(context);
 
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final t = disableAnimations ? 0.0 : _controller.value * 2 * math.pi;
-
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            CustomPaint(
-              painter: _OrbBackgroundPainter(t: t, isDark: isDark, cs: cs),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        RepaintBoundary(
+          child: CustomPaint(
+            painter: _OrbBackgroundPainter(
+              stepListenable: _paintStep,
+              fpsSteps: _fpsSteps,
+              isDark: isDark,
+              cs: cs,
+              disableAnimations: _disableAnimations,
             ),
-            widget.child,
-          ],
-        );
-      },
+          ),
+        ),
+        RepaintBoundary(child: widget.child),
+      ],
     );
   }
 }
@@ -1589,20 +1633,46 @@ class _ChatGreeting extends StatefulWidget {
 }
 
 class _ChatGreetingState extends State<_ChatGreeting>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller;
+  bool _disableAnimations = false;
+  bool _isForeground = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
-    )..repeat(reverse: true);
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _disableAnimations = MediaQuery.disableAnimationsOf(context);
+    _syncTickerState();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isForeground = state == AppLifecycleState.resumed;
+    _syncTickerState();
+  }
+
+  void _syncTickerState() {
+    final shouldRun = _isForeground && !_disableAnimations;
+    if (shouldRun && !_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    } else if (!shouldRun && _controller.isAnimating) {
+      _controller.stop();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
@@ -1613,6 +1683,26 @@ class _ChatGreetingState extends State<_ChatGreeting>
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
+    final staticBadge = Container(
+      width: 68,
+      height: 68,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isDark
+            ? cs.primaryContainer.withValues(alpha: 0.35)
+            : AppColors.lightPeach,
+        border: Border.all(
+          color: cs.primary.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Icon(
+        Icons.auto_awesome_rounded,
+        size: 36,
+        color: cs.primary,
+      ),
+    );
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -1620,52 +1710,37 @@ class _ChatGreetingState extends State<_ChatGreeting>
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                final pulse = _controller.value;
-                return SizedBox(
-                  width: 96,
-                  height: 96,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Transform.scale(
-                        scale: 0.92 + pulse * 0.22,
-                        child: Container(
-                          width: 84,
-                          height: 84,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: cs.primary.withValues(
-                              alpha: (isDark ? 0.18 : 0.14) * (1.15 - pulse * 0.35),
+            RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _controller,
+                child: staticBadge,
+                builder: (context, child) {
+                  final pulse = _disableAnimations ? 0.0 : _controller.value;
+                  return SizedBox(
+                    width: 96,
+                    height: 96,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Transform.scale(
+                          scale: 0.92 + pulse * 0.22,
+                          child: Container(
+                            width: 84,
+                            height: 84,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: cs.primary.withValues(
+                                alpha: (isDark ? 0.18 : 0.14) * (1.15 - pulse * 0.35),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Container(
-                        width: 68,
-                        height: 68,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isDark
-                              ? cs.primaryContainer.withValues(alpha: 0.35)
-                              : AppColors.lightPeach,
-                          border: Border.all(
-                            color: cs.primary.withValues(alpha: 0.3),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.auto_awesome_rounded,
-                          size: 36,
-                          color: cs.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                        if (child != null) child,
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
             const SizedBox(height: 20),
             Text(
@@ -1688,14 +1763,23 @@ class _ChatGreetingState extends State<_ChatGreeting>
 /// Tutte le armoniche usano multipli interi di `t` (0..2π) per un loop continuo
 /// senza alcuno scatto.
 class _OrbBackgroundPainter extends CustomPainter {
-  final double t;
+  final ValueListenable<int> stepListenable;
+  final int fpsSteps;
   final bool isDark;
   final ColorScheme cs;
+  final bool disableAnimations;
 
-  _OrbBackgroundPainter({required this.t, required this.isDark, required this.cs});
+  _OrbBackgroundPainter({
+    required this.stepListenable,
+    required this.fpsSteps,
+    required this.isDark,
+    required this.cs,
+    required this.disableAnimations,
+  }) : super(repaint: stepListenable);
 
   @override
   void paint(Canvas canvas, Size size) {
+    final t = disableAnimations ? 0.0 : (stepListenable.value / fpsSteps) * 2 * math.pi;
     final w = size.width;
     final h = size.height;
     final shortest = math.min(w, h);
@@ -1842,7 +1926,10 @@ class _OrbBackgroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_OrbBackgroundPainter old) =>
-      old.t != t || old.isDark != isDark || old.cs != cs;
+      old.isDark != isDark ||
+      old.cs != cs ||
+      old.disableAnimations != disableAnimations ||
+      old.stepListenable != stepListenable;
 }
 
 /// Visualizzatore ad onde sonore animate per il feedback vocale in tempo reale.

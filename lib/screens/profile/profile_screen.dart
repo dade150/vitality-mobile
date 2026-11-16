@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../models/profile.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../theme/app_colors.dart';
 import '../../utils/app_date_picker.dart';
 import '../../utils/app_feedback.dart';
 import '../../widgets/app_scaffold.dart';
@@ -196,12 +197,201 @@ class ProfileScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _editVitalParams(BuildContext context, ProfileProvider profileProvider) async {
+    final profile = profileProvider.profile;
+    if (profile == null) return;
+
+    final formKey = GlobalKey<FormState>();
+    final weightController = TextEditingController(
+      text: profile.peso > 0 ? profile.peso.toStringAsFixed(1) : '',
+    );
+    final heightController = TextEditingController(
+      text: profile.altezza > 0 ? profile.altezza.toString() : '',
+    );
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheetContext) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+            ),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Modifica parametri vitali',
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: weightController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(labelText: 'Peso (kg)'),
+                            validator: (v) {
+                              final parsed = _parseDouble(v ?? '');
+                              if (parsed == null || parsed < 20 || parsed > 300) {
+                                return 'Peso non valido';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: heightController,
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.done,
+                            decoration: const InputDecoration(labelText: 'Altezza (cm)'),
+                            validator: (v) {
+                              final parsed = int.tryParse((v ?? '').trim());
+                              if (parsed == null || parsed < 50 || parsed > 250) {
+                                return 'Altezza non valida';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                        onPressed: () async {
+                          if (!(formKey.currentState?.validate() ?? false)) return;
+                          final ok = await profileProvider.updateProfile(
+                            peso: _parseDouble(weightController.text)!,
+                            altezza: int.parse(heightController.text.trim()),
+                          );
+                          if (!sheetContext.mounted) return;
+                          if (!ok) {
+                            AppFeedback.showErrorDialog(
+                              sheetContext,
+                              message: profileProvider.errorMessage ??
+                                  'Salvataggio non riuscito. Riprova.',
+                            );
+                            return;
+                          }
+                          Navigator.of(sheetContext).pop();
+                        },
+                        child: const Text('Salva'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    } finally {
+      weightController.dispose();
+      heightController.dispose();
+    }
+  }
+
+  Future<void> _editAnamnesis(BuildContext context, ProfileProvider profileProvider) async {
+    final profile = profileProvider.profile;
+    if (profile == null) return;
+
+    final noteController = TextEditingController(text: profile.noteAnamnestiche ?? '');
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheetContext) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Modifica note anamnestiche',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Queste informazioni aiutano l\'assistente a contestualizzare sempre le risposte (es. altre patologie, allergie, intolleranze).',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: noteController,
+                    maxLines: 5,
+                    maxLength: 400,
+                    textInputAction: TextInputAction.newline,
+                    decoration: const InputDecoration(
+                      labelText: 'Altre patologie o note utili',
+                      hintText: 'Es. ipertensione, celiachia, allergie...',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                      onPressed: () async {
+                        final ok = await profileProvider.updateProfile(
+                          noteAnamnestiche: noteController.text.trim(),
+                        );
+                        if (!sheetContext.mounted) return;
+                        if (!ok) {
+                          AppFeedback.showErrorDialog(
+                            sheetContext,
+                            message: profileProvider.errorMessage ??
+                                'Salvataggio non riuscito. Riprova.',
+                          );
+                          return;
+                        }
+                        Navigator.of(sheetContext).pop();
+                      },
+                      child: const Text('Salva'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } finally {
+      noteController.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final profileProvider = context.watch<ProfileProvider>();
     final profile = profileProvider.profile;
+    final noteText = profile?.noteAnamnestiche?.trim() ?? '';
+    final hasNote = noteText.isNotEmpty;
 
     if (profile == null) {
       return AppScaffold(
@@ -271,7 +461,10 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          Text('Parametri vitali', style: theme.textTheme.titleLarge),
+          _SectionHeaderWithEdit(
+            title: 'Parametri vitali',
+            onEdit: () => _editVitalParams(context, profileProvider),
+          ),
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -310,6 +503,46 @@ class ProfileScreen extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 24),
+          _SectionHeaderWithEdit(
+            title: 'Note anamnestiche',
+            onEdit: () => _editAnamnesis(context, profileProvider),
+          ),
+          const SizedBox(height: 12),
+          SectionCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: cs.primary.withValues(alpha: 0.15),
+                  child: Icon(Icons.medical_information_outlined, color: cs.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Altre patologie e informazioni utili',
+                        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        hasNote
+                            ? noteText
+                            : 'Nessuna nota inserita. Premi Modifica per aggiungere altre patologie, allergie o dettagli utili per il tuo assistente.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: hasNote ? cs.onSurface : cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 32),
           Center(
             child: TextButton.icon(
@@ -325,6 +558,72 @@ class ProfileScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SectionHeaderWithEdit extends StatelessWidget {
+  final String title;
+  final VoidCallback onEdit;
+
+  const _SectionHeaderWithEdit({
+    required this.title,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentText = isDark ? cs.primary : AppColors.accentText;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Text(title, style: theme.textTheme.titleLarge),
+        ),
+        const SizedBox(width: 8),
+        Material(
+          color: cs.surfaceContainerLowest,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: accentText.withValues(alpha: 0.55),
+              width: 1.3,
+            ),
+          ),
+          child: InkWell(
+            onTap: onEdit,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.edit_outlined,
+                    size: 16,
+                    color: accentText,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Modifica',
+                    style: TextStyle(
+                      color: accentText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -5,43 +5,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/appointment.dart';
 import '../services/error_handler.dart';
-import 'error_provider.dart';
+import 'auth_scoped_provider.dart';
 
 /// Stato delle visite mediche / appuntamenti, collegato alla tabella
 /// `appointments` di Supabase (nessun dato mockato).
 ///
 /// Rispetta le regole GDPR e di sessione: carica i dati all'accesso e
 /// svuota immediatamente la memoria al logout o cambio utente.
-class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
-  AppointmentsProvider([SupabaseClient? client]) : _db = client ?? Supabase.instance.client {
-    final auth = _db.auth;
-    _authSub = auth.onAuthStateChange.listen(_onAuthChange);
-
-    final user = auth.currentUser;
-    if (user != null) {
-      _userId = user.id;
-      Future.microtask(refresh);
-    }
-  }
+class AppointmentsProvider extends AuthScopedProvider {
+  AppointmentsProvider([super.client]);
 
   static const _table = 'appointments';
-
-  final SupabaseClient _db;
-  StreamSubscription<AuthState>? _authSub;
-
-  String? _userId;
-  bool _loading = false;
-  bool _loadFailed = false;
-  bool _hasLoaded = false;
 
   final List<Appointment> _appointments = [];
 
   // ---------------------------------------------------------------- Getter
 
   List<Appointment> get appointments => List.unmodifiable(_appointments);
-  bool get isLoading => _loading;
-  bool get loadFailed => _loadFailed;
-  bool get hasLoaded => _hasLoaded;
 
   /// Tutti gli appuntamenti ordinati cronologicamente (dal meno recente al più lontano).
   List<Appointment> get sorted {
@@ -78,27 +58,9 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
 
   // --------------------------------------------------------------- Sessione
 
-  void _onAuthChange(AuthState data) {
-    final uid = data.session?.user.id;
-    if (data.event == AuthChangeEvent.signedOut || uid == null) {
-      _clear();
-      return;
-    }
-    if (uid != _userId) {
-      _clear(notify: false);
-      _userId = uid;
-      unawaited(refresh());
-    }
-  }
-
-  void _clear({bool notify = true}) {
-    _userId = null;
-    _loading = false;
-    _loadFailed = false;
-    _hasLoaded = false;
-    errorMessage = null;
+  @override
+  void onClearState() {
     _appointments.clear();
-    if (notify) notifyListeners();
   }
 
   // --------------------------------------------------- Conversioni & Fetch
@@ -141,18 +103,19 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
     );
   }
 
+  @override
   Future<void> refresh() async {
-    final uid = _userId;
+    final uid = userId;
     if (uid == null) return;
 
-    _loading = true;
-    _loadFailed = false;
+    isLoading = true;
+    loadFailed = false;
     errorMessage = null;
     notifyListeners();
 
     try {
-      final rows = await _db.from(_table).select().limit(500);
-      if (uid != _userId) return;
+      final rows = await db.from(_table).select().limit(500);
+      if (uid != userId) return;
 
       final loaded = <Appointment>[];
       for (final r in rows) {
@@ -163,22 +126,22 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
       _appointments
         ..clear()
         ..addAll(loaded);
-      _hasLoaded = true;
+      hasLoaded = true;
     } catch (e, st) {
       ErrorHandler.handle(e, st, 'AppointmentsProvider.refresh');
-      if (uid == _userId) _loadFailed = true;
+      if (uid == userId) loadFailed = true;
     } finally {
-      if (uid == _userId) {
-        _loading = false;
+      if (uid == userId) {
+        isLoading = false;
         notifyListeners();
       }
     }
   }
 
   Future<void> _reload() async {
-    final uid = _userId;
-    final rows = await _db.from(_table).select().limit(500);
-    if (uid != _userId) return;
+    final uid = userId;
+    final rows = await db.from(_table).select().limit(500);
+    if (uid != userId) return;
     final loaded = <Appointment>[];
     for (final r in rows) {
       final appt = _fromRow(r);
@@ -197,7 +160,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
       await _reload();
     } catch (e, st) {
       ErrorHandler.handle(e, st, 'AppointmentsProvider.$where.reload');
-      _loadFailed = true;
+      loadFailed = true;
       notifyListeners();
     }
     return true;
@@ -223,7 +186,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
   Future<bool> addAppointment(Appointment appointment) => _write(
         () async {
           _validate(appointment);
-          final uid = _userId ?? _db.auth.currentUser?.id;
+          final uid = userId ?? db.auth.currentUser?.id;
           if (uid == null) {
             throw const AppFailure('Sessione scaduta. Effettua di nuovo l\'accesso.');
           }
@@ -242,7 +205,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
           }
 
           try {
-            await _db.from(_table).insert(payload);
+            await db.from(_table).insert(payload);
           } on PostgrestException catch (e) {
             // Se la colonna 'location' non esiste ancora sul DB di Supabase,
             // ritenta salvando senza la colonna separata (fallback sicuro).
@@ -255,7 +218,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
                 final locNote = 'Luogo: ${appointment.location.trim()}';
                 fallback['notes'] = cur.isEmpty ? locNote : '$cur\n$locNote';
               }
-              await _db.from(_table).insert(fallback);
+              await db.from(_table).insert(fallback);
             } else {
               rethrow;
             }
@@ -283,7 +246,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
           }
 
           try {
-            final rows = await _db
+            final rows = await db
                 .from(_table)
                 .update(payload)
                 .eq('id', id)
@@ -300,7 +263,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
               if (fallback['doctor_name'] == null && appointment.location.trim().isNotEmpty) {
                 fallback['doctor_name'] = appointment.location.trim();
               }
-              final rows = await _db
+              final rows = await db
                   .from(_table)
                   .update(fallback)
                   .eq('id', id)
@@ -322,7 +285,7 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
   Future<bool> removeAppointment(String id) => _write(
         () async {
           final Object dbId = int.tryParse(id) ?? id;
-          final rows = await _db.from(_table).delete().eq('id', dbId).select('id');
+          final rows = await db.from(_table).delete().eq('id', dbId).select('id');
           if (rows.isEmpty) {
             throw const AppFailure(
               'La visita non esiste più o non puoi eliminarla.',
@@ -332,10 +295,4 @@ class AppointmentsProvider extends ChangeNotifier with ErrorReporting {
         },
         where: 'removeAppointment',
       );
-
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
-  }
 }
