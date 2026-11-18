@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -19,9 +20,20 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
   bool _isListening = false;
   bool _isSpeaking = false;
   bool _disposed = false;
+  bool _ttsStopPending = false;
+  int _listenEpoch = 0;
+  int _activeListenEpoch = 0;
+  int _speakEpoch = 0;
+  final ValueNotifier<double> _soundLevelNotifier = ValueNotifier<double>(0.0);
   String? _speakingMessageKey;
   String? _lastError;
+  String? _lastErrorCode;
   VoidCallback? _onListeningDone;
+  VoidCallback? _onSpeakCompleted;
+
+  // Limite di sicurezza per il testo trascritto in un singolo turno vocale.
+  static const int _maxTranscriptLength = 2000;
+  static final _controlCharsRe = RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]');
 
   // Regex precompilate una sola volta per la sanitizzazione TTS.
   static final _lineSplitRe = RegExp(r'[\r\n]+');
@@ -52,8 +64,15 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get isListening => _isListening;
   bool get isSpeaking => _isSpeaking;
+  double get soundLevel => _soundLevelNotifier.value;
+  ValueListenable<double> get soundLevelListenable => _soundLevelNotifier;
   String? get speakingMessageKey => _speakingMessageKey;
   String? get lastError => _lastError;
+  String? get lastErrorCode => _lastErrorCode;
+
+  /// Verifica se l'ultimo errore è solo un silenzio/timeout naturale (non critico in conversazione continua).
+  bool get isBenignSilenceError =>
+      _lastErrorCode == 'error_no_match' || _lastErrorCode == 'error_speech_timeout';
 
   void _notifySafe() {
     if (!_disposed) {
@@ -61,10 +80,35 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  void _setSoundLevelSafe(double level) {
+    if (!_disposed && (level - _soundLevelNotifier.value).abs() > 0.04) {
+      _soundLevelNotifier.value = level;
+    }
+  }
+
+  void _resetSoundLevelSafe() {
+    if (!_disposed && _soundLevelNotifier.value != 0.0) {
+      _soundLevelNotifier.value = 0.0;
+    }
+  }
+
+  static String _sanitizeTranscript(String raw) {
+    var clean = raw.replaceAll(_controlCharsRe, '').trim();
+    if (clean.length > _maxTranscriptLength) {
+      clean = clean.substring(0, _maxTranscriptLength);
+    }
+    return clean;
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
-      if (_isListening) unawaited(stopListening());
+    // Hardening Privacy & Security: non lasciare mai il microfono o il TTS attivi
+    // quando l'app passa in background, perde il focus o lo schermo viene bloccato.
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (_isListening) unawaited(cancelListening());
       if (_isSpeaking) unawaited(stopSpeaking());
     }
   }
@@ -78,30 +122,35 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
       _isSpeechInitialized = await _speech.initialize(
         onStatus: (status) {
           if (status == 'done' || status == 'notListening') {
-            if (_isListening) {
+            if (_isListening && _activeListenEpoch == _listenEpoch) {
               _isListening = false;
+              _resetSoundLevelSafe();
               final cb = _onListeningDone;
               _onListeningDone = null;
+              _notifySafe();
               cb?.call();
-              notifyListeners();
             }
           }
         },
         onError: (errorNotification) {
+          if (_activeListenEpoch != _listenEpoch && !_isListening) return;
+          _lastErrorCode = errorNotification.errorMsg;
           _lastError = _mapSpeechError(errorNotification.errorMsg);
           _isListening = false;
+          _resetSoundLevelSafe();
           final cb = _onListeningDone;
           _onListeningDone = null;
+          _notifySafe();
           cb?.call();
-          notifyListeners();
         },
       );
     } catch (e) {
+      _lastErrorCode = 'exception';
       _lastError = _mapSpeechException(e);
       _isSpeechInitialized = false;
     }
 
-    notifyListeners();
+    _notifySafe();
     return _isSpeechInitialized;
   }
 
@@ -110,57 +159,121 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
     VoidCallback? onDone,
     String localeId = 'it_IT',
   }) async {
+    final myEpoch = ++_listenEpoch;
+
+    if (_isListening) {
+      _onListeningDone = null;
+      _isListening = false;
+      _resetSoundLevelSafe();
+      try {
+        await _speech.cancel();
+      } catch (_) {}
+      if (myEpoch != _listenEpoch || _disposed) return false;
+    }
+
     if (_isSpeaking) {
       await stopSpeaking();
+      if (myEpoch != _listenEpoch || _disposed) return false;
     }
 
     final available = await initSpeech();
+    if (myEpoch != _listenEpoch || _disposed) return false;
+
     if (!available) {
+      _lastErrorCode = 'unavailable';
       _lastError = 'Riconoscimento vocale non disponibile o permessi negati';
-      notifyListeners();
+      _notifySafe();
       return false;
     }
 
     _lastError = null;
+    _lastErrorCode = null;
+    _resetSoundLevelSafe();
+    _activeListenEpoch = myEpoch;
     _isListening = true;
     _onListeningDone = onDone;
-    notifyListeners();
+    _notifySafe();
 
     try {
       await _speech.listen(
         onResult: (result) {
-          onResult(result.recognizedWords);
+          if (myEpoch != _listenEpoch || _disposed) return;
+          final sanitized = _sanitizeTranscript(result.recognizedWords);
+          // Protegge dal bug Android per cui un callback finale vuoto sovrascrive il testo appena dettato.
+          if (sanitized.isNotEmpty) {
+            onResult(sanitized);
+          }
+          if (result.finalResult && _isListening) {
+            _isListening = false;
+            _resetSoundLevelSafe();
+            final cb = _onListeningDone;
+            _onListeningDone = null;
+            _notifySafe();
+            cb?.call();
+          }
+        },
+        onSoundLevelChange: (level) {
+          if (myEpoch != _listenEpoch || !_isListening || _disposed) return;
+          // Normalizza i dB tipici di Android (-2..10 dB) in 0.0..1.0 senza rebuildare la schermata.
+          final normalized = ((level + 2.0) / 12.0).clamp(0.0, 1.0);
+          _setSoundLevelSafe(normalized);
         },
         listenOptions: stt.SpeechListenOptions(
           partialResults: true,
           cancelOnError: true,
           listenMode: stt.ListenMode.dictation,
           localeId: localeId,
-          pauseFor: const Duration(seconds: 4),
+          pauseFor: const Duration(seconds: 3),
           listenFor: const Duration(seconds: 60),
         ),
       );
+      if (myEpoch != _listenEpoch || _disposed) {
+        try {
+          await _speech.cancel();
+        } catch (_) {}
+        return false;
+      }
       return true;
     } catch (e) {
+      if (myEpoch != _listenEpoch || _disposed) return false;
+      _lastErrorCode = 'exception';
       _lastError = _mapSpeechException(e);
       _isListening = false;
+      _resetSoundLevelSafe();
       final cb = _onListeningDone;
       _onListeningDone = null;
+      _notifySafe();
       cb?.call();
-      notifyListeners();
       return false;
     }
   }
 
   Future<void> stopListening() async {
+    _listenEpoch++;
     if (!_isListening) return;
+    _isListening = false;
+    _resetSoundLevelSafe();
+    final cb = _onListeningDone;
+    _onListeningDone = null;
     try {
       await _speech.stop();
     } catch (_) {}
-    _isListening = false;
-    final cb = _onListeningDone;
-    _onListeningDone = null;
+    _notifySafe();
     cb?.call();
+  }
+
+  /// Interrompe e annulla immediatamente l'ascolto senza invocare [onDone] (es. tasto Annulla / Background / Logout).
+  Future<void> cancelListening() async {
+    _listenEpoch++;
+    _onListeningDone = null;
+    final wasListening = _isListening;
+    _isListening = false;
+    _resetSoundLevelSafe();
+    if (wasListening || _speech.isListening) {
+      try {
+        await _speech.cancel();
+      } catch (_) {}
+    }
     _notifySafe();
   }
 
@@ -176,25 +289,39 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _initTts() async {
     try {
       _tts.setStartHandler(() {
+        _ttsStopPending = false;
         _isSpeaking = true;
         _notifySafe();
       });
 
       _tts.setCompletionHandler(() {
+        _ttsStopPending = false;
         _isSpeaking = false;
         _speakingMessageKey = null;
+        final doneCb = _onSpeakCompleted;
+        _onSpeakCompleted = null;
         _notifySafe();
+        doneCb?.call();
       });
 
       _tts.setCancelHandler(() {
+        // Ignora un callback onCancel ritardato proveniente da un precedente stopSpeaking()
+        // quando è già partita una nuova lettura vocale.
+        if (_ttsStopPending) {
+          _ttsStopPending = false;
+          return;
+        }
         _isSpeaking = false;
         _speakingMessageKey = null;
+        _onSpeakCompleted = null;
         _notifySafe();
       });
 
       _tts.setErrorHandler((dynamic msg) {
+        _ttsStopPending = false;
         _isSpeaking = false;
         _speakingMessageKey = null;
+        _onSpeakCompleted = null;
         _lastError = _mapTtsError(msg);
         _notifySafe();
       });
@@ -347,44 +474,89 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
     await speak(text, messageKey: messageKey);
   }
 
-  Future<void> speak(String text, {String? messageKey}) async {
+  Future<void> speak(
+    String text, {
+    String? messageKey,
+    VoidCallback? onComplete,
+  }) async {
+    final myEpoch = ++_speakEpoch;
+
     if (_isListening) {
-      await stopListening();
+      await cancelListening();
+      if (myEpoch != _speakEpoch || _disposed) return;
     }
 
     if (_isSpeaking) {
-      await stopSpeaking();
+      _ttsStopPending = true;
+      _onSpeakCompleted = null;
+      _isSpeaking = false;
+      _speakingMessageKey = null;
+      if (_isTtsInitialized) {
+        try {
+          await _tts.stop();
+        } catch (_) {}
+      }
+      if (myEpoch != _speakEpoch || _disposed) return;
     }
 
     final cleanText = sanitizeForTts(text);
-    if (cleanText.isEmpty) return;
+    if (cleanText.isEmpty) {
+      onComplete?.call();
+      return;
+    }
 
     await _ensureTtsInitialized();
+    if (myEpoch != _speakEpoch || _disposed) return;
 
     _speakingMessageKey = messageKey;
+    _onSpeakCompleted = onComplete;
     _isSpeaking = true;
     _notifySafe();
 
     try {
       await _tts.setSpeechRate(_normalSpeechRate);
+      if (myEpoch != _speakEpoch || _disposed) return;
       await _tts.speak(cleanText);
     } catch (e) {
+      if (myEpoch != _speakEpoch || _disposed) return;
+      _ttsStopPending = false;
       _isSpeaking = false;
       _speakingMessageKey = null;
+      _onSpeakCompleted = null;
       _lastError = _mapTtsError(e);
       _notifySafe();
     }
   }
 
   Future<void> stopSpeaking() async {
-    if (_isTtsInitialized) {
+    _speakEpoch++;
+    _onSpeakCompleted = null;
+    final wasSpeaking = _isSpeaking;
+    _isSpeaking = false;
+    _speakingMessageKey = null;
+    if (_isTtsInitialized && wasSpeaking) {
+      _ttsStopPending = true;
       try {
         await _tts.stop();
       } catch (_) {}
+    } else {
+      _ttsStopPending = false;
     }
-    _isSpeaking = false;
-    _speakingMessageKey = null;
     _notifySafe();
+  }
+
+  /// Azzeramento di sicurezza completo (GDPR Art. 25): interrompe immediatamente
+  /// qualsiasi ascolto o sintesi vocale e pulisce tutti i riferimenti/buffer in RAM.
+  Future<void> stopAllAndClear() async {
+    _listenEpoch++;
+    _speakEpoch++;
+    _onListeningDone = null;
+    _onSpeakCompleted = null;
+    _lastError = null;
+    _lastErrorCode = null;
+    _resetSoundLevelSafe();
+    await cancelListening();
+    await stopSpeaking();
   }
 
   static String _mapSpeechError(String? code) {
@@ -424,8 +596,9 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
   void dispose() {
     _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
-    stopListening();
-    stopSpeaking();
+    unawaited(cancelListening());
+    unawaited(stopSpeaking());
+    _soundLevelNotifier.dispose();
     super.dispose();
   }
 }

@@ -257,6 +257,7 @@ class _AuthRedirectorState extends State<_AuthRedirector> {
       _syncNotifications();
     } else if (!isAuthenticated && _wasAuthenticated) {
       context.read<ChatProvider>().clear();
+      unawaited(context.read<VoiceService>().stopAllAndClear());
       unawaited(NotificationService.instance.cancelAll());
       navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
     }

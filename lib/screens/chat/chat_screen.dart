@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../models/chat_message.dart';
 import '../../models/chat_models.dart';
 import '../../models/proposed_entry.dart';
 import '../../providers/appointments_provider.dart';
@@ -51,7 +52,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   static const _greetings = [
     'Come posso aiutarti oggi?',
     'Come va oggi?',
@@ -63,37 +64,75 @@ class _ChatScreenState extends State<ChatScreen> {
   ];
 
   final _controller = TextEditingController();
-  final _spokenMessageController = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
-  final _draftFocusNode = FocusNode();
+  VoiceService? _voiceService;
   String _liveSpokenText = '';
-  bool _hasSpokenMessage = false;
+  String? _voicePauseReason;
+  bool _isVoiceConversationMode = false;
+  bool _isStartingVoiceTurn = false;
+  bool _isCommittingVoice = false;
+  Timer? _silenceAutoSendTimer;
+  Timer? _autoRelistenTimer;
 
   // Lazy: con l'hot reload initState non viene ri-eseguito sugli stati già
   // vivi, un late assegnato lì andrebbe in LateInitializationError.
   late final String _greeting = _greetings[math.Random().nextInt(_greetings.length)];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _voiceService = context.read<VoiceService>();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Hardening Privacy & Security: al passaggio in background/inattività annulla
+    // subito tutti i timer vocali e azzera i buffer in RAM per impedire riaperture del microfono.
+    if (state != AppLifecycleState.resumed) {
+      _silenceAutoSendTimer?.cancel();
+      _autoRelistenTimer?.cancel();
+      if (_isVoiceConversationMode || _liveSpokenText.isNotEmpty) {
+        unawaited(_voiceService?.stopAllAndClear());
+        if (mounted) {
+          setState(() {
+            _isVoiceConversationMode = false;
+            _liveSpokenText = '';
+            _voicePauseReason = null;
+          });
+        }
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _silenceAutoSendTimer?.cancel();
+    _autoRelistenTimer?.cancel();
     _controller.dispose();
-    _spokenMessageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
-    _draftFocusNode.dispose();
-    try {
-      context.read<VoiceService>().stopSpeaking();
-      context.read<VoiceService>().stopListening();
-    } catch (_) {}
+    unawaited(_voiceService?.stopAllAndClear());
     super.dispose();
   }
 
-  void _scrollToEnd() {
+  void _scrollToEnd({bool immediate = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final target = _scrollController.position.maxScrollExtent;
+      if (immediate) {
+        _scrollController.jumpTo(target);
+      } else {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent + 120,
-          duration: const Duration(milliseconds: 300),
+          target,
+          duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
       }
@@ -364,9 +403,17 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Future<void> _send({String? overrideText}) async {
+  Future<void> _send({
+    String? overrideText,
+    bool fromVoiceConversation = false,
+  }) async {
+    _silenceAutoSendTimer?.cancel();
+    _autoRelistenTimer?.cancel();
+
     final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
     if (!hasAiConsent) {
+      await _exitVoiceConversationMode();
+      if (!mounted) return;
       AppFeedback.showErrorDialog(
         context,
         title: 'Consenso richiesto',
@@ -381,7 +428,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if ((text.isEmpty && att == null) || chat.isSending) return;
 
     if (voice.isListening) {
-      await voice.stopListening();
+      await voice.cancelListening();
     }
     if (voice.isSpeaking) {
       await voice.stopSpeaking();
@@ -404,9 +451,11 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     setState(() {
       _pendingAttachment = null;
-      _hasSpokenMessage = false;
       _liveSpokenText = '';
-      _spokenMessageController.clear();
+      _voicePauseReason = null;
+      if (fromVoiceConversation) {
+        _isVoiceConversationMode = true;
+      }
     });
 
     final pending = chat.sendMessage(
@@ -418,94 +467,277 @@ class _ChatScreenState extends State<ChatScreen> {
     final ok = await pending;
     if (!mounted) return;
     _scrollToEnd();
-    if (!ok && chat.errorMessage != null) {
-      AppFeedback.showErrorDialog(context, message: chat.errorMessage!);
-    } else if (ok) {
+    if (!ok) {
+      if (_isVoiceConversationMode) {
+        setState(() {
+          _isVoiceConversationMode = false;
+          _voicePauseReason = null;
+        });
+      }
+      if (chat.errorMessage != null) {
+        AppFeedback.showErrorDialog(context, message: chat.errorMessage!);
+      }
+    } else {
       if (attachmentIn != null) {
         unawaited(context.read<ReportsProvider>().refresh());
       }
       final settings = context.read<SettingsProvider>();
-      if (settings.autoTts && chat.messages.isNotEmpty) {
+      final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? false;
+      final isAppActive = WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+      // Nota: controlla _isVoiceConversationMode (non fromVoiceConversation) così se
+      // l'utente ha premuto "Esci" durante lo streaming rispettiamo subito il silenzio.
+      final shouldSpeakReply =
+          (_isVoiceConversationMode || settings.autoTts) &&
+          isCurrentRoute &&
+          isAppActive &&
+          chat.messages.isNotEmpty;
+      if (shouldSpeakReply) {
         final lastMsg = chat.messages.last;
         if (!lastMsg.isUser && lastMsg.text.isNotEmpty) {
           final msgKey = lastMsg.id;
-          unawaited(voice.speak(lastMsg.text, messageKey: msgKey));
+          unawaited(
+            voice.speak(
+              lastMsg.text,
+              messageKey: msgKey,
+              onComplete: () => _onAssistantFinishedSpeaking(lastMsg),
+            ),
+          );
         }
       }
     }
   }
 
+  /// Chiamato al termine naturale della lettura TTS dell'assistente.
+  /// Se siamo in modalità Conversazione Vocale Live e non ci sono schede cliniche HITL
+  /// in attesa di conferma o emergenze, riapre il microfono automaticamente per
+  /// proseguire il dialogo a mani libere.
+  void _onAssistantFinishedSpeaking(ChatMessage assistantMsg) {
+    if (!mounted || !_isVoiceConversationMode) return;
+
+    // Security & Privacy check: riattiva il microfono solo se la schermata è attiva in primo piano,
+    // l'app è in foreground e il consenso sanitario IA è ancora valido.
+    final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? false;
+    final isAppActive = WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    final hasConsent = context.read<ProfileProvider>().aiHealthConsent;
+    if (!isCurrentRoute || !isAppActive || !hasConsent) {
+      unawaited(_exitVoiceConversationMode());
+      return;
+    }
+
+    // Se l'utente ha aperto la tastiera (es. sta modificando un campo dentro una scheda clinica),
+    // non riapriamo il microfono per non togliergli il focus.
+    final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final hasPendingProposals = assistantMsg.proposedEntries.any(
+      (p) => p.status == ProposalStatus.pending || p.status == ProposalStatus.saving,
+    );
+
+    // Se è spuntato un dato clinico ancora da confermare (ClinicalProposalCard) o un banner di emergenza,
+    // mettiamo in pausa il riascolto automatico così il paziente può controllare e premere "Salva nel Diario".
+    if (hasPendingProposals || assistantMsg.isEmergency || isKeyboardOpen) {
+      _scrollToEnd();
+      setState(() {
+        _voicePauseReason = hasPendingProposals ? 'proposal' : null;
+      });
+      return;
+    }
+
+    _autoRelistenTimer?.cancel();
+    _autoRelistenTimer = Timer(const Duration(milliseconds: 550), () {
+      if (!mounted || !_isVoiceConversationMode) return;
+      final stillCurrent = ModalRoute.of(context)?.isCurrent ?? false;
+      final stillActive = WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+      if (!stillCurrent || !stillActive) {
+        unawaited(_exitVoiceConversationMode());
+        return;
+      }
+      final chat = context.read<ChatProvider>();
+      final voice = context.read<VoiceService>();
+      if (!chat.isSending && !voice.isSpeaking && !voice.isListening) {
+        unawaited(_startVoiceListeningTurn(isManualTrigger: false));
+      }
+    });
+  }
+
+  /// Conferma e invia automaticamente in chat quanto appena pronunciato dall'utente.
+  Future<void> _commitLiveVoiceMessage() async {
+    if (_isCommittingVoice) return;
+    _silenceAutoSendTimer?.cancel();
+    _autoRelistenTimer?.cancel();
+
+    final spoken = _liveSpokenText.trim();
+    // Guardrail sicurezza: ignora rumori ambientali o singole lettere accidentali (< 2 caratteri).
+    if (spoken.length < 2) {
+      if (mounted) {
+        setState(() {
+          _liveSpokenText = '';
+        });
+      }
+      return;
+    }
+
+    _isCommittingVoice = true;
+    try {
+      final voice = context.read<VoiceService>();
+      if (voice.isListening) {
+        await voice.cancelListening();
+      }
+      if (!mounted) return;
+      await _send(overrideText: spoken, fromVoiceConversation: true);
+    } finally {
+      _isCommittingVoice = false;
+    }
+  }
+
+  /// Interrompe immediatamente la voce dell'assistente (Barge-In) e apre subito il microfono.
+  Future<void> _interruptAndSpeak() async {
+    _silenceAutoSendTimer?.cancel();
+    _autoRelistenTimer?.cancel();
+    final voice = context.read<VoiceService>();
+    if (voice.isSpeaking) {
+      await voice.stopSpeaking();
+    }
+    if (!mounted) return;
+    await _startVoiceListeningTurn(isManualTrigger: true);
+  }
+
+  /// Esce completamente dalla modalità Conversazione Vocale Live e azzera i buffer vocali in RAM.
+  Future<void> _exitVoiceConversationMode() async {
+    _silenceAutoSendTimer?.cancel();
+    _autoRelistenTimer?.cancel();
+    final voice = _voiceService ?? context.read<VoiceService>();
+    await voice.stopAllAndClear();
+    if (!mounted) return;
+    setState(() {
+      _isVoiceConversationMode = false;
+      _liveSpokenText = '';
+      _voicePauseReason = null;
+    });
+  }
+
   Future<void> _toggleListening() async {
+    final voice = context.read<VoiceService>();
+    if (voice.isSpeaking) {
+      await _interruptAndSpeak();
+      return;
+    }
+    if (voice.isListening) {
+      if (_liveSpokenText.trim().length >= 2) {
+        await _commitLiveVoiceMessage();
+      } else {
+        await _exitVoiceConversationMode();
+      }
+      return;
+    }
+    await _startVoiceListeningTurn(isManualTrigger: true);
+  }
+
+  Future<void> _startVoiceListeningTurn({required bool isManualTrigger}) async {
+    if (_isStartingVoiceTurn || _isCommittingVoice) return;
+    final chat = context.read<ChatProvider>();
+    if (chat.isSending) return;
+
+    _silenceAutoSendTimer?.cancel();
+    _autoRelistenTimer?.cancel();
+
     // Chiudi subito la tastiera virtuale se aperta
     FocusScope.of(context).unfocus();
     _focusNode.unfocus();
 
     final hasAiConsent = context.read<ProfileProvider>().aiHealthConsent;
     if (!hasAiConsent) {
-      AppFeedback.showErrorDialog(
-        context,
-        title: 'Consenso richiesto',
-        message: 'Il consenso al trattamento dati sanitari con IA è disattivato. Riattivalo dalle Impostazioni per usare il microfono.',
-      );
-      return;
-    }
-    final voice = context.read<VoiceService>();
-    if (voice.isListening) {
-      await voice.stopListening();
-      if (_liveSpokenText.trim().isNotEmpty) {
-        setState(() {
-          _spokenMessageController.text = _liveSpokenText.trim();
-          _hasSpokenMessage = true;
-          _liveSpokenText = '';
-        });
-        _scrollToEnd();
+      if (isManualTrigger && mounted) {
+        AppFeedback.showErrorDialog(
+          context,
+          title: 'Consenso richiesto',
+          message: 'Il consenso al trattamento dati sanitari con IA è disattivato. Riattivalo dalle Impostazioni per usare il microfono.',
+        );
       }
       return;
     }
 
+    _isStartingVoiceTurn = true;
+    final voice = context.read<VoiceService>();
     setState(() {
+      _isVoiceConversationMode = true;
       _liveSpokenText = '';
-      _hasSpokenMessage = false;
-      _spokenMessageController.clear();
+      _voicePauseReason = null;
     });
+    _scrollToEnd();
 
-    final started = await voice.startListening(
-      onResult: (words) {
-        if (!mounted) return;
-        setState(() {
-          _liveSpokenText = words;
-        });
-      },
-      onDone: () {
-        if (!mounted) return;
-        if (_liveSpokenText.trim().isNotEmpty && !_hasSpokenMessage) {
+    try {
+      final started = await voice.startListening(
+        onResult: (words) {
+          if (!mounted || words.isEmpty) return;
+          final changed = words != _liveSpokenText;
+          if (changed) {
+            setState(() {
+              _liveSpokenText = words;
+            });
+            _scrollToEnd(immediate: true);
+          }
+
+          // Auto-invio dopo una pausa naturale di 2.4 secondi dall'ultima parola pronunciata
+          _silenceAutoSendTimer?.cancel();
+          if (words.trim().length >= 2) {
+            _silenceAutoSendTimer = Timer(const Duration(milliseconds: 2400), () {
+              if (mounted && !_isCommittingVoice && _liveSpokenText.trim().length >= 2) {
+                unawaited(_commitLiveVoiceMessage());
+              }
+            });
+          }
+        },
+        onDone: () {
+          if (!mounted || _isCommittingVoice) return;
+          _silenceAutoSendTimer?.cancel();
+          if (_liveSpokenText.trim().length >= 2) {
+            unawaited(_commitLiveVoiceMessage());
+            return;
+          }
+
+          // Errore reale del microfono/rete arrivato in modo asincrono: avvisa sempre l'utente.
+          final hasRealError = voice.lastError != null && !voice.isBenignSilenceError;
+          if (hasRealError) {
+            setState(() {
+              _liveSpokenText = '';
+              _isVoiceConversationMode = false;
+              _voicePauseReason = null;
+            });
+            if (isManualTrigger) {
+              AppFeedback.showErrorDialog(context, message: voice.lastError!);
+            }
+            return;
+          }
+
+          // Nessuna parola pronunciata (silenzio o timeout):
+          // - Se era un riascolto automatico, chiudiamo dolcemente il loop vocale.
+          // - Se aveva premuto il microfono manualmente, restiamo pronti con un feedback chiaro.
           setState(() {
-            _spokenMessageController.text = _liveSpokenText.trim();
-            _hasSpokenMessage = true;
             _liveSpokenText = '';
+            if (!isManualTrigger) {
+              _isVoiceConversationMode = false;
+              _voicePauseReason = null;
+            } else {
+              _voicePauseReason = 'silence';
+            }
           });
-          _scrollToEnd();
+        },
+      );
+
+      if (!started && mounted) {
+        setState(() {
+          _isVoiceConversationMode = false;
+          _liveSpokenText = '';
+          _voicePauseReason = null;
+        });
+        if (isManualTrigger && voice.lastError != null) {
+          AppFeedback.showErrorDialog(context, message: voice.lastError!);
         }
-      },
-    );
-
-    if (!started && mounted && voice.lastError != null) {
-      AppFeedback.showErrorDialog(context, message: voice.lastError!);
-    }
-  }
-
-  /// Predisposizione per l'input vocale Speech-to-Text (STT) futuro.
-  void onVoiceTranscriptReceived(String transcript, {bool autoSend = false}) {
-    final text = transcript.trim();
-    if (text.isEmpty) return;
-    if (autoSend) {
-      _controller.text = text;
-      _send();
-    } else {
-      setState(() {
-        _controller.text = text;
-        _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
-      });
+      }
+    } finally {
+      _isStartingVoiceTurn = false;
     }
   }
 
@@ -600,183 +832,351 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildListeningBanner(ThemeData theme, ColorScheme cs) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: cs.primaryContainer.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.accent.withValues(alpha: 0.7),
-          width: 1.5,
-        ),
-      ),
-      child: Row(
-        children: [
-          const _AudioWaveformLines(color: AppColors.accent),
-          const SizedBox(width: 10),
-          Expanded(
+  static const double _voiceBarHeight = 72.0;
+
+  /// Bolla utente "live" mostrata direttamente dentro la chat appena l'utente inizia a parlare.
+  /// Scrive le parole in tempo reale con font grande ad alta leggibilità e si invia
+  /// automaticamente dopo una breve pausa, senza doppi messaggi di stato o conferme extra.
+  Widget _buildLiveListeningUserBubble(
+    ThemeData theme,
+    ColorScheme cs,
+  ) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final bubbleMaxWidth = screenWidth > 640 ? 540.0 : (screenWidth * 0.85);
+    final fg = cs.onPrimary;
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Semantics(
+        button: true,
+        label: 'Messaggio dettato: $_liveSpokenText. Tocca per inviare subito.',
+        child: GestureDetector(
+          onTap: _commitLiveVoiceMessage,
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            constraints: BoxConstraints(
+              maxWidth: bubbleMaxWidth,
+              minWidth: math.min(120.0, bubbleMaxWidth),
+            ),
+            decoration: BoxDecoration(
+              color: cs.primary,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomLeft: Radius.circular(18),
+                bottomRight: Radius.circular(4),
+              ),
+              border: Border.all(
+                color: fg.withValues(alpha: 0.4),
+                width: 1.5,
+              ),
+            ),
             child: Text(
-              _liveSpokenText.isNotEmpty
-                  ? _liveSpokenText
-                  : 'In ascolto... Parla pure',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: _liveSpokenText.isNotEmpty ? cs.onSurface : cs.onSurfaceVariant,
-                fontStyle: _liveSpokenText.isNotEmpty ? FontStyle.normal : FontStyle.italic,
-                fontWeight: _liveSpokenText.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
+              '$_liveSpokenText ▍',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildSpokenDraftBubble(ThemeData theme, ColorScheme cs) {
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final bubbleMaxWidth = screenWidth > 640 ? 540.0 : (screenWidth * 0.82);
-
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-        constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
-        decoration: BoxDecoration(
-          color: cs.primary,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(18),
-            topRight: Radius.circular(18),
-            bottomLeft: Radius.circular(18),
-            bottomRight: Radius.circular(4),
+  Widget _buildVoiceSideActionButton({
+    required ThemeData theme,
+    required ColorScheme cs,
+    required IconData icon,
+    required String label,
+    required String semanticsLabel,
+    required VoidCallback onPressed,
+  }) {
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      child: SizedBox(
+        width: 92,
+        height: _voiceBarHeight,
+        child: OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(92, _voiceBarHeight),
+            maximumSize: const Size(92, _voiceBarHeight),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            foregroundColor: cs.onSurface,
+            backgroundColor: cs.surfaceContainerHighest,
+            side: BorderSide(color: cs.outline, width: 1.5),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: cs.primary.withValues(alpha: 0.25),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.edit_rounded, size: 18, color: Colors.white),
-                  tooltip: 'Modifica testo',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  onPressed: () {
-                    _draftFocusNode.requestFocus();
-                    _spokenMessageController.selection = TextSelection.collapsed(
-                      offset: _spokenMessageController.text.length,
-                    );
-                  },
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 20, color: Colors.white),
-                  tooltip: 'Annulla',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  onPressed: () {
-                    setState(() {
-                      _hasSpokenMessage = false;
-                      _spokenMessageController.clear();
-                    });
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            GestureDetector(
-              onTap: () {
-                _draftFocusNode.requestFocus();
-                _spokenMessageController.selection = TextSelection.collapsed(
-                  offset: _spokenMessageController.text.length,
-                );
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.28),
-                    width: 1,
-                  ),
-                ),
-                child: TextField(
-                  controller: _spokenMessageController,
-                  focusNode: _draftFocusNode,
-                  maxLines: null,
-                  keyboardType: TextInputType.multiline,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    height: 1.35,
-                  ),
-                  cursorColor: Colors.white,
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    filled: false,
-                    contentPadding: EdgeInsets.zero,
-                    hintText: 'Modifica testo...',
-                    hintStyle: TextStyle(color: Colors.white60),
-                  ),
+          onPressed: onPressed,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 22),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                elevation: 2,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () => _send(overrideText: _spokenMessageController.text),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Invia',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: cs.primary,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 16,
-                          color: cs.primary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  /// Barra inferiore minimalista ad alta visibilità per utenti anziani e ipovedenti:
+  /// entrambi i pulsanti condividono la stessa altezza esatta ([_voiceBarHeight])
+  /// per un allineamento perfetto senza dislivelli.
+  Widget _buildVoiceConversationBar(
+    ThemeData theme,
+    ColorScheme cs,
+    ChatProvider chat,
+    VoiceService voice,
+  ) {
+    final hasWords = _liveSpokenText.trim().length >= 2;
+
+    // 1. L'assistente sta parlando -> Grande pulsante "Interrompi e parla" (Barge-In)
+    if (voice.isSpeaking) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: _voiceBarHeight,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, _voiceBarHeight),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: AppColors.accentText,
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                onPressed: _interruptAndSpeak,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.mic_rounded, size: 26, color: Colors.white),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        'Interrompi e parla',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _buildVoiceSideActionButton(
+            theme: theme,
+            cs: cs,
+            icon: Icons.stop_rounded,
+            label: 'Stop',
+            semanticsLabel: 'Ferma lettura vocale e torna alla tastiera',
+            onPressed: _exitVoiceConversationMode,
+          ),
+        ],
+      );
+    }
+
+    // 2. Microfono in ascolto -> Onda sonora minimalista che riempie tutto il pulsante
+    if (voice.isListening) {
+      final bg = hasWords ? cs.primary : AppColors.accentText;
+      final fg = hasWords ? cs.onPrimary : Colors.white;
+
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Semantics(
+              button: hasWords,
+              label: hasWords
+                  ? 'Microfono in ascolto. Tocca per inviare subito.'
+                  : 'Microfono in ascolto, parla pure.',
+              child: SizedBox(
+                height: _voiceBarHeight,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, _voiceBarHeight),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    backgroundColor: bg,
+                    foregroundColor: fg,
+                    disabledBackgroundColor: AppColors.accentText,
+                    disabledForegroundColor: Colors.white,
+                    elevation: 2,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  onPressed: hasWords ? _commitLiveVoiceMessage : null,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _FullWidthSoundWave(
+                          color: fg,
+                          soundLevelListenable: voice.soundLevelListenable,
+                        ),
+                      ),
+                      if (hasWords) ...[
+                        const SizedBox(width: 12),
+                        Icon(Icons.send_rounded, size: 24, color: fg),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _buildVoiceSideActionButton(
+            theme: theme,
+            cs: cs,
+            icon: Icons.close_rounded,
+            label: 'Esci',
+            semanticsLabel: 'Annulla ascolto vocale',
+            onPressed: _exitVoiceConversationMode,
+          ),
+        ],
+      );
+    }
+
+    // 3. L'assistente sta elaborando la risposta in modalità vocale
+    if (chat.isSending) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Container(
+              height: _voiceBarHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: cs.primary.withValues(alpha: 0.6), width: 1.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: cs.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
+                      'Sto rispondendo...',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _buildVoiceSideActionButton(
+            theme: theme,
+            cs: cs,
+            icon: Icons.close_rounded,
+            label: 'Esci',
+            semanticsLabel: 'Esci dalla modalità vocale',
+            onPressed: _exitVoiceConversationMode,
+          ),
+        ],
+      );
+    }
+
+    // 4. In pausa (es. scheda clinica da confermare o silenzio al tocco manuale)
+    final pauseLabel = switch (_voicePauseReason) {
+      'silence' => 'Riprova a parlare',
+      'proposal' => 'Continua a parlare',
+      _ => 'Tocca per parlare',
+    };
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: _voiceBarHeight,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, _voiceBarHeight),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
+                elevation: 2,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              onPressed: () => _startVoiceListeningTurn(isManualTrigger: true),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.mic_rounded, size: 26, color: cs.onPrimary),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      pauseLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: cs.onPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        _buildVoiceSideActionButton(
+          theme: theme,
+          cs: cs,
+          icon: Icons.keyboard_rounded,
+          label: 'Tastiera',
+          semanticsLabel: 'Torna alla tastiera',
+          onPressed: _exitVoiceConversationMode,
+        ),
+      ],
     );
   }
 
@@ -898,6 +1298,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               onPressed: () async {
+                await _exitVoiceConversationMode();
                 final uri = Uri.parse('tel:112');
                 try {
                   await launchUrl(uri);
@@ -986,10 +1387,18 @@ class _ChatScreenState extends State<ChatScreen> {
     final chat = context.watch<ChatProvider>();
     final voice = context.watch<VoiceService>();
     final profile = context.watch<ProfileProvider>();
+    final showLiveVoiceBubble = _liveSpokenText.trim().isNotEmpty;
+    final showVoiceBar =
+        _isVoiceConversationMode || voice.isListening || voice.isSpeaking;
 
     return _AnimatedChatBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
+        onDrawerChanged: (isOpened) {
+          if (isOpened) {
+            unawaited(_exitVoiceConversationMode());
+          }
+        },
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -1047,13 +1456,22 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 tooltip: 'Nuova chat',
                 onPressed: () {
-                  voice.stopSpeaking();
+                  unawaited(_exitVoiceConversationMode());
                   chat.newChat();
                 },
               ),
           ],
         ),
-        drawer: const ChatDrawer(),
+        drawer: ChatDrawer(
+          onNewChat: () {
+            unawaited(_exitVoiceConversationMode());
+            chat.newChat();
+          },
+          onPastChats: () {
+            unawaited(_exitVoiceConversationMode());
+            Navigator.of(context).pushNamed('/chat/history');
+          },
+        ),
         body: SafeArea(
           top: false,
           child: Column(
@@ -1066,10 +1484,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         ? ListView.builder(
                             controller: _scrollController,
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                            itemCount: chat.messages.length + (_hasSpokenMessage ? 1 : 0),
+                            itemCount: chat.messages.length + (showLiveVoiceBubble ? 1 : 0),
                             itemBuilder: (context, index) {
-                              if (_hasSpokenMessage && index == chat.messages.length) {
-                                return RepaintBoundary(child: _buildSpokenDraftBubble(theme, cs));
+                              if (showLiveVoiceBubble && index == chat.messages.length) {
+                                return RepaintBoundary(
+                                  child: _buildLiveListeningUserBubble(theme, cs),
+                                );
                               }
                               final message = chat.messages[index];
                               if (message.isUser) {
@@ -1250,8 +1670,15 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 key: ValueKey('${message.id}_${proposal.proposalId}'),
                                                 messageId: message.id,
                                                 proposal: proposal,
-                                                onDismiss: () => chat.dismissProposal(message.id, proposal.proposalId),
+                                                onDismiss: () {
+                                                  _autoRelistenTimer?.cancel();
+                                                  chat.dismissProposal(message.id, proposal.proposalId);
+                                                },
                                                 onConfirm: (finalData) async {
+                                                  _autoRelistenTimer?.cancel();
+                                                  if (voice.isListening && _liveSpokenText.trim().isEmpty) {
+                                                    await voice.cancelListening();
+                                                  }
                                                   final ok = await chat.confirmProposal(
                                                     message.id,
                                                     proposal.proposalId,
@@ -1276,14 +1703,14 @@ class _ChatScreenState extends State<ChatScreen> {
                               );
                             },
                           )
-                        : _hasSpokenMessage
+                        : showLiveVoiceBubble
                             ? ListView(
                                 controller: _scrollController,
                                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                                 children: [
                                   _ChatGreeting(greeting: _greeting),
                                   const SizedBox(height: 12),
-                                  _buildSpokenDraftBubble(theme, cs),
+                                  _buildLiveListeningUserBubble(theme, cs),
                                 ],
                               )
                             : _ChatGreeting(greeting: _greeting),
@@ -1304,7 +1731,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         children: [
                           TextButton.icon(
                             onPressed: () {
-                              voice.stopSpeaking();
+                              unawaited(_exitVoiceConversationMode());
                               chat.newChat();
                             },
                             icon: const Icon(Icons.add_comment_outlined, size: 18),
@@ -1383,7 +1810,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 )
               else
-                // Barra di inserimento messaggio, allegato, microfono e invio.
+                // Barra di inserimento messaggio, allegato, microfono o barra Conversazione Vocale Live.
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: Center(
@@ -1395,98 +1822,94 @@ class _ChatScreenState extends State<ChatScreen> {
                         children: [
                           if (_pendingAttachment != null)
                             _buildAttachmentPreview(theme, cs),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Expanded(
-                                child: voice.isListening
-                                    ? _buildListeningBanner(theme, cs)
-                                    : TextField(
-                                        controller: _controller,
-                                        focusNode: _focusNode,
-                                        keyboardType: TextInputType.multiline,
-                                        minLines: 1,
-                                        maxLines: 5,
-                                        textInputAction: TextInputAction.newline,
-                                        style: theme.textTheme.bodyMedium,
-                                        decoration: InputDecoration(
-                                          isDense: true,
-                                          filled: true,
-                                          fillColor: cs.surfaceContainerLowest,
-                                          hintText: 'Scrivi un messaggio...',
-                                          hintMaxLines: 1,
-                                          hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                                            color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                                            fontSize: 14.5,
-                                          ),
-                                          contentPadding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 12,
-                                          ),
-                                          prefixIconConstraints: const BoxConstraints(
-                                            minWidth: 40,
-                                            minHeight: 48,
-                                          ),
-                                          prefixIcon: IconButton(
-                                            icon: const Icon(Icons.attach_file_rounded, size: 22),
-                                            tooltip: 'Allega file',
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(
-                                              minWidth: 40,
-                                              minHeight: 48,
-                                            ),
-                                            onPressed: _showAttachmentModal,
-                                          ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                            borderSide: BorderSide(
-                                              color: cs.outlineVariant.withValues(alpha: 0.8),
-                                              width: 1.2,
-                                            ),
-                                          ),
-                                          enabledBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                            borderSide: BorderSide(
-                                              color: cs.outlineVariant.withValues(alpha: 0.8),
-                                              width: 1.2,
-                                            ),
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                            borderSide: BorderSide(
-                                              color: cs.primary,
-                                              width: 1.8,
-                                            ),
-                                          ),
+                          if (showVoiceBar)
+                            _buildVoiceConversationBar(theme, cs, chat, voice)
+                          else
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _controller,
+                                    focusNode: _focusNode,
+                                    keyboardType: TextInputType.multiline,
+                                    minLines: 1,
+                                    maxLines: 5,
+                                    textInputAction: TextInputAction.newline,
+                                    style: theme.textTheme.bodyMedium,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      filled: true,
+                                      fillColor: cs.surfaceContainerLowest,
+                                      hintText: 'Scrivi un messaggio...',
+                                      hintMaxLines: 1,
+                                      hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                                        color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                                        fontSize: 14.5,
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 12,
+                                      ),
+                                      prefixIconConstraints: const BoxConstraints(
+                                        minWidth: 40,
+                                        minHeight: 48,
+                                      ),
+                                      prefixIcon: IconButton(
+                                        icon: const Icon(Icons.attach_file_rounded, size: 22),
+                                        tooltip: 'Allega file',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 40,
+                                          minHeight: 48,
+                                        ),
+                                        onPressed: _showAttachmentModal,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide(
+                                          color: cs.outlineVariant.withValues(alpha: 0.8),
+                                          width: 1.2,
                                         ),
                                       ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 48,
-                                height: 48,
-                                child: FloatingActionButton(
-                                  heroTag: 'mic',
-                                  elevation: 1,
-                                  tooltip: voice.isListening ? 'Ferma ascolto' : 'Parla al microfono',
-                                  onPressed: _toggleListening,
-                                  backgroundColor: voice.isListening
-                                      ? AppColors.accent
-                                      : cs.primaryContainer,
-                                  child: Icon(
-                                    voice.isListening ? Icons.stop_rounded : Icons.mic_rounded,
-                                    color: voice.isListening
-                                        ? Colors.white
-                                        : cs.onPrimaryContainer,
-                                    size: 24,
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide(
+                                          color: cs.outlineVariant.withValues(alpha: 0.8),
+                                          width: 1.2,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide(
+                                          color: cs.primary,
+                                          width: 1.8,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              if (!voice.isListening) ...[
                                 const SizedBox(width: 8),
                                 SizedBox(
-                                  width: 48,
-                                  height: 48,
+                                  width: 52,
+                                  height: 52,
+                                  child: FloatingActionButton(
+                                    heroTag: 'mic',
+                                    elevation: 1,
+                                    tooltip: 'Avvia conversazione vocale',
+                                    onPressed: _toggleListening,
+                                    backgroundColor: cs.primaryContainer,
+                                    child: Icon(
+                                      Icons.mic_rounded,
+                                      color: cs.onPrimaryContainer,
+                                      size: 26,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  width: 52,
+                                  height: 52,
                                   child: FloatingActionButton(
                                     heroTag: 'send',
                                     elevation: 1,
@@ -1500,8 +1923,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                   ),
                                 ),
                               ],
-                            ],
-                          ),
+                            ),
                           const SizedBox(height: 6),
                           Text(
                             'Sono un\'AI. NON sostituisco il medico.',
@@ -1932,61 +2354,159 @@ class _OrbBackgroundPainter extends CustomPainter {
       old.stepListenable != stepListenable;
 }
 
-/// Visualizzatore ad onde sonore animate per il feedback vocale in tempo reale.
-class _AudioWaveformLines extends StatefulWidget {
+/// Onda sonora minimalista a tutta larghezza che riempie il pulsante di ascolto.
+/// Disegnata via CustomPainter ascoltando direttamente [soundLevelListenable]
+/// (zero rebuild della schermata) e rispettando "Rimuovi animazioni" di sistema.
+class _FullWidthSoundWave extends StatefulWidget {
   final Color color;
-  const _AudioWaveformLines({required this.color});
+  final ValueListenable<double> soundLevelListenable;
+  const _FullWidthSoundWave({
+    required this.color,
+    required this.soundLevelListenable,
+  });
 
   @override
-  State<_AudioWaveformLines> createState() => _AudioWaveformLinesState();
+  State<_FullWidthSoundWave> createState() => _FullWidthSoundWaveState();
 }
 
-class _AudioWaveformLinesState extends State<_AudioWaveformLines>
-    with SingleTickerProviderStateMixin {
+class _FullWidthSoundWaveState extends State<_FullWidthSoundWave>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _anim;
+  late Listenable _repaintListenable;
+  bool _disableAnimations = false;
+  bool _isForeground = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _anim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
+      duration: const Duration(milliseconds: 1400),
+    );
+    _repaintListenable = Listenable.merge([_anim, widget.soundLevelListenable]);
+  }
+
+  @override
+  void didUpdateWidget(covariant _FullWidthSoundWave oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.soundLevelListenable != widget.soundLevelListenable) {
+      _repaintListenable = Listenable.merge([_anim, widget.soundLevelListenable]);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _disableAnimations = MediaQuery.disableAnimationsOf(context);
+    _syncTickerState();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isForeground = state == AppLifecycleState.resumed;
+    _syncTickerState();
+  }
+
+  void _syncTickerState() {
+    final shouldRun = _isForeground && !_disableAnimations;
+    if (shouldRun && !_anim.isAnimating) {
+      _anim.repeat();
+    } else if (!shouldRun && _anim.isAnimating) {
+      _anim.stop();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _anim.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (context, _) {
-        final t = _anim.value * 2 * math.pi;
-        const barHeights = [14.0, 22.0, 28.0, 20.0, 12.0];
-        const barPhases = [0.0, 1.2, 2.4, 3.6, 4.8];
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: List.generate(5, (i) {
-            final wave = (math.sin(t * 2 + barPhases[i]) + 1.0) / 2.0;
-            final h = 6.0 + (barHeights[i] - 6.0) * wave;
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-              width: 3.0,
-              height: h,
-              decoration: BoxDecoration(
-                color: widget.color,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            );
-          }),
-        );
-      },
+    return RepaintBoundary(
+      child: SizedBox(
+        height: 40,
+        width: double.infinity,
+        child: CustomPaint(
+          painter: _FullWidthSoundWavePainter(
+            repaint: _repaintListenable,
+            anim: _anim,
+            soundLevelListenable: widget.soundLevelListenable,
+            color: widget.color,
+            disableAnimations: _disableAnimations,
+          ),
+        ),
+      ),
     );
   }
+}
+
+class _FullWidthSoundWavePainter extends CustomPainter {
+  final Animation<double> anim;
+  final ValueListenable<double> soundLevelListenable;
+  final Color color;
+  final bool disableAnimations;
+
+  _FullWidthSoundWavePainter({
+    required Listenable repaint,
+    required this.anim,
+    required this.soundLevelListenable,
+    required this.color,
+    required this.disableAnimations,
+  }) : super(repaint: repaint);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
+    const barWidth = 4.5;
+    const barGap = 5.5;
+    const step = barWidth + barGap;
+    final barCount = math.max(7, (size.width / step).floor());
+    final totalUsedWidth = barCount * barWidth + (barCount - 1) * barGap;
+    final startX = (size.width - totalUsedWidth) / 2.0;
+    final centerY = size.height / 2.0;
+    final maxBarH = size.height;
+    const minBarH = 6.0;
+
+    final t = disableAnimations ? 0.0 : anim.value * 2 * math.pi;
+    final level = soundLevelListenable.value.clamp(0.0, 1.0);
+    // Ampiezza reattiva alla voce dell'utente con movimento base morbido in attesa.
+    final energy = 0.42 + (level * 0.58);
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < barCount; i++) {
+      // Posizione normalizzata [-1 .. 1]: curva morbida più alta al centro e dolce ai bordi
+      final norm = barCount == 1 ? 0.0 : (i / (barCount - 1)) * 2.0 - 1.0;
+      final envelope = 0.38 + 0.62 * math.cos(norm * math.pi * 0.48);
+
+      final wave = disableAnimations
+          ? 0.55
+          : (0.55 +
+                  0.30 * math.sin(t * 2 + i * 0.65) +
+                  0.15 * math.cos(t * 3 - i * 0.95))
+              .clamp(0.15, 1.0);
+
+      final barH = (minBarH + (maxBarH - minBarH) * envelope * wave * energy)
+          .clamp(minBarH, maxBarH);
+      final left = startX + i * step;
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(left, centerY - barH / 2.0, barWidth, barH),
+        const Radius.circular(barWidth / 2.0),
+      );
+      canvas.drawRRect(rect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FullWidthSoundWavePainter old) =>
+      old.color != color ||
+      old.disableAnimations != disableAnimations ||
+      old.soundLevelListenable != soundLevelListenable;
 }
