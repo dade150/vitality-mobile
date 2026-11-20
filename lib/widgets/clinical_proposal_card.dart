@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/clinical_parameter.dart';
 import '../models/meal_entry.dart';
 import '../models/proposed_entry.dart';
+import '../models/therapy_item.dart';
 import '../providers/health_provider.dart';
 import '../services/health_service.dart';
 import '../theme/app_colors.dart';
@@ -173,8 +174,43 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
     return result;
   }
 
+  /// Verifica eventuali blocchi di sicurezza per la registrazione di un'assunzione terapia:
+  /// - terapie non ancora caricate / nessuna terapia configurata;
+  /// - tentativo di segnare `ASSUNTA` una dose di oggi prima della finestra di -30 minuti (o futura).
+  String? _therapyConfirmBlockReason(HealthProvider health) {
+    if (widget.proposal.targetTable != TargetTable.therapyLogs) return null;
+    if (health.isLoading && !health.hasLoaded) {
+      return 'Caricamento terapie in corso...';
+    }
+    final therapies = health.therapyItems;
+    if (therapies.isEmpty) {
+      return 'Configura prima almeno una terapia nel Diario o in Impostazioni.';
+    }
+    final rawStatus = (_localData['status'] ?? 'ASSUNTA').toString().trim().toUpperCase();
+    final isSkipped = rawStatus == 'SALTATA' || rawStatus == 'SKIPPED';
+    if (isSkipped) return null;
+
+    final currentId = _controllers['therapy_id']?.text.trim() ?? '';
+    TherapyItem? selected;
+    for (final t in therapies) {
+      if (t.id == currentId) {
+        selected = t;
+        break;
+      }
+    }
+    if (selected == null) return null;
+    return selected.earlyIntakeBlockReason(_selectedDateTime);
+  }
+
   Future<void> _handleConfirm() async {
     if (!_formKey.currentState!.validate()) return;
+    if (widget.proposal.targetTable == TargetTable.therapyLogs) {
+      final block = _therapyConfirmBlockReason(context.read<HealthProvider>());
+      if (block != null) {
+        setState(() {});
+        return;
+      }
+    }
     final finalData = _collectFinalData();
     final ok = await widget.onConfirm(finalData);
     if (ok) {
@@ -221,6 +257,9 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
     final isSaved = p.status == ProposalStatus.saved;
     final isSaving = p.status == ProposalStatus.saving;
     final hasMissing = !p.isComplete && p.missingFields.isNotEmpty;
+    final therapyBlockReason = (!isSaved && p.targetTable == TargetTable.therapyLogs)
+        ? _therapyConfirmBlockReason(context.watch<HealthProvider>())
+        : null;
 
     // Colori di stato coerenti con il design system
     final Color topStripeColor = isSaved
@@ -296,7 +335,13 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
                   const SizedBox(height: 16),
 
                   // 7. Footer Azioni (Ignora / Conferma e Salva oppure Stato Salvato)
-                  _buildActionFooter(theme, cs, isSaved, isSaving),
+                  _buildActionFooter(
+                    theme,
+                    cs,
+                    isSaved,
+                    isSaving,
+                    confirmDisabled: therapyBlockReason != null,
+                  ),
                 ],
               ),
             ),
@@ -760,60 +805,129 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
 
   // 5. Therapy Log Fields
   Widget _buildTherapyLogFields(ThemeData theme, ColorScheme cs, bool readOnly) {
-    final therapies = context.watch<HealthProvider>().therapyItems;
+    final health = context.watch<HealthProvider>();
+    final therapies = health.therapyItems;
     final currentId = _controllers['therapy_id']?.text.trim() ?? '';
-    final matchedId = therapies.any((t) => t.id == currentId) ? currentId : null;
+    TherapyItem? matchedItem;
+    for (final t in therapies) {
+      if (t.id == currentId) {
+        matchedItem = t;
+        break;
+      }
+    }
+    final matchedId = matchedItem?.id;
     final rawStatus = (_localData['status'] ?? 'ASSUNTA').toString().trim().toUpperCase();
     final currentStatus = (rawStatus == 'SALTATA' || rawStatus == 'SKIPPED') ? 'SALTATA' : 'ASSUNTA';
+    final earlyBlockReason = (matchedItem != null && currentStatus == 'ASSUNTA' && !readOnly)
+        ? matchedItem.earlyIntakeBlockReason(_selectedDateTime)
+        : null;
+
+    if (health.isLoading && !health.hasLoaded) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Caricamento delle tue terapie...',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (therapies.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cs.errorContainer.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.error.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.medication_outlined, size: 20, color: cs.error),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Non hai ancora nessuna terapia attiva configurata. Aggiungi prima i tuoi farmaci per poter registrare le assunzioni.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (!readOnly) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).pushNamed('/settings/therapy'),
+                icon: const Icon(Icons.settings_outlined, size: 18),
+                label: const Text('Configura terapia'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: const BorderSide(color: AppColors.accent),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (therapies.isNotEmpty)
-          DropdownButtonFormField<String>(
-            initialValue: matchedId,
-            decoration: const InputDecoration(
-              labelText: 'Farmaco / Terapia',
-              hintText: 'Seleziona una terapia',
-              isDense: true,
-            ),
-            items: therapies
-                .map(
-                  (t) => DropdownMenuItem<String>(
-                    value: t.id,
-                    child: Text(
-                      '${t.name} (ore ${t.time})',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: readOnly
-                ? null
-                : (val) {
-                    if (val != null) {
-                      setState(() {
-                        _controllers['therapy_id']?.text = val;
-                        _localData['therapy_id'] = val;
-                      });
-                    }
-                  },
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Seleziona una terapia' : null,
-          )
-        else
-          _buildTextFormField(
-            keyName: 'therapy_id',
-            label: 'ID Farmaco / Terapia',
-            hint: 'Configura prima una terapia nel Diario',
-            readOnly: readOnly,
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Terapia obbligatoria' : null,
+        DropdownButtonFormField<String>(
+          key: ValueKey('therapy_dd_${matchedId ?? 'none'}_${therapies.length}'),
+          initialValue: matchedId,
+          decoration: _inputDecoration(
+            label: 'Farmaco / Terapia',
+            hint: 'Seleziona una terapia',
+            isMissing: matchedId == null,
           ),
+          items: therapies
+              .map(
+                (t) => DropdownMenuItem<String>(
+                  value: t.id,
+                  child: Text(
+                    '${t.name} (ore ${t.time})',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: readOnly
+              ? null
+              : (val) {
+                  if (val != null) {
+                    setState(() {
+                      _controllers['therapy_id']?.text = val;
+                      _localData['therapy_id'] = val;
+                    });
+                  }
+                },
+          validator: (v) => (v == null || v.trim().isEmpty) ? 'Seleziona una terapia' : null,
+        ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
           initialValue: currentStatus,
-          decoration: const InputDecoration(
-            labelText: 'Esito assunzione',
-            isDense: true,
+          decoration: _inputDecoration(
+            label: 'Esito assunzione',
+            isMissing: false,
           ),
           items: const [
             DropdownMenuItem(value: 'ASSUNTA', child: Text('Assunta')),
@@ -838,6 +952,34 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
           label: 'Orario di assunzione',
           onChanged: (newDate) => setState(() => _selectedDateTime = newDate),
         ),
+        if (earlyBlockReason != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: cs.errorContainer.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: cs.error.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.schedule_rounded, size: 18, color: cs.error),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    earlyBlockReason,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -999,7 +1141,13 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
   }
 
   // ------------------------------------------------------------- Action Footer
-  Widget _buildActionFooter(ThemeData theme, ColorScheme cs, bool isSaved, bool isSaving) {
+  Widget _buildActionFooter(
+    ThemeData theme,
+    ColorScheme cs,
+    bool isSaved,
+    bool isSaving, {
+    bool confirmDisabled = false,
+  }) {
     if (isSaved) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
@@ -1052,7 +1200,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
         Expanded(
           flex: 6,
           child: FilledButton.icon(
-            onPressed: isSaving ? null : _handleConfirm,
+            onPressed: (isSaving || confirmDisabled) ? null : _handleConfirm,
             icon: isSaving
                 ? const SizedBox(
                     width: 16,

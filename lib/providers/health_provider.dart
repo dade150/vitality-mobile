@@ -243,14 +243,33 @@ class HealthProvider extends AuthScopedProvider {
   // ---------------------------------------------------------------- Terapia
 
   /// Segna come presa / annulla l'assunzione di OGGI.
+  /// Impedisce di segnare come assunta una dose prima di 30 minuti dall'orario previsto,
+  /// lasciando invece sempre libero l'annullamento di una dose già registrata.
   Future<bool> toggleTherapyTaken(String id) async {
     if (_togglingTherapy.contains(id)) return false; // doppio tap
+    final today = DateTime.now();
+    final existing =
+        _therapyLogs.where((l) => l.therapyId == id && _sameDay(l.takenAt, today)).toList();
+
+    if (existing.isEmpty) {
+      TherapyItem? target;
+      for (final t in _therapyItems) {
+        if (t.id == id) {
+          target = t;
+          break;
+        }
+      }
+      final blockReason = target?.earlyIntakeBlockReason(today, now: today);
+      if (blockReason != null) {
+        errorMessage = blockReason;
+        notifyListeners();
+        return false;
+      }
+    }
+
     _togglingTherapy.add(id);
     notifyListeners(); // la UI disabilita il pulsante mentre si attende
     try {
-      final today = DateTime.now();
-      final existing =
-          _therapyLogs.where((l) => l.therapyId == id && _sameDay(l.takenAt, today)).toList();
       return await _write(
         () => existing.isEmpty
             ? _service.insertTherapyLog(id, today)

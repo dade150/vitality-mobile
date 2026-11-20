@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -33,10 +34,18 @@ class DiaryScreen extends StatefulWidget {
 class _DiaryScreenState extends State<DiaryScreen> {
   DateTime _selectedDate = DateTime.now();
   DiaryView _view = DiaryView.giorno;
+  Timer? _clockTimer;
 
   @override
   void initState() {
     super.initState();
+    // Aggiorna la UI ogni 30s sul giorno corrente così il tasto "Prendi" si sblocca
+    // automaticamente allo scattare della finestra dei -30 minuti.
+    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && _isToday) {
+        setState(() {});
+      }
+    });
     // Rete di sicurezza: se per qualunque motivo i dati non sono ancora
     // stati caricati, li carica ora.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -44,6 +53,12 @@ class _DiaryScreenState extends State<DiaryScreen> {
       final health = context.read<HealthProvider>();
       if (!health.hasLoaded && !health.isLoading) health.refresh();
     });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
   }
 
   // ------------------------------------------------------------ Utilità
@@ -1159,48 +1174,83 @@ class _DiaryScreenState extends State<DiaryScreen> {
     Widget? trailing;
     if (_isToday && !taken) {
       final busy = health.isTherapyToggling(item.id);
-      trailing = Material(
-        color: AppColors.accent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        child: InkWell(
-          onTap: busy
-              ? null
-              : () async {
-                  final provider = context.read<HealthProvider>();
-                  final ok = await provider.toggleTherapyTaken(item.id);
-                  if (!ok && mounted && !provider.isTherapyToggling(item.id)) {
-                    _showMessage(provider.errorMessage ?? 'Salvataggio non riuscito. Riprova.');
-                  }
-                },
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (busy)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                else ...[
-                  const Icon(Icons.check_rounded, size: 18, color: Colors.white),
+      final now = DateTime.now();
+      final blockReason = item.earlyIntakeBlockReason(now, now: now);
+      if (blockReason != null) {
+        final openLabel = item.earliestIntakeLabel(now) ?? item.time;
+        trailing = Material(
+          color: cs.surfaceContainerHighest,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: cs.outlineVariant, width: 1.2),
+          ),
+          child: InkWell(
+            onTap: () => AppFeedback.showWarning(context, blockReason),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.schedule_rounded, size: 16, color: cs.onSurfaceVariant),
                   const SizedBox(width: 5),
-                  const Text(
-                    'Prendi',
+                  Text(
+                    'Dalle $openLabel',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14.5,
+                      color: cs.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-      );
+        );
+      } else {
+        trailing = Material(
+          color: AppColors.accent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: InkWell(
+            onTap: busy
+                ? null
+                : () async {
+                    final provider = context.read<HealthProvider>();
+                    final ok = await provider.toggleTherapyTaken(item.id);
+                    if (!ok && mounted && !provider.isTherapyToggling(item.id)) {
+                      _showMessage(provider.errorMessage ?? 'Salvataggio non riuscito. Riprova.');
+                    }
+                  },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (busy)
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  else ...[
+                    const Icon(Icons.check_rounded, size: 18, color: Colors.white),
+                    const SizedBox(width: 5),
+                    const Text(
+                      'Prendi',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14.5,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      }
     } else if (_isToday && taken) {
       final busy = health.isTherapyToggling(item.id);
       trailing = Material(
