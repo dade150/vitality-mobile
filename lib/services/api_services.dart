@@ -147,9 +147,18 @@ class ApiService {
       );
     }
 
-    // 403 = permessi: non è un errore di validazione ma un problema di
-    // configurazione -> schermata di errore, come RLS/JWT su Supabase.
-    if (r.statusCode >= 500 || r.statusCode == 403) {
+    // 403 = es. consenso AI GDPR Art. 9 revocato/mancante: errore atteso con
+    // messaggio leggibile dal backend, NON schermata di crash imprevisto.
+    if (r.statusCode == 403) {
+      return AppFailure(
+        detail.isNotEmpty
+            ? detail
+            : 'Operazione non consentita. Verifica il consenso IA in Impostazioni > Privacy.',
+        cause: 'HTTP 403: $detail',
+      );
+    }
+
+    if (r.statusCode >= 500) {
       return AppFailure(
         ErrorHandler.genericMessage,
         unexpected: true,

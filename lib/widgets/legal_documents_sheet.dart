@@ -14,8 +14,8 @@ class LegalDocumentsSheet extends StatelessWidget {
     required this.sections,
   });
 
-  static const String currentTermsVersion = '1.1';
-  static const String currentPrivacyVersion = '1.1';
+  static const String currentTermsVersion = '1.2';
+  static const String currentPrivacyVersion = '1.2';
 
   static Future<void> showTermsOfService(BuildContext context) {
     return showModalBottomSheet<void>(
@@ -85,42 +85,51 @@ class LegalDocumentsSheet extends StatelessWidget {
 
   static const List<LegalSection> _privacySections = [
     LegalSection(
-      heading: '1. Titolare del Trattamento e Categorie di Dati (Art. 9 GDPR)',
+      heading: '1. Titolare del Trattamento e Categorie di Dati (Art. 13 e Art. 9 GDPR)',
       body:
-          'Titolare del trattamento: Davide Cruciata (progetto di tesi accademica).\n'
+          'Titolare del trattamento: Davide Cruciata — progetto accademico di tesi magistrale (Università eCampus).\n'
+          'Contatto per l\'esercizio dei diritti GDPR: tramite i riferimenti accademici del Titolare comunicati ai partecipanti dello studio pilota.\n\n'
           'Trattiamo le seguenti categorie di dati:\n'
           '• Dati anagrafici e di account: nome, cognome, data di nascita, sesso biologico ed email.\n'
           '• Dati particolari sulla salute (Art. 9 GDPR): glicemie, pressione arteriosa, HbA1c, esami ematochimici, diario pasti, attività fisica, terapie, appuntamenti, referti medici e messaggi scambiati con l\'assistente.',
     ),
     LegalSection(
-      heading: '2. Basi Giuridiche del Trattamento (Art. 6 e Art. 9 GDPR)',
+      heading: '2. Basi Giuridiche del Trattamento (Art. 6, Art. 7 e Art. 9 GDPR)',
       body:
-          '• Esecuzione del contratto di servizio (Art. 6.1.b GDPR): per l\'erogazione delle funzionalità dell\'applicazione e la gestione del profilo.\n'
-          '• Consenso esplicito dell\'interessato (Art. 9.2.a GDPR): per il trattamento dei dati relativi alla salute e la loro elaborazione tramite modelli di Intelligenza Artificiale a fini di coaching educazionale.',
+          '• Esecuzione del servizio (Art. 6.1.b GDPR): gestione dell\'account e delle impostazioni applicative.\n'
+          '• Consenso esplicito per il diario sanitario (Art. 9.2.a GDPR): archiviazione e consultazione dei dati clinici personali.\n'
+          '• Consenso esplicito separato e facoltativo per l\'Intelligenza Artificiale (Art. 7.4 e Art. 9.2.a GDPR): elaborazione pseudonimizzata per coaching conversazionale, estrazione referti e stima nutrizionale. È revocabile in qualunque momento senza perdere accesso al Diario.',
     ),
     LegalSection(
-      heading: '3. Elaborazione con Intelligenza Artificiale e Trattamento Documenti',
+      heading: '3. Destinatari, Sub-Responsabili ed Elaborazione AI (Art. 13.1.e GDPR)',
       body:
-          'L\'elaborazione dell\'assistente conversazionale avviene tramite Google Cloud Vertex AI (modelli Gemini) nella regione Unione Europea:\n'
-          '• PDF digitali nativi: il testo viene estratto in memoria e pseudonimizzato prima dell\'invio (rimozione automatica di Codice Fiscale, nominativi, contatti, indirizzi e strutture ospedaliere).\n'
-          '• Immagini e PDF scansionati: vengono trasmessi in modalità multimodale protetta per la sola lettura ottica ed estrazione clinica. Si raccomanda di coprire o non inquadrare il nome e il Codice Fiscale prima dello scatto o del caricamento.\n'
-          '• Archiviazione del file originale: una copia del documento caricato (con metadati EXIF e GPS rimossi) viene conservata nel tuo spazio cloud privato protetto da isolamento Row-Level Security (RLS), accessibile solo a te, per consentirti di consultarlo e riscaricarlo in qualunque momento.\n'
-          '• I dati non vengono mai utilizzati per addestrare modelli di Intelligenza Artificiale pubblici o di terze parti.',
+          'Per erogare il servizio ci avvaliamo dei seguenti fornitori infrastrutturali configurati in Unione Europea:\n'
+          '• Supabase (regione UE Irlanda - eu-west-1): database PostgreSQL, autenticazione JWT e object storage cifrato protetti da Row-Level Security (RLS).\n'
+          '• Render (regione UE): esecuzione del server applicativo FastAPI che orchestra la de-identificazione in RAM e le chiamate AI.\n'
+          '• Google Cloud Vertex AI (regione Unione Europea): modelli Gemini per chat, estrazione referti e stima nutrizionale; i dati non vengono mai usati per addestrare modelli di terze parti.\n'
+          '• Servizi di sistema del dispositivo: il riconoscimento vocale (STT) e la sintesi vocale (TTS) utilizzano i motori del sistema operativo mobile; il caricamento dei font tipografici può richiedere una connessione ai server Google Fonts.\n\n'
+          'Misure specifiche sui documenti clinici:\n'
+          '• PDF digitali nativi: il testo viene estratto in RAM e pseudonimizzato prima dell\'invio (rimozione di CF, nomi, contatti, indirizzi e strutture sanitarie).\n'
+          '• Foto e PDF scansionati: è disponibile una Privacy Mask visuale preventiva per oscurare l\'intestazione; i metadati EXIF/GPS vengono rimossi automaticamente.\n'
+          '• Copia archiviata: conservata nel bucket privato isolato tramite RLS e scaricabile esclusivamente con autenticazione.',
     ),
     LegalSection(
       heading: '4. Conservazione dei Dati e Misure di Sicurezza (Art. 5 e Art. 32 GDPR)',
       body:
-          'I dati risiedono su infrastruttura Supabase (regione UE) con trasmissione protetta da cifratura TLS 1.3 e isolamento dei dati per singolo utente tramite politiche PostgreSQL Row-Level Security (RLS).\n'
-          'Le conversazioni di chat sono conservate fino a un massimo di 12 mesi o fino alla cancellazione manuale.',
+          '• Cronologia conversazioni chat: conservata fino a un massimo di 12 mesi (cancellazione automatica notturna tramite job pianificato) o fino alla cancellazione manuale immediata.\n'
+          '• Dati del diario clinico, esami e referti: conservati per l\'intera durata dell\'account (e dello studio pilota) fino a cancellazione selettiva o eliminazione definitiva dell\'account.\n'
+          '• Sicurezza: trasmissione cifrata TLS/HTTPS, credenziali protette con FlutterSecureStorage cifrato, isolamento multiutente stretto mediante RLS `auth.uid()`.',
     ),
     LegalSection(
       heading: '5. Diritti dell\'Interessato e Revoca del Consenso (Artt. 15–22 GDPR)',
       body:
-          'Dalla sezione Impostazioni > Privacy e Dati Sanitari puoi in qualunque momento:\n'
-          '• Esportare una copia integrale dei tuoi dati sanitari in formato JSON strutturato (Diritto alla Portabilità - Art. 20 GDPR).\n'
-          '• Cancellare l\'intera cronologia delle conversazioni.\n'
-          '• Eliminare definitivamente il tuo account e tutti i dati associati (Diritto all\'Oblio - Art. 17 GDPR), revocando contemporaneamente il consenso prestato.\n'
-          'Hai inoltre il diritto di proporre reclamo all\'Autorità Garante per la Protezione dei Dati Personali (www.garanteprivacy.it).',
+          'Dalla sezione Impostazioni > Privacy e gestione dati (GDPR) puoi in qualunque momento:\n'
+          '• Attivare o revocare il consenso all\'elaborazione con Intelligenza Artificiale (Art. 7.3 GDPR) mantenendo intatto il Diario.\n'
+          '• Accedere e rettificare i tuoi dati clinici e anagrafici direttamente dalle sezioni Profilo, Diario, Esami e Visite (Artt. 15 e 16 GDPR).\n'
+          '• Esportare una copia integrale dei tuoi dati in formato JSON strutturato (Portabilità - Art. 20 GDPR).\n'
+          '• Cancellare l\'intera cronologia delle conversazioni chat con un clic.\n'
+          '• Eliminare definitivamente l\'account, i dati clinici e tutti i referti nello Storage (Diritto all\'Oblio - Art. 17 GDPR), nonché esercitare i diritti di limitazione e opposizione (Artt. 18 e 21 GDPR).\n'
+          'Hai inoltre il diritto di proporre reclamo al Garante per la Protezione dei Dati Personali (www.garanteprivacy.it).',
     ),
   ];
 

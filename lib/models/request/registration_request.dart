@@ -20,13 +20,15 @@ class RegistrationData {
   final List<TherapyItem> therapies = [];
 
   // Step 3 - Credenziali e Consensi Legali (GDPR Art. 6.1.b, Art. 7, Art. 9.2.a)
-  static const String currentTermsVersion = '1.1';
-  static const String currentPrivacyVersion = '1.1';
+  static const String currentTermsVersion = '1.2';
+  static const String currentPrivacyVersion = '1.2';
 
   String email = '';
   String password = '';
   bool termsAccepted = false;
   bool consensoPrivacy = false;
+  // Consenso granulare e facoltativo all'elaborazione con IA (GDPR Art. 7.4 e Art. 9.2.a: opt-in attivo)
+  bool aiHealthConsent = false;
 
   // Step 4 - Preferenze e notifiche
   bool showActivities = true;
@@ -58,8 +60,8 @@ class RegistrationData {
       'consenso_privacy': consensoPrivacy,
       'consenso_privacy_at': consensoPrivacy ? nowIso : null,
       'privacy_version': currentPrivacyVersion,
-      'ai_health_consent': consensoPrivacy,
-      'ai_health_consent_at': consensoPrivacy ? nowIso : null,
+      'ai_health_consent': aiHealthConsent,
+      'ai_health_consent_at': aiHealthConsent ? nowIso : null,
       'show_meals': showMeals,
       'show_activities': showActivities,
       'show_reports': showReports,

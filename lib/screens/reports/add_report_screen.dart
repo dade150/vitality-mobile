@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../models/clinical_parameter.dart';
 import '../../models/medical_report.dart';
 import '../../providers/clinical_provider.dart';
+import '../../providers/profile_provider.dart';
 import '../../providers/reports_provider.dart';
 import '../../services/error_handler.dart';
 import '../../services/report_service.dart';
@@ -74,33 +77,66 @@ class _AddReportScreenState extends State<AddReportScreen> {
     FocusScope.of(context).unfocus();
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'],
       withData: true,
     );
     if (picked == null || picked.files.isEmpty || !mounted) return;
     final file = picked.files.first;
-    final bytes = file.bytes;
-    if (bytes == null) {
+    Uint8List? rawBytes = file.bytes;
+    if (rawBytes == null && file.path != null) {
+      final f = File(file.path!);
+      if (await f.exists()) {
+        rawBytes = await f.readAsBytes();
+      }
+    }
+    if (rawBytes == null || rawBytes.isEmpty) {
+      if (!mounted) return;
       setState(() => _error = 'Non riesco a leggere il file selezionato.');
       return;
     }
 
-    final ext = file.name.split('.').last.toLowerCase();
-    Uint8List processedBytes = Uint8List.fromList(bytes);
+    final lowerName = file.name.toLowerCase();
+    final isPdf = isPdfBytes(rawBytes) ||
+        (lowerName.endsWith('.pdf') && detectImageMimeType(rawBytes, fallback: '').isEmpty);
 
-    // Se il referto è un'immagine/scansione, apre il visual privacy mask per oscurare l'intestazione
-    if (['jpg', 'jpeg', 'png', 'webp'].contains(ext)) {
+    Uint8List processedBytes = rawBytes;
+    String resolvedName = file.name;
+
+    if (isPdf) {
+      if (!isPdfBytes(rawBytes)) {
+        if (!mounted) return;
+        setState(() => _error = 'Il file selezionato non è un documento PDF valido.');
+        return;
+      }
+      if (rawBytes.length > kMaxUploadAttachmentBytes) {
+        if (!mounted) return;
+        setState(() => _error = 'Il documento PDF supera il limite massimo di 5 MB.');
+        return;
+      }
+    } else {
+      // Se il referto è un'immagine/scansione, apre il visual privacy mask per oscurare l'intestazione
+      // e normalizza formato (JPEG/PNG/WebP, conversione HEIC) e peso sotto il limite backend.
+      if (!mounted) return;
       final sanitized = await ReportPrivacyMaskDialog.show(
         context,
         imageBytes: processedBytes,
         fileName: file.name,
       );
       if (sanitized == null || !mounted) return;
+      if (detectImageMimeType(sanitized, fallback: '').isEmpty) {
+        setState(() => _error = 'Formato immagine non supportato. Usa un file JPG, PNG o WebP.');
+        return;
+      }
+      if (sanitized.length > kMaxUploadAttachmentBytes) {
+        setState(() => _error = 'L\'immagine supera il limite massimo di 5 MB. Prova con una foto più leggera.');
+        return;
+      }
       processedBytes = sanitized;
+      resolvedName = normalizeMaskedFileName(file.name, processedBytes);
     }
 
     setState(() {
-      _filename = file.name;
+      _filename = resolvedName;
       _bytes = processedBytes;
       _result = null;
       _selected.clear();
@@ -114,6 +150,15 @@ class _AddReportScreenState extends State<AddReportScreen> {
   // ------------------------------------------------------------- Caricamento
 
   Future<void> _upload() async {
+    final aiConsent = context.read<ProfileProvider>().profile?.aiHealthConsent ?? false;
+    if (!aiConsent) {
+      setState(() {
+        _error = 'Hai revocato il consenso al trattamento con Intelligenza Artificiale (GDPR Art. 9). '
+            'Riattivalo da Impostazioni > Privacy e gestione dati per analizzare automaticamente i referti.';
+      });
+      return;
+    }
+
     final bytes = _bytes;
     final filename = _filename;
     if (bytes == null || filename == null) {
@@ -125,7 +170,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
       _error = null;
     });
 
-    final title = filename.replaceAll(RegExp(r'\.(pdf|png|jpg|jpeg|webp)$', caseSensitive: false), '');
+    final title = filename.replaceAll(RegExp(r'\.(pdf|png|jpg|jpeg|webp|heic|heif)$', caseSensitive: false), '');
     final ReportUploadResult result;
     try {
       result = await ReportService.upload(bytes: bytes, filename: filename, title: title);

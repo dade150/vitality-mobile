@@ -197,6 +197,68 @@ class _DiaryScreenState extends State<DiaryScreen> {
     return when;
   }
 
+  Future<void> _showGlucoseSafetyAlert(double value) async {
+    if (!mounted) return;
+    if (value >= 70 && value <= 180) return;
+
+    final cs = Theme.of(context).colorScheme;
+    final bool isSevereHypo = value < 54;
+    final bool isSevereHyper = value >= 400;
+    final bool isHypo = value < 70;
+    final bool isCritical = isSevereHypo || isSevereHyper;
+
+    final String title = isSevereHypo
+        ? 'Alert di Sicurezza: Ipoglicemia Severa'
+        : isSevereHyper
+            ? 'Alert di Sicurezza: Iperglicemia Critica'
+            : isHypo
+                ? 'Attenzione: Glicemia Bassa (< 70 mg/dL)'
+                : 'Attenzione: Glicemia Elevata (> 180 mg/dL)';
+
+    final String body = isSevereHypo
+        ? 'Hai registrato ${_fmtNum(value)} mg/dL (sotto 54 mg/dL).\n\n'
+            '• Se sei cosciente e riesci a deglutire, applica subito la "Regola del 15": '
+            'assumi 15 g di zuccheri semplici (es. 3 bustine di zucchero o un bicchiere di succo di frutta) '
+            'e ricontrolla la glicemia dopo 15 minuti.\n'
+            '• In caso di forte confusione, torpore o difficoltà a deglutire, NON assumere nulla per bocca '
+            'e chiama immediatamente il 112.'
+        : isSevereHyper
+            ? 'Hai registrato ${_fmtNum(value)} mg/dL (valore critico ≥ 400 mg/dL).\n\n'
+                '• Contatta subito il tuo medico, la guardia medica o il 112, soprattutto in presenza di '
+                'nausea, vomito, dolore addominale, respiro affannoso o sonnolenza.\n'
+                '• Non modificare autonomamente la terapia senza indicazione medica.'
+            : isHypo
+                ? 'Hai registrato ${_fmtNum(value)} mg/dL, al di sotto del target abituale (70–180 mg/dL).\n\n'
+                    'Valuta l\'assunzione di 15 g di zuccheri semplici (Regola del 15) e ricontrolla la glicemia tra 15 minuti. '
+                    'Se gli episodi si ripetono, informane il tuo medico.'
+                : 'Hai registrato ${_fmtNum(value)} mg/dL, al di sopra del target abituale (70–180 mg/dL).\n\n'
+                    'Mantieni una buona idratazione e monitora l\'andamento. Se il valore resta elevato o compaiono sintomi, '
+                    'contatta il tuo medico curante o diabetologo.';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(
+          isCritical ? Icons.emergency_rounded : Icons.warning_amber_rounded,
+          color: cs.error,
+          size: 36,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(color: cs.error, fontWeight: FontWeight.w800),
+        ),
+        content: Text(body),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: isCritical ? cs.error : cs.primary),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Ho capito'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ------------------------------------------- Fogli di inserimento dal basso
 
   void _addGlucose() {
@@ -216,10 +278,19 @@ class _DiaryScreenState extends State<DiaryScreen> {
         ),
       ],
       initialDateTime: when,
-      validate: (v, _) => (v[0] == null || v[0]! < -500 || v[0]! > 1500)
-          ? 'Inserisci un valore valido (-500 .. 1500 mg/dL)'
+      validate: (v, _) => (v[0] == null || v[0]! < 20 || v[0]! > 800)
+          ? 'Inserisci un valore valido (20 .. 800 mg/dL)'
           : null,
-      onSave: (v, selectedWhen) => health.addGlucoseReading(v[0], at: selectedWhen),
+      onSave: (v, selectedWhen) async {
+        final ok = await health.addGlucoseReading(v[0], at: selectedWhen);
+        if (ok && mounted) {
+          final val = v[0];
+          if (val < 70 || val > 180) {
+            Future.microtask(() => _showGlucoseSafetyAlert(val));
+          }
+        }
+        return ok;
+      },
       errorMessage: () => health.errorMessage,
     );
   }
@@ -248,8 +319,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
       validate: (v, _) {
         final sys = v[0], dia = v[1];
         if (sys == null || dia == null) return 'Compila entrambi i valori';
-        if (sys < -500 || sys > 500) return 'Massima (sistolica): valore tra -500 e 500';
-        if (dia < -500 || dia > 500) return 'Minima (diastolica): valore tra -500 e 500';
+        if (sys < 50 || sys > 300) return 'Massima (sistolica): valore tra 50 e 300 mmHg';
+        if (dia < 30 || dia > 200) return 'Minima (diastolica): valore tra 30 e 200 mmHg';
+        if (sys <= dia) return 'La massima (sistolica) deve essere maggiore della minima (diastolica)';
         return null;
       },
       onSave: (v, selectedWhen) =>
@@ -318,11 +390,18 @@ class _DiaryScreenState extends State<DiaryScreen> {
       ],
       validate: (e, v) {
         final x = _parseNumber(v[0]);
-        return (x == null || x < -500 || x > 1500)
-            ? 'Inserisci un valore valido (-500 .. 1500 mg/dL)'
+        return (x == null || x < 20 || x > 800)
+            ? 'Inserisci un valore valido (20 .. 800 mg/dL)'
             : null;
       },
-      onSave: (e, v, when) => health.updateGlucose(e.id, _parseNumber(v[0])!, at: when),
+      onSave: (e, v, when) async {
+        final val = _parseNumber(v[0])!;
+        final ok = await health.updateGlucose(e.id, val, at: when);
+        if (ok && mounted && (val < 70 || val > 180)) {
+          Future.microtask(() => _showGlucoseSafetyAlert(val));
+        }
+        return ok;
+      },
       onDelete: (e) => health.deleteGlucose(e.id),
       errorMessage: () => health.errorMessage,
     );
@@ -373,8 +452,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
         final sys = int.tryParse(v[0]);
         final dia = int.tryParse(v[1]);
         if (sys == null || dia == null) return 'Compila entrambi i valori';
-        if (sys < -500 || sys > 500) return 'Sistolica: valore tra -500 e 500';
-        if (dia < -500 || dia > 500) return 'Diastolica: valore tra -500 e 500';
+        if (sys < 50 || sys > 300) return 'Sistolica: valore tra 50 e 300 mmHg';
+        if (dia < 30 || dia > 200) return 'Diastolica: valore tra 30 e 200 mmHg';
+        if (sys <= dia) return 'La sistolica deve essere maggiore della diastolica';
         return null;
       },
       onSave: (e, v, when) =>
@@ -1332,15 +1412,77 @@ class _DiaryScreenState extends State<DiaryScreen> {
               onAdd: _addGlucose,
             ),
           ] else ...[
-            _ValueLine(
-              value: _fmtNum(reading.value),
-              unit: 'mg/dL',
-              color: cs.onSurface,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Ultima misurazione: ${_formatWhen(reading.time)}',
-              style: theme.textTheme.bodyMedium,
+            Builder(
+              builder: (_) {
+                final isOutOfRange = reading.value < 70 || reading.value > 180;
+                final isCritical = reading.value < 54 || reading.value >= 400;
+                final statusLabel = reading.value < 54
+                    ? 'Ipoglicemia severa (<54)'
+                    : reading.value < 70
+                        ? 'Ipoglicemia (<70)'
+                        : reading.value >= 400
+                            ? 'Iperglicemia critica (≥400)'
+                            : reading.value > 180
+                                ? 'Iperglicemia (>180)'
+                                : 'Nel target (70–180)';
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _ValueLine(
+                          value: _fmtNum(reading.value),
+                          unit: 'mg/dL',
+                          color: isOutOfRange ? cs.error : cs.onSurface,
+                        ),
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isOutOfRange
+                                  ? cs.errorContainer
+                                  : cs.secondaryContainer.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isCritical
+                                      ? Icons.emergency_rounded
+                                      : isOutOfRange
+                                          ? Icons.warning_amber_rounded
+                                          : Icons.check_circle_outline_rounded,
+                                  size: 16,
+                                  color: isOutOfRange ? cs.error : cs.secondary,
+                                ),
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    statusLabel,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: isOutOfRange ? cs.onErrorContainer : cs.onSecondaryContainer,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Ultima misurazione: ${_formatWhen(reading.time)}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildCardAddButton(

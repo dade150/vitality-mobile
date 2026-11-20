@@ -9,7 +9,10 @@ import '../services/report_service.dart';
 import '../theme/app_colors.dart';
 
 /// Apre il modal bottom sheet per la configurazione e il download del Report Medico PDF.
-Future<void> showPdfExportSheet(BuildContext context) {
+Future<void> showPdfExportSheet(BuildContext context, {int initialMonths = 3}) {
+  final safeMonths = (initialMonths == 2 || initialMonths == 3 || initialMonths == 4)
+      ? initialMonths
+      : 3;
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -17,19 +20,26 @@ Future<void> showPdfExportSheet(BuildContext context) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (modalContext) => const _PdfExportSheetContent(),
+    builder: (modalContext) => _PdfExportSheetContent(initialMonths: safeMonths),
   );
 }
 
 class _PdfExportSheetContent extends StatefulWidget {
-  const _PdfExportSheetContent();
+  final int initialMonths;
+  const _PdfExportSheetContent({this.initialMonths = 3});
 
   @override
   State<_PdfExportSheetContent> createState() => _PdfExportSheetContentState();
 }
 
 class _PdfExportSheetContentState extends State<_PdfExportSheetContent> {
-  int _selectedMonths = 3;
+  late int _selectedMonths;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMonths = widget.initialMonths;
+  }
   bool _isLoading = false;
   String? _errorMessage;
 

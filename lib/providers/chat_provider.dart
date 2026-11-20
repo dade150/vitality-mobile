@@ -152,6 +152,7 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
 
             final isEmergency = event['is_emergency'] == true;
             final guardrailCategory = event['guardrail_category']?.toString();
+            final suggestedAction = ChatSuggestedAction.tryFromJson(event['suggested_action']);
             final sanitizedReply = event['reply']?.toString();
             if (sanitizedReply != null && sanitizedReply.isNotEmpty) {
               accumulatedText = sanitizedReply;
@@ -166,6 +167,7 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
                 attachmentKind: attKind,
                 isEmergency: isEmergency,
                 guardrailCategory: guardrailCategory,
+                suggestedAction: suggestedAction,
               );
               notifyListeners();
             }
@@ -246,6 +248,17 @@ class ChatProvider extends ChangeNotifier with ErrorReporting {
         newChat();
       }
     }, where: 'ChatProvider.deleteSession');
+
+    notifyListeners();
+    return ok;
+  }
+
+  /// Elimina l'intera cronologia delle conversazioni (GDPR Art. 17)
+  Future<bool> deleteAllSessions() async {
+    final ok = await guard(() async {
+      await _chatService.deleteAllSessions();
+      clear();
+    }, where: 'ChatProvider.deleteAllSessions');
 
     notifyListeners();
     return ok;

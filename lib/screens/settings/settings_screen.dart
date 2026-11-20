@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/user_settings.dart';
+import '../../providers/chat_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/notification_service.dart';
@@ -234,6 +235,50 @@ class SettingsScreen extends StatelessWidget {
                         subtitle: const Text('Scarica copia leggibile di tutti i tuoi dati'),
                         trailing: Icon(Icons.download_rounded, color: cs.primary),
                         onTap: () => triggerGdprJsonExport(context),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: Icon(Icons.delete_sweep_outlined, color: cs.error),
+                        title: Text('Cancella cronologia chat', style: TextStyle(color: cs.error, fontWeight: FontWeight.w600)),
+                        subtitle: const Text('Elimina tutte le conversazioni con l\'assistente'),
+                        trailing: Icon(Icons.chevron_right_rounded, color: cs.error),
+                        onTap: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Cancellare tutta la cronologia chat?'),
+                              content: const Text(
+                                'Tutte le conversazioni salvate con l\'assistente verranno eliminate definitivamente.\n\n'
+                                'Il tuo diario clinico, i referti e gli appuntamenti non saranno toccati.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: const Text('Annulla'),
+                                ),
+                                FilledButton(
+                                  style: FilledButton.styleFrom(backgroundColor: cs.error),
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: const Text('Elimina cronologia'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm != true || !context.mounted) return;
+                          final ok = await context.read<ChatProvider>().deleteAllSessions();
+                          if (!context.mounted) return;
+                          if (ok) {
+                            AppFeedback.showSuccess(
+                              context,
+                              'Cronologia delle conversazioni eliminata definitivamente.',
+                            );
+                          } else {
+                            AppFeedback.showErrorDialog(
+                              context,
+                              message: 'Impossibile eliminare la cronologia chat. Riprova.',
+                            );
+                          }
+                        },
                       ),
                       const Divider(height: 1),
                       ListTile(

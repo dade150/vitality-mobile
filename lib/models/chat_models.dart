@@ -44,6 +44,36 @@ class ChatRequest {
   };
 }
 
+/// Azione suggerita dall'assistente (es. apertura esportazione Report Medico PDF).
+class ChatSuggestedAction {
+  final String type;
+  final int months;
+
+  const ChatSuggestedAction({
+    required this.type,
+    this.months = 3,
+  });
+
+  static ChatSuggestedAction? tryFromJson(dynamic raw) {
+    if (raw is! Map) return null;
+    final type = raw['type']?.toString().trim();
+    if (type != 'export_pdf_summary') return null;
+
+    final rawMonths = raw['months'];
+    int parsedMonths = 3;
+    if (rawMonths is num) {
+      parsedMonths = rawMonths.toInt();
+    } else if (rawMonths != null) {
+      parsedMonths = int.tryParse(rawMonths.toString()) ?? 3;
+    }
+    if (parsedMonths != 2 && parsedMonths != 3 && parsedMonths != 4) {
+      parsedMonths = 3;
+    }
+
+    return ChatSuggestedAction(type: type!, months: parsedMonths);
+  }
+}
+
 /// Nuova risposta ChatResponse
 class ChatResponse {
   final String reply;
@@ -54,6 +84,7 @@ class ChatResponse {
   final Map<String, dynamic>? attachmentInfo;
   final bool isEmergency;
   final String? guardrailCategory;
+  final ChatSuggestedAction? suggestedAction;
 
   ChatResponse({
     required this.reply,
@@ -64,6 +95,7 @@ class ChatResponse {
     this.attachmentInfo,
     this.isEmergency = false,
     this.guardrailCategory,
+    this.suggestedAction,
   });
 
   factory ChatResponse.fromJson(Map<String, dynamic> json) => ChatResponse(
@@ -77,6 +109,7 @@ class ChatResponse {
         : null,
     isEmergency: json['is_emergency'] == true,
     guardrailCategory: json['guardrail_category']?.toString(),
+    suggestedAction: ChatSuggestedAction.tryFromJson(json['suggested_action']),
   );
 }
 

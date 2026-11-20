@@ -184,20 +184,32 @@ class _RegisterStep2CredentialsState extends State<RegisterStep2Credentials> {
               ),
             ),
             const SizedBox(height: 4),
-            // 2. Consenso Esplicito Dati Sanitari & AI (GDPR Art. 9.2.a)
+            // 2. Consenso Esplicito Dati Sanitari per Diario Clinico (GDPR Art. 9.2.a - obbligatorio)
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               value: widget.data.consensoPrivacy,
               onChanged: (v) => setState(() => widget.data.consensoPrivacy = v ?? false),
               title: Text(
-                'Presto il consenso esplicito (Art. 9.2.a GDPR) al trattamento dei miei dati relativi alla salute e alla loro elaborazione protetta con l\'Intelligenza Artificiale per ricevere supporto ed educazione terapeutica. *',
+                'Presto il consenso esplicito (Art. 9.2.a GDPR) al trattamento e all\'archiviazione protetta dei miei dati relativi alla salute per l\'uso del diario clinico (glicemie, pressione, pasti, attività, terapie, visite e referti). *',
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
+              ),
+            ),
+            const SizedBox(height: 4),
+            // 3. Consenso Granulare e Facoltativo all'Elaborazione con IA (GDPR Art. 7.4 e Art. 9.2.a)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: widget.data.aiHealthConsent,
+              onChanged: (v) => setState(() => widget.data.aiHealthConsent = v ?? false),
+              title: Text(
+                'Presto il consenso esplicito (facoltativo, Art. 9.2.a GDPR) all\'elaborazione pseudonimizzata dei miei dati sanitari tramite Google Cloud Vertex AI (UE) per l\'assistente conversazionale, la lettura referti e la stima nutrizionale.',
                 style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
               ),
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Puoi revocare il consenso ed eliminare tutti i tuoi dati in qualsiasi momento da Impostazioni > Privacy.',
+                  'Se non lo selezioni potrai comunque usare il Diario clinico; puoi attivare o revocare il consenso IA in qualsiasi momento da Impostazioni > Privacy.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),

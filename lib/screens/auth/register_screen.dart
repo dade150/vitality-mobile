@@ -100,14 +100,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
 
     if (ok) {
-      // Inserimento farmaci della terapia se la sessione è già attiva
+      // Le terapie iniziali vengono già inserite atomicamente dal trigger DB `handle_new_user()`
+      // a partire da `raw_user_meta_data->'therapies'`. Inseriamo via client solo se assenti.
       if (_data.therapies.isNotEmpty && !auth.pendingEmailConfirmation) {
-        for (final t in _data.therapies) {
-          try {
-            await HealthService().insertTherapy(name: t.name, time: t.time);
-          } catch (e, st) {
-            ErrorHandler.logOnly(e, st, 'RegisterScreen.insertTherapy');
+        try {
+          final existing = await HealthService().fetchTherapies();
+          if (existing.isEmpty) {
+            for (final t in _data.therapies) {
+              try {
+                await HealthService().insertTherapy(name: t.name, time: t.time);
+              } catch (e, st) {
+                ErrorHandler.logOnly(e, st, 'RegisterScreen.insertTherapy');
+              }
+            }
           }
+        } catch (e, st) {
+          ErrorHandler.logOnly(e, st, 'RegisterScreen.checkTherapies');
         }
       }
 

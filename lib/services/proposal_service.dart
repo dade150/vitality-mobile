@@ -74,6 +74,7 @@ class ProposalService {
     final rawType = (data['metric_type'] ?? data['type'] ?? 'GLICEMIA').toString().toUpperCase().trim();
     final rawVal = data['metric_value'] ?? data['value'];
     final when = _parseDate(data['measured_at'] ?? data['date']);
+    final sourceReportId = _parseInt(data['source_report_id']);
 
     if (rawVal == null || rawVal.toString().trim().isEmpty) {
       throw ArgumentError('Valore misurazione obbligatorio');
@@ -83,7 +84,7 @@ class ProposalService {
       final numVal = _parseDouble(rawVal);
       if (numVal == null) throw ArgumentError('Valore glicemia non valido');
       final healthService = HealthService(_db);
-      await healthService.insertGlucose(numVal, when);
+      await healthService.insertGlucose(numVal, when, sourceReportId: sourceReportId);
       return;
     }
 
@@ -106,7 +107,7 @@ class ProposalService {
       }
 
       final healthService = HealthService(_db);
-      await healthService.insertPressure(sys, dia, when);
+      await healthService.insertPressure(sys, dia, when, sourceReportId: sourceReportId);
       return;
     }
 
@@ -116,7 +117,7 @@ class ProposalService {
       final numVal = _parseDouble(rawVal);
       if (numVal == null) throw ArgumentError('Valore clinico non valido');
       final clinicalService = ClinicalService(_db);
-      await clinicalService.insert(clinicalType, numVal, when);
+      await clinicalService.insert(clinicalType, numVal, when, sourceReportId: sourceReportId);
       return;
     }
 
@@ -126,6 +127,7 @@ class ProposalService {
       'metric_type': cleanType,
       'metric_value': rawVal.toString().trim(),
       'measured_at': _iso(when),
+      if (sourceReportId != null) 'source_report_id': sourceReportId,
     });
   }
 
@@ -236,9 +238,12 @@ class ProposalService {
       throw ArgumentError('Identificativo terapia mancante');
     }
 
+    final rawStatus = (data['status'] ?? 'ASSUNTA').toString().trim().toUpperCase();
+    final dbStatus = (rawStatus == 'SALTATA' || rawStatus == 'SKIPPED') ? 'skipped' : 'taken';
+
     final when = _parseDate(data['taken_at'] ?? data['date']);
     final healthService = HealthService(_db);
-    await healthService.insertTherapyLog(therapyId, when);
+    await healthService.insertTherapyLog(therapyId, when, status: dbStatus);
   }
 
   // ----------------------------------------------------------------- Therapies

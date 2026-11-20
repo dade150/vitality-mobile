@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'api_services.dart';
 import 'supabase_client.dart';
@@ -33,11 +34,19 @@ class GdprService {
     }
 
     Future<List<dynamic>> safeTable(String table, [String cols = '*']) async {
+      const pageSize = 1000;
+      final out = <dynamic>[];
       try {
-        final rows = await supabase.from(table).select(cols);
-        return List<dynamic>.from(rows);
+        for (int page = 0; page < 100; page++) {
+          final start = page * pageSize;
+          final end = start + pageSize - 1;
+          final rows = await supabase.from(table).select(cols).range(start, end);
+          out.addAll(rows);
+          if (rows.length < pageSize) break;
+        }
+        return out;
       } catch (_) {
-        return const [];
+        return out;
       }
     }
 
@@ -50,11 +59,11 @@ class GdprService {
       safeTable('physical_activities', 'id, activity_type, duration_minutes, intensity, steps, notes, activity_at, created_at'),
       safeTable('therapies', 'id, therapy_type, drug_name, dosage, frequency, scheduled_time, notes, is_active, created_at'),
       safeTable('therapy_logs', 'id, therapy_id, taken_at, status, created_at'),
-      safeTable('appointments', 'id, title, doctor_name, appointment_at, notes, created_at'),
-      safeTable('patient_reports', 'id, source_name, source_path, report_type, clean_summary, content, extracted_params, report_at, created_at'),
+      safeTable('appointments', 'id, title, doctor_name, location, appointment_at, notes, created_at'),
+      safeTable('patient_reports', 'id, source_name, file_path, report_type, clean_summary, content, extracted_params, report_at, created_at'),
       safeTable('chat_session', 'id, title, created_at'),
       safeTable('chat_message', 'id, session_id, role, content, created_at'),
-      safeTable('app_logs', 'id, level, message, route, created_at'),
+      safeTable('app_logs', 'id, message, context, created_at'),
     ]);
 
     final bundle = {
@@ -147,18 +156,27 @@ class GdprService {
 
   /// Elimina definitivamente l'account e tutti i dati sanitari (GDPR Art. 17).
   static Future<void> deleteAccountAndAllData() async {
-    // 1. Pulizia preventiva dei file nello Storage privato dell'utente (B1)
-    try {
-      final userId = supabase.auth.currentUser?.id;
-      if (userId != null) {
-        final files = await supabase.storage.from('patient-reports').list(path: userId);
-        if (files.isNotEmpty) {
-          final paths = files.map((f) => '$userId/${f.name}').toList();
-          await supabase.storage.from('patient-reports').remove(paths);
+    // 1. Pulizia preventiva e paginata di TUTTI i file nello Storage privato (GDPR Art. 17)
+    // Fail-closed: se lo Storage fallisce non eliminiamo l'account per evitare referti orfani sul cloud.
+    final userId = supabase.auth.currentUser?.id;
+    if (userId != null) {
+      final bucket = supabase.storage.from('patient-reports');
+      const pageLimit = 100;
+      for (int page = 0; page < 50; page++) {
+        final files = await bucket.list(
+          path: userId,
+          searchOptions: SearchOptions(limit: pageLimit, offset: page * pageLimit),
+        );
+        if (files.isEmpty) break;
+        final paths = files
+            .where((f) => f.name.isNotEmpty)
+            .map((f) => '$userId/${f.name}')
+            .toList();
+        if (paths.isNotEmpty) {
+          await bucket.remove(paths);
         }
+        if (files.length < pageLimit) break;
       }
-    } catch (e) {
-      debugPrint('[GdprService] pulizia storage pre-eliminazione ignorata: $e');
     }
 
     bool backendDeleted = false;
@@ -169,8 +187,7 @@ class GdprService {
       backendDeleted = false;
     }
 
-    // 2. Se il backend non è raggiungibile o ha restituito errore (es. fallback senza cancellazione auth),
-    // invoca la RPC Supabase `delete_own_account` direttamente con il token autenticato
+    // 2. Se il backend non è raggiungibile, invoca direttamente la RPC Supabase `delete_own_account`
     if (!backendDeleted) {
       await supabase.rpc('delete_own_account');
     }

@@ -91,12 +91,12 @@ class HealthService {
   // ------------------------------------------------------------ Validazioni
 
   static void _checkGlucose(double v) {
-    if (v.isNaN || v < -500 || v > 1500) throw ArgumentError('glicemia fuori range');
+    if (v.isNaN || v < 20 || v > 800) throw ArgumentError('glicemia fuori range (20..800 mg/dL)');
   }
 
   static void _checkPressure(int sys, int dia) {
-    if (sys < -500 || sys > 500 || dia < -500 || dia > 500) {
-      throw ArgumentError('pressione fuori range');
+    if (sys < 50 || sys > 300 || dia < 30 || dia > 200 || sys <= dia) {
+      throw ArgumentError('pressione fuori range (sistolica 50..300, diastolica 30..200, max > min)');
     }
   }
 
@@ -105,8 +105,8 @@ class HealthService {
       throw ArgumentError('descrizione pasto non valida');
     }
     if (calories < 0 || calories > 10000) throw ArgumentError('calorie fuori range');
-    if (carbsGrams != null && (carbsGrams < 0 || carbsGrams > 2000)) {
-      throw ArgumentError('carboidrati fuori range');
+    if (carbsGrams != null && (carbsGrams < 0 || carbsGrams > 1000)) {
+      throw ArgumentError('carboidrati fuori range (0..1000 g)');
     }
   }
 
@@ -161,12 +161,13 @@ class HealthService {
 
   static String _fmtGlucose(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
 
-  Future<void> insertGlucose(double value, DateTime at) async {
+  Future<void> insertGlucose(double value, DateTime at, {int? sourceReportId}) async {
     _checkGlucose(value);
     await _db.from('diabetes_data').insert({
       'metric_type': 'GLICEMIA',
       'metric_value': _fmtGlucose(value),
       'measured_at': _iso(at),
+      if (sourceReportId != null) 'source_report_id': sourceReportId,
     });
   }
 
@@ -185,12 +186,13 @@ class HealthService {
     _requireAffected(rows);
   }
 
-  Future<void> insertPressure(int sys, int dia, DateTime at) async {
+  Future<void> insertPressure(int sys, int dia, DateTime at, {int? sourceReportId}) async {
     _checkPressure(sys, dia);
     await _db.from('diabetes_data').insert({
       'metric_type': 'PRESSIONE',
       'metric_value': '$sys/$dia',
       'measured_at': _iso(at),
+      if (sourceReportId != null) 'source_report_id': sourceReportId,
     });
   }
 
@@ -437,16 +439,17 @@ class HealthService {
     return out;
   }
 
-  Future<void> insertTherapyLog(String therapyId, DateTime at) async {
+  Future<void> insertTherapyLog(String therapyId, DateTime at, {String status = 'taken'}) async {
     final raw = therapyId.trim();
     if (raw.isEmpty || raw == 'null') throw ArgumentError('id terapia non valido');
+    final normalizedStatus = status == 'skipped' ? 'skipped' : 'taken';
     // L'id arriva come String dal fetch: se è numerico (bigint) si riconverte,
     // altrimenti si invia così com'è (uuid) e a convertire è il database.
     final Object id = int.tryParse(raw) ?? raw;
     await _db.from('therapy_logs').insert({
       'therapy_id': id,
       'taken_at': _iso(at),
-      'status': 'taken',
+      'status': normalizedStatus,
     });
   }
 

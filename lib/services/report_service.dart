@@ -6,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../models/clinical_parameter.dart';
 import '../models/medical_report.dart';
@@ -52,79 +51,87 @@ class ReportUploadResult {
 class ReportService {
   static const _endpoint = '/api/reports';
 
-  /// Apre il referto tramite l'applicazione predefinita del telefono (PDF viewer / Galleria).
+  /// Scarica privatamente il referto (con JWT autenticato, senza esporre Signed URL
+  /// nella cronologia del browser esterno) e apre il salvataggio locale sicuro.
   static Future<void> openReportWithExternalApp(BuildContext context, MedicalReport report) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final db = Supabase.instance.client;
 
-    // 1. Se il referto ha già un file_path su Supabase Storage, genera il Signed URL e aprilo
-    if (report.filePath != null && report.filePath!.trim().isNotEmpty) {
+    Uint8List? bytes;
+    String ext = 'pdf';
+
+    // 1. Download autenticato diretto dal bucket privato Storage sotto RLS (zero Signed URL nel browser)
+    final path = report.filePath?.trim();
+    if (path != null && path.isNotEmpty) {
       try {
-        final signedUrl = await db.storage
-            .from('patient-reports')
-            .createSignedUrl(report.filePath!.trim(), 300);
-        final uri = Uri.parse(signedUrl);
-        if (await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-          return;
+        final downloaded = await db.storage.from('patient-reports').download(path);
+        if (downloaded.isNotEmpty) {
+          bytes = downloaded;
+          final dotIdx = path.lastIndexOf('.');
+          if (dotIdx > 0 && dotIdx < path.length - 1) {
+            final candidate = path.substring(dotIdx + 1).toLowerCase();
+            if (const {'pdf', 'png', 'jpg', 'jpeg', 'webp'}.contains(candidate)) {
+              ext = candidate;
+            }
+          }
         }
       } catch (_) {
-        // Fallback al download dal backend se il bucket o il file non sono raggiungibili
+        // Fallback al download PDF dal backend se il file non è presente in Storage
       }
     }
 
-    // 2. Scarica il documento PDF dal backend (/api/reports/{id}/document)
+    // 2. Fallback: scarica il documento PDF generato dal backend (/api/reports/{id}/document)
     final numId = int.tryParse(report.id);
-    if (numId == null) {
-      messenger?.showSnackBar(
-        const SnackBar(content: Text('Documento ancora in fase di sincronizzazione. Riprova tra poco.')),
-      );
-      return;
+    if (bytes == null) {
+      if (numId == null) {
+        messenger?.showSnackBar(
+          const SnackBar(content: Text('Documento ancora in fase di sincronizzazione. Riprova tra poco.')),
+        );
+        return;
+      }
+      try {
+        final response = await ApiService.get(
+          '$_endpoint/$numId/document',
+          timeout: const Duration(seconds: 30),
+        );
+        if (response.bodyBytes.isEmpty) {
+          throw const AppFailure('Il documento del referto è vuoto.');
+        }
+        bytes = response.bodyBytes;
+        ext = 'pdf';
+      } catch (e) {
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(
+              e is AppFailure ? e.message : 'Impossibile scaricare il referto in questo momento.',
+            ),
+          ),
+        );
+        return;
+      }
     }
 
+    // 3. Salva il file localmente tramite selettore di sistema
     try {
-      final response = await ApiService.get(
-        '$_endpoint/$numId/document',
-        timeout: const Duration(seconds: 30),
-      );
-      final bytes = response.bodyBytes;
-      if (bytes.isEmpty) {
-        throw const AppFailure('Il documento del referto è vuoto.');
-      }
-
-      // Prova a caricarlo nel bucket privato patient-reports per aprirlo direttamente con app esterna
-      final uid = db.auth.currentUser?.id;
-      if (uid != null) {
-        final storagePath = '$uid/referto_$numId.pdf';
-        try {
-          await db.storage.from('patient-reports').uploadBinary(
-                storagePath,
-                bytes,
-                fileOptions: const FileOptions(contentType: 'application/pdf', upsert: true),
-              );
-          await db.from('patient_reports').update({'file_path': storagePath}).eq('id', numId);
-          final signedUrl = await db.storage.from('patient-reports').createSignedUrl(storagePath, 300);
-          if (await launchUrl(Uri.parse(signedUrl), mode: LaunchMode.externalApplication)) {
-            return;
-          }
-        } catch (_) {
-          // Se il bucket Storage non è attivo, procediamo col salvataggio/apertura locale
-        }
-      }
-
-      // 3. Fallback universale: salva e apri il file PDF sul dispositivo
       final safeName = report.title.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
-      final fileName = '${safeName.isEmpty ? "Referto_$numId" : safeName}.pdf';
+      final fallbackLabel = numId != null ? 'Referto_$numId' : 'Referto';
+      final fileName = '${safeName.isEmpty ? fallbackLabel : safeName}.$ext';
       final outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Apri o Salva Referto PDF',
+        dialogTitle: 'Salva Referto Clinico',
         fileName: fileName,
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: [ext],
         bytes: bytes,
       );
       if (outputPath != null && outputPath.isNotEmpty) {
         try {
           await File(outputPath).writeAsBytes(bytes);
         } catch (_) {}
+      }
+      if (outputPath != null && context.mounted) {
+        messenger?.showSnackBar(
+          const SnackBar(content: Text('Referto salvato sul dispositivo.')),
+        );
       }
     } catch (e) {
       messenger?.showSnackBar(
@@ -159,20 +166,56 @@ class ReportService {
   }
 
   static http.MediaType _detectMediaType(String filename, List<int> bytes) {
-    final lower = filename.toLowerCase();
-    if (lower.endsWith('.pdf') || (bytes.length >= 5 && bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46)) {
+    // Priorità assoluta ai magic bytes reali per evitare mismatch MIME/firma (HTTP 400).
+    if (bytes.length >= 5 &&
+        bytes[0] == 0x25 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x44 &&
+        bytes[3] == 0x46 &&
+        bytes[4] == 0x2D) {
       return http.MediaType('application', 'pdf');
     }
-    if (lower.endsWith('.png') || (bytes.length >= 4 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47)) {
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A) {
+      return http.MediaType('image', 'png');
+    }
+    if (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+      return http.MediaType('image', 'jpeg');
+    }
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return http.MediaType('image', 'webp');
+    }
+
+    // Fallback sull'estensione solo se la firma binaria non è riconosciuta
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.pdf')) {
+      return http.MediaType('application', 'pdf');
+    }
+    if (lower.endsWith('.png')) {
       return http.MediaType('image', 'png');
     }
     if (lower.endsWith('.webp')) {
       return http.MediaType('image', 'webp');
     }
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)) {
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
       return http.MediaType('image', 'jpeg');
     }
-    return http.MediaType('application', 'pdf');
+    return http.MediaType('application', 'octet-stream');
   }
 
   static Future<ReportUploadResult> upload({

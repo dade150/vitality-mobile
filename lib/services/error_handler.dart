@@ -195,8 +195,8 @@ class ErrorHandler {
   // ---------------------------------------------------------------------
   static void _log(AppFailure f, String? where, {bool forceRemote = false}) {
     debugPrint('[ErrorHandler]${where != null ? ' ($where)' : ''} $f\n${f.stackTrace ?? ''}');
-    // D3: Invia i log remoti su app_logs solo per errori imprevisti in modalità release (o se forzato)
-    if ((f.unexpected || forceRemote) && (kReleaseMode || forceRemote)) {
+    // D3: Invia i log remoti su app_logs SOLO in modalità release (evita inquinamento DB in debug)
+    if (kReleaseMode && (f.unexpected || forceRemote)) {
       unawaited(_remoteLog(f, where));
     }
   }

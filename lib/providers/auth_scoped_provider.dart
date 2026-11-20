@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/error_handler.dart';
 import 'error_provider.dart';
 
 /// Base comune per i provider legati alla sessione utente su Supabase.
@@ -16,7 +17,13 @@ abstract class AuthScopedProvider extends ChangeNotifier with ErrorReporting {
   AuthScopedProvider([SupabaseClient? client])
       : _db = client ?? Supabase.instance.client {
     final auth = _db.auth;
-    _authSub = auth.onAuthStateChange.listen(_onAuthChange);
+    _authSub = auth.onAuthStateChange.listen(
+      _onAuthChange,
+      onError: (Object error, StackTrace st) {
+        // Evita crash /error non gestiti durante refresh token offline
+        ErrorHandler.logOnly(error, st, '$runtimeType.onAuthStateChange');
+      },
+    );
 
     // Provider creato all'avvio o lazy dopo il login: lo stato iniziale
     // non passa dallo stream onAuthStateChange.

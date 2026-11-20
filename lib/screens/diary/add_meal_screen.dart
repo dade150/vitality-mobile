@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/meal_entry.dart';
 import '../../models/nutrition_estimate.dart';
 import '../../providers/health_provider.dart';
+import '../../providers/profile_provider.dart';
 import '../../services/health_service.dart';
 import '../../services/nutrition_service.dart';
 import '../../theme/app_colors.dart';
@@ -106,6 +107,15 @@ class _AddMealScreenState extends State<AddMealScreen> {
   }
 
   Future<void> _estimateWithAI() async {
+    final aiConsent = context.read<ProfileProvider>().profile?.aiHealthConsent ?? false;
+    if (!aiConsent) {
+      _showMessage(
+        'Hai revocato il consenso IA (GDPR Art. 9). Inserisci calorie e carboidrati manualmente '
+        'oppure riattiva il consenso in Impostazioni > Privacy.',
+      );
+      return;
+    }
+
     final text = _descriptionController.text.trim();
     if (text.length < 2) {
       _showMessage('Scrivi cosa hai mangiato prima di richiedere la stima.');
@@ -127,7 +137,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
         _isEstimated = true;
       });
 
-      _showMessage(
+      AppFeedback.showSuccess(
+        context,
         result.hasCreaItems
             ? 'Valori calcolati sulle tabelle ufficiali CREA.'
             : 'Valori nutrizionali stimati con intelligenza artificiale.',
@@ -149,8 +160,9 @@ class _AddMealScreenState extends State<AddMealScreen> {
       return;
     }
 
-    // Se sia calorie che carboidrati sono vuoti ma c'è una descrizione, esegue prima la stima
-    if (_caloriesController.text.trim().isEmpty && description.isNotEmpty) {
+    // Se le calorie sono vuote ma c'è una descrizione ed il consenso IA è attivo, esegue la stima
+    final aiConsent = context.read<ProfileProvider>().profile?.aiHealthConsent ?? false;
+    if (_caloriesController.text.trim().isEmpty && description.isNotEmpty && aiConsent) {
       await _estimateWithAI();
       if (!mounted) return;
     }
@@ -166,8 +178,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
     final rawCarbs = _carbsController.text.trim();
     if (rawCarbs.isNotEmpty) {
       parsedCarbs = int.tryParse(rawCarbs);
-      if (parsedCarbs == null || parsedCarbs < 0 || parsedCarbs > 2000) {
-        _showMessage('Inserisci carboidrati validi (tra 0 e 2000 g).');
+      if (parsedCarbs == null || parsedCarbs < 0 || parsedCarbs > 1000) {
+        _showMessage('Inserisci carboidrati validi (tra 0 e 1000 g).');
         return;
       }
     }

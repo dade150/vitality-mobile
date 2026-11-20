@@ -94,12 +94,18 @@ class ClinicalService {
 
   // --------------------------------------------------------------- Scrittura
 
-  Future<void> insert(ClinicalParameterType type, double value, DateTime on) async {
+  Future<void> insert(
+    ClinicalParameterType type,
+    double value,
+    DateTime on, {
+    int? sourceReportId,
+  }) async {
     _check(type, value, on);
     await _db.from(_table).insert({
       'metric_type': type.dbCode,
       'metric_value': _fmt(type, value),
       'measured_at': _isoForDay(on),
+      if (sourceReportId != null) 'source_report_id': sourceReportId,
     });
   }
 

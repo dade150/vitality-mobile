@@ -2,6 +2,7 @@
 import 'dart:convert';
 import '../models/chat_models.dart';
 import 'api_services.dart';
+import 'supabase_client.dart';
 
 class ChatService {
   static const _chatTimeout = Duration(seconds: 60);
@@ -74,5 +75,17 @@ class ChatService {
   /// DELETE /api/chat/sessions/$sessionId (status 204).
   Future<void> deleteSession(int sessionId) async {
     await ApiService.delete('/api/chat/sessions/$sessionId');
+  }
+
+  /// DELETE /api/chat/sessions (status 204) con fallback diretto RLS su Supabase.
+  Future<void> deleteAllSessions() async {
+    try {
+      await ApiService.delete('/api/chat/sessions');
+      return;
+    } catch (_) {
+      final uid = supabase.auth.currentUser?.id;
+      if (uid == null) rethrow;
+      await supabase.from('chat_session').delete().eq('user_id', uid);
+    }
   }
 }

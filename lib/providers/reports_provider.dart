@@ -97,6 +97,19 @@ class ReportsProvider extends AuthScopedProvider {
   Future<bool> deleteReport(String id) async {
     final ok = await guard(
       () async {
+        // Art. 17 GDPR: rimuove prima il file fisico dal bucket privato Storage per non lasciare orfani
+        String? filePath = _reports.where((r) => r.id == id).firstOrNull?.filePath;
+        if (filePath == null || filePath.trim().isEmpty) {
+          final row = await db
+              .from(_table)
+              .select('file_path')
+              .eq('id', id)
+              .maybeSingle();
+          filePath = row?['file_path']?.toString();
+        }
+        if (filePath != null && filePath.trim().isNotEmpty) {
+          await db.storage.from('patient-reports').remove([filePath.trim()]);
+        }
         await db.from(_table).delete().eq('id', id);
       },
       where: 'ReportsProvider.deleteReport',

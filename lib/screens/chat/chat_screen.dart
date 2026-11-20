@@ -25,6 +25,7 @@ import '../../utils/app_feedback.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/clinical_proposal_card.dart';
 import '../../widgets/formatted_chat_message.dart';
+import '../../widgets/pdf_export_sheet.dart';
 import '../../widgets/report_privacy_mask_dialog.dart';
 import '../settings/settings_screen.dart';
 import 'chat_drawer.dart';
@@ -154,12 +155,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
       final bytes = await pickedFile.readAsBytes();
       final name = pickedFile.name;
-      final ext = name.split('.').last.toLowerCase();
-      String mimeType = 'image/jpeg';
-      if (ext == 'png') mimeType = 'image/png';
-      if (ext == 'webp') mimeType = 'image/webp';
 
-      Uint8List finalBytes = bytes;
+      Uint8List finalBytes;
       if (isReport) {
         if (!mounted) return;
         final sanitized = await ReportPrivacyMaskDialog.show(
@@ -169,11 +166,33 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         );
         if (sanitized == null || !mounted) return;
         finalBytes = sanitized;
+      } else {
+        // Garantisce formato supportato (JPEG/PNG/WebP, convertendo es. HEIC) e dimensione <= 3.5 MB
+        finalBytes = await normalizeImageForUpload(bytes);
+        if (!mounted) return;
       }
+
+      // Rileva sempre il MIME reale dai magic bytes per evitare mismatch HTTP 400 sul backend
+      final mimeType = detectImageMimeType(finalBytes, fallback: '');
+      if (mimeType.isEmpty) {
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'Formato immagine non supportato. Usa una foto in formato JPG, PNG o WebP.',
+        );
+        return;
+      }
+      if (finalBytes.length > kMaxUploadAttachmentBytes) {
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'L\'immagine supera il limite massimo di 5 MB. Prova con una foto più leggera.',
+        );
+        return;
+      }
+      final finalName = normalizeMaskedFileName(name, finalBytes);
 
       setState(() {
         _pendingAttachment = _PendingAttachment(
-          fileName: name,
+          fileName: finalName,
           kind: kind,
           mimeType: mimeType,
           bytes: finalBytes,
@@ -211,6 +230,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           AppFeedback.showErrorDialog(
             context,
             message: 'Impossibile leggere il file selezionato.',
+          );
+        }
+        return;
+      }
+      if (!isPdfBytes(bytes)) {
+        if (mounted) {
+          AppFeedback.showErrorDialog(
+            context,
+            message: 'Il file selezionato non sembra un documento PDF valido.',
+          );
+        }
+        return;
+      }
+      if (bytes.length > kMaxUploadAttachmentBytes) {
+        if (mounted) {
+          AppFeedback.showErrorDialog(
+            context,
+            message: 'Il PDF supera il limite massimo di 5 MB. Scegli un documento più leggero.',
           );
         }
         return;
@@ -532,10 +569,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final hasPendingProposals = assistantMsg.proposedEntries.any(
       (p) => p.status == ProposalStatus.pending || p.status == ProposalStatus.saving,
     );
+    final hasSuggestedAction = assistantMsg.suggestedAction != null;
 
-    // Se è spuntato un dato clinico ancora da confermare (ClinicalProposalCard) o un banner di emergenza,
-    // mettiamo in pausa il riascolto automatico così il paziente può controllare e premere "Salva nel Diario".
-    if (hasPendingProposals || assistantMsg.isEmergency || isKeyboardOpen) {
+    // Se è spuntato un dato clinico ancora da confermare (ClinicalProposalCard), una card azione (es. PDF)
+    // o un banner di emergenza, mettiamo in pausa il riascolto automatico così il paziente può agire con calma.
+    if (hasPendingProposals || hasSuggestedAction || assistantMsg.isEmergency || isKeyboardOpen) {
       _scrollToEnd();
       setState(() {
         _voicePauseReason = hasPendingProposals ? 'proposal' : null;
@@ -1311,6 +1349,103 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildSuggestedActionCard(ThemeData theme, ChatSuggestedAction action) {
+    if (action.type != 'export_pdf_summary') return const SizedBox.shrink();
+
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? cs.primary : AppColors.accent;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6, bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? cs.surfaceContainerHigh : AppColors.lightCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.45),
+          width: 1.3,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDark ? cs.primaryContainer : AppColors.lightPeach,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.picture_as_pdf_rounded,
+                  color: accentColor,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Report Medico PDF (${action.months} mesi)',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Riepilogo clinico stampabile per il medico',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 48,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.download_rounded, size: 20),
+              label: const Text(
+                'Genera e salva PDF',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+              onPressed: () async {
+                await _exitVoiceConversationMode();
+                if (!mounted) return;
+                await showPdfExportSheet(context, initialMonths: action.months);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickSuggestionChips(ThemeData theme) {
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
@@ -1653,6 +1788,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       child: Container(
                                         constraints: const BoxConstraints(maxWidth: 480),
                                         child: _buildQuickSuggestionChips(theme),
+                                      ),
+                                    ),
+                                  if (!message.isStreaming && message.suggestedAction != null)
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Container(
+                                        constraints: const BoxConstraints(maxWidth: 480),
+                                        child: _buildSuggestedActionCard(
+                                          theme,
+                                          message.suggestedAction!,
+                                        ),
                                       ),
                                     ),
                                   if (message.visibleProposals.isNotEmpty)

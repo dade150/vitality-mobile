@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../models/clinical_parameter.dart';
 import '../models/meal_entry.dart';
 import '../models/proposed_entry.dart';
+import '../providers/health_provider.dart';
 import '../services/health_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/app_date_picker.dart';
@@ -758,15 +760,75 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
 
   // 5. Therapy Log Fields
   Widget _buildTherapyLogFields(ThemeData theme, ColorScheme cs, bool readOnly) {
+    final therapies = context.watch<HealthProvider>().therapyItems;
+    final currentId = _controllers['therapy_id']?.text.trim() ?? '';
+    final matchedId = therapies.any((t) => t.id == currentId) ? currentId : null;
+    final rawStatus = (_localData['status'] ?? 'ASSUNTA').toString().trim().toUpperCase();
+    final currentStatus = (rawStatus == 'SALTATA' || rawStatus == 'SKIPPED') ? 'SALTATA' : 'ASSUNTA';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildTextFormField(
-          keyName: 'therapy_id',
-          label: 'ID Farmaco / Terapia',
-          hint: 'es. 1',
-          readOnly: readOnly,
-          validator: (v) => (v == null || v.trim().isEmpty) ? 'ID terapia obbligatorio' : null,
+        if (therapies.isNotEmpty)
+          DropdownButtonFormField<String>(
+            initialValue: matchedId,
+            decoration: const InputDecoration(
+              labelText: 'Farmaco / Terapia',
+              hintText: 'Seleziona una terapia',
+              isDense: true,
+            ),
+            items: therapies
+                .map(
+                  (t) => DropdownMenuItem<String>(
+                    value: t.id,
+                    child: Text(
+                      '${t.name} (ore ${t.time})',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: readOnly
+                ? null
+                : (val) {
+                    if (val != null) {
+                      setState(() {
+                        _controllers['therapy_id']?.text = val;
+                        _localData['therapy_id'] = val;
+                      });
+                    }
+                  },
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'Seleziona una terapia' : null,
+          )
+        else
+          _buildTextFormField(
+            keyName: 'therapy_id',
+            label: 'ID Farmaco / Terapia',
+            hint: 'Configura prima una terapia nel Diario',
+            readOnly: readOnly,
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'Terapia obbligatoria' : null,
+          ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          initialValue: currentStatus,
+          decoration: const InputDecoration(
+            labelText: 'Esito assunzione',
+            isDense: true,
+          ),
+          items: const [
+            DropdownMenuItem(value: 'ASSUNTA', child: Text('Assunta')),
+            DropdownMenuItem(value: 'SALTATA', child: Text('Saltata')),
+          ],
+          onChanged: readOnly
+              ? null
+              : (val) {
+                  if (val != null) {
+                    setState(() {
+                      _localData['status'] = val;
+                      _controllers['status']?.text = val;
+                    });
+                  }
+                },
         ),
         const SizedBox(height: 12),
         WhenSelector(

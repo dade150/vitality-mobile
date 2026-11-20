@@ -1,4 +1,5 @@
 // lib/models/chat_message.dart
+import 'chat_models.dart';
 import 'proposed_entry.dart';
 
 class ChatMessage {
@@ -12,6 +13,7 @@ class ChatMessage {
   final bool isStreaming;
   final bool isEmergency;
   final String? guardrailCategory;
+  final ChatSuggestedAction? suggestedAction;
 
   ChatMessage({
     String? id,
@@ -24,6 +26,7 @@ class ChatMessage {
     this.isStreaming = false,
     this.isEmergency = false,
     this.guardrailCategory,
+    this.suggestedAction,
   }) : id = id ?? 'msg_${DateTime.now().microsecondsSinceEpoch}';
 
   ChatMessage copyWith({
@@ -37,6 +40,7 @@ class ChatMessage {
     bool? isStreaming,
     bool? isEmergency,
     String? guardrailCategory,
+    ChatSuggestedAction? suggestedAction,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -49,6 +53,7 @@ class ChatMessage {
       isStreaming: isStreaming ?? this.isStreaming,
       isEmergency: isEmergency ?? this.isEmergency,
       guardrailCategory: guardrailCategory ?? this.guardrailCategory,
+      suggestedAction: suggestedAction ?? this.suggestedAction,
     );
   }
 
@@ -90,6 +95,7 @@ class ChatMessage {
 
     final isEmergency = json['is_emergency'] == true;
     final guardrailCategory = json['guardrail_category']?.toString();
+    final suggestedAction = ChatSuggestedAction.tryFromJson(json['suggested_action']);
 
     return ChatMessage(
       id: json['id']?.toString(),
@@ -101,6 +107,7 @@ class ChatMessage {
       attachmentFileName: attachmentFileName,
       isEmergency: isEmergency,
       guardrailCategory: guardrailCategory,
+      suggestedAction: suggestedAction,
     );
   }
 }
