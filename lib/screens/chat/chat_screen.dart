@@ -19,6 +19,7 @@ import '../../providers/health_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/reports_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../services/device_file_service.dart';
 import '../../services/voice_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/app_feedback.dart';
@@ -189,6 +190,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         return;
       }
       final finalName = normalizeMaskedFileName(name, finalBytes);
+
+      // Se l'utente ha appena fotografato un referto clinico dalla fotocamera,
+      // ne salva automaticamente una copia nella Galleria del dispositivo (Pictures/diaLog2).
+      if (isReport && source == ImageSource.camera && DeviceFileService.isAndroid) {
+        try {
+          final now = DateTime.now();
+          String p2(int n) => n.toString().padLeft(2, '0');
+          final ext = DeviceFileService.extensionForMime(mimeType);
+          final galleryName =
+              'Referto_${now.year}${p2(now.month)}${p2(now.day)}_${p2(now.hour)}${p2(now.minute)}${p2(now.second)}.$ext';
+          final dest = await DeviceFileService.saveReportToDevice(
+            bytes: finalBytes,
+            fileName: galleryName,
+            mimeType: mimeType,
+          );
+          if (dest != null && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Foto referto salvata in Galleria ($dest).')),
+            );
+          }
+        } catch (_) {
+          // Best-effort: non blocca mai l'allegato in chat
+        }
+      }
 
       setState(() {
         _pendingAttachment = _PendingAttachment(

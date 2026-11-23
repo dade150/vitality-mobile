@@ -57,7 +57,9 @@ class ProposedEntry {
   static ProposedEntry? fromJson(Map<String, dynamic> json) {
     final rawTable = json['target_table']?.toString();
     final target = TargetTable.fromString(rawTable);
-    if (target == null) return null;
+    // Il piano terapeutico (`therapies`) si configura solo manualmente in Impostazioni > Terapia
+    // per evitare duplicazioni caricando più referti della diabetologa.
+    if (target == null || target == TargetTable.therapies) return null;
 
     final proposalId = json['proposal_id']?.toString() ??
         'prop_${DateTime.now().microsecondsSinceEpoch}';

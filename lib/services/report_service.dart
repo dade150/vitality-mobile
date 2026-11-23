@@ -1,15 +1,15 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/clinical_parameter.dart';
 import '../models/medical_report.dart';
+import '../screens/reports/report_viewer_screen.dart';
 import 'api_services.dart';
+import 'device_file_service.dart';
 import 'error_handler.dart';
 
 /// Un valore recuperato dal referto, già associato al parametro clinico.
@@ -52,44 +52,83 @@ class ReportService {
   static const _endpoint = '/api/reports';
 
   /// Scarica privatamente il referto (con JWT autenticato, senza esporre Signed URL
-  /// nella cronologia del browser esterno) e apre il salvataggio locale sicuro.
+  /// nella cronologia del browser esterno) e lo apre direttamente nel visualizzatore
+  /// in-app, offrendo accesso immediato a "Apri con Galleria / app esterna" e salvataggio locale.
   static Future<void> openReportWithExternalApp(BuildContext context, MedicalReport report) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
+    final navigator = Navigator.of(context);
     final db = Supabase.instance.client;
+
+    // Mostra breve indicatore durante il download autenticato
+    var loaderOpen = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                  SizedBox(width: 14),
+                  Text('Apertura referto...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    void closeLoader() {
+      if (loaderOpen && navigator.canPop()) {
+        loaderOpen = false;
+        navigator.pop();
+      }
+    }
 
     Uint8List? bytes;
     String ext = 'pdf';
 
-    // 1. Download autenticato diretto dal bucket privato Storage sotto RLS (zero Signed URL nel browser)
-    final path = report.filePath?.trim();
-    if (path != null && path.isNotEmpty) {
-      try {
-        final downloaded = await db.storage.from('patient-reports').download(path);
-        if (downloaded.isNotEmpty) {
-          bytes = downloaded;
-          final dotIdx = path.lastIndexOf('.');
-          if (dotIdx > 0 && dotIdx < path.length - 1) {
-            final candidate = path.substring(dotIdx + 1).toLowerCase();
-            if (const {'pdf', 'png', 'jpg', 'jpeg', 'webp'}.contains(candidate)) {
-              ext = candidate;
+    try {
+      // 1. Download autenticato diretto dal bucket privato Storage sotto RLS (zero Signed URL nel browser)
+      final path = report.filePath?.trim();
+      if (path != null && path.isNotEmpty) {
+        try {
+          final downloaded = await db.storage.from('patient-reports').download(path);
+          if (downloaded.isNotEmpty) {
+            bytes = downloaded;
+            final dotIdx = path.lastIndexOf('.');
+            if (dotIdx > 0 && dotIdx < path.length - 1) {
+              final candidate = path.substring(dotIdx + 1).toLowerCase();
+              if (const {'pdf', 'png', 'jpg', 'jpeg', 'webp'}.contains(candidate)) {
+                ext = candidate;
+              }
             }
           }
+        } catch (_) {
+          // Fallback al download PDF dal backend se il file non è presente in Storage
         }
-      } catch (_) {
-        // Fallback al download PDF dal backend se il file non è presente in Storage
       }
-    }
 
-    // 2. Fallback: scarica il documento PDF generato dal backend (/api/reports/{id}/document)
-    final numId = int.tryParse(report.id);
-    if (bytes == null) {
-      if (numId == null) {
-        messenger?.showSnackBar(
-          const SnackBar(content: Text('Documento ancora in fase di sincronizzazione. Riprova tra poco.')),
-        );
-        return;
-      }
-      try {
+      // 2. Fallback: scarica il documento PDF generato dal backend (/api/reports/{id}/document)
+      final numId = int.tryParse(report.id);
+      if (bytes == null) {
+        if (numId == null) {
+          closeLoader();
+          messenger?.showSnackBar(
+            const SnackBar(content: Text('Documento ancora in fase di sincronizzazione. Riprova tra poco.')),
+          );
+          return;
+        }
         final response = await ApiService.get(
           '$_endpoint/$numId/document',
           timeout: const Duration(seconds: 30),
@@ -99,41 +138,29 @@ class ReportService {
         }
         bytes = response.bodyBytes;
         ext = 'pdf';
-      } catch (e) {
-        messenger?.showSnackBar(
-          SnackBar(
-            content: Text(
-              e is AppFailure ? e.message : 'Impossibile scaricare il referto in questo momento.',
-            ),
-          ),
-        );
-        return;
       }
-    }
 
-    // 3. Salva il file localmente tramite selettore di sistema
-    try {
+      closeLoader();
+      if (!context.mounted) return;
+
+      final mimeType = DeviceFileService.detectMimeType(bytes, fallbackExt: ext);
+      final resolvedExt = DeviceFileService.extensionForMime(mimeType);
       final safeName = report.title.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
       final fallbackLabel = numId != null ? 'Referto_$numId' : 'Referto';
-      final fileName = '${safeName.isEmpty ? fallbackLabel : safeName}.$ext';
-      final outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Salva Referto Clinico',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: [ext],
-        bytes: bytes,
+      final fileName = '${safeName.isEmpty ? fallbackLabel : safeName}.$resolvedExt';
+
+      await navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => ReportViewerScreen(
+            report: report,
+            bytes: bytes!,
+            fileName: fileName,
+            mimeType: mimeType,
+          ),
+        ),
       );
-      if (outputPath != null && outputPath.isNotEmpty) {
-        try {
-          await File(outputPath).writeAsBytes(bytes);
-        } catch (_) {}
-      }
-      if (outputPath != null && context.mounted) {
-        messenger?.showSnackBar(
-          const SnackBar(content: Text('Referto salvato sul dispositivo.')),
-        );
-      }
     } catch (e) {
+      closeLoader();
       messenger?.showSnackBar(
         SnackBar(
           content: Text(
