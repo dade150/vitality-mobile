@@ -13,6 +13,7 @@ import '../../widgets/app_scaffold.dart';
 import '../../widgets/clinical_entry_sheet.dart';
 import '../../widgets/pill_button.dart';
 import '../../widgets/section_card.dart';
+import 'add_report_screen.dart';
 
 enum ClinicalScreenView {
   valori,
@@ -122,7 +123,7 @@ class _ClinicalParametersScreenState extends State<ClinicalParametersScreen> {
                 _ProfileSection(profile: profile, clinical: clinical),
           ] else ...[
             _ReportsTabSection(
-              onAdd: () => Navigator.of(context).pushNamed('/reports/add'),
+              onAdd: () => AddReportScreen.startFlow(context),
             ),
           ],
         ],

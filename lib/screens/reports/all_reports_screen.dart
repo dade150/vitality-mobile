@@ -6,6 +6,7 @@ import '../../services/report_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/date_format.dart';
 import '../../widgets/section_card.dart';
+import 'add_report_screen.dart';
 
 /// Schermata con l'archivio completo di tutti i referti medici caricati.
 class AllReportsScreen extends StatelessWidget {
@@ -30,7 +31,7 @@ class AllReportsScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.add_rounded),
             tooltip: 'Aggiungi referto',
-            onPressed: () => Navigator.of(context).pushNamed('/reports/add'),
+            onPressed: () => AddReportScreen.startFlow(context),
           ),
         ],
       ),

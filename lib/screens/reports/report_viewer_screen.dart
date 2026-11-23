@@ -100,13 +100,7 @@ class _ReportViewerScreenState extends State<ReportViewerScreen> {
       if (!mounted) return;
       if (dest != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _isImage
-                  ? 'Referto salvato in Galleria ($dest).'
-                  : 'Referto salvato in Archivio ($dest).',
-            ),
-          ),
+          SnackBar(content: Text('Referto salvato in $dest.')),
         );
       }
     } catch (_) {
@@ -284,11 +278,7 @@ class _ReportViewerScreenState extends State<ReportViewerScreen> {
                   ],
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: InteractiveViewer(
-                  minScale: 1.0,
-                  maxScale: 4.0,
-                  child: Image.memory(pages[idx], fit: BoxFit.contain),
-                ),
+                child: _ZoomablePdfPage(pageBytes: pages[idx]),
               ),
             ],
           );
@@ -318,6 +308,48 @@ class _ReportViewerScreenState extends State<ReportViewerScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Pagina PDF con pinch-to-zoom che non interferisce con lo scorrimento verticale
+/// della lista finché la pagina resta a scala 1x.
+class _ZoomablePdfPage extends StatefulWidget {
+  final Uint8List pageBytes;
+
+  const _ZoomablePdfPage({required this.pageBytes});
+
+  @override
+  State<_ZoomablePdfPage> createState() => _ZoomablePdfPageState();
+}
+
+class _ZoomablePdfPageState extends State<_ZoomablePdfPage> {
+  final TransformationController _controller = TransformationController();
+  bool _isZoomed = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _syncZoomState() {
+    final zoomedNow = _controller.value.getMaxScaleOnAxis() > 1.05;
+    if (zoomedNow != _isZoomed && mounted) {
+      setState(() => _isZoomed = zoomedNow);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      transformationController: _controller,
+      minScale: 1.0,
+      maxScale: 4.0,
+      panEnabled: _isZoomed,
+      onInteractionUpdate: (_) => _syncZoomState(),
+      onInteractionEnd: (_) => _syncZoomState(),
+      child: Image.memory(widget.pageBytes, fit: BoxFit.contain),
     );
   }
 }

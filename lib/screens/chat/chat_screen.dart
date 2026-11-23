@@ -207,7 +207,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           );
           if (dest != null && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Foto referto salvata in Galleria ($dest).')),
+              SnackBar(content: Text('Foto referto salvata in $dest.')),
             );
           }
         } catch (_) {
@@ -339,7 +339,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: Icon(Icons.restaurant_rounded, color: AppColors.accent),
                   ),
                   title: const Text('Foto Pasto o Glucometro', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Riconoscimento alimenti CREA o valore glicemia', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.pop(modalContext);
                     _pickImage(ImageSource.camera, kind: 'meal_photo', isReport: false);
@@ -351,7 +350,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: Icon(Icons.document_scanner_rounded, color: AppColors.accent),
                   ),
                   title: const Text('Foto Referto Clinico', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Con Privacy Mask per oscurare Nome e CF', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.pop(modalContext);
                     _pickImage(ImageSource.camera, kind: 'medical_report', isReport: true);
@@ -363,7 +361,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: Icon(Icons.photo_library_rounded, color: AppColors.accent),
                   ),
                   title: const Text('Scegli da Galleria', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Seleziona un\'immagine salvata sul dispositivo', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.pop(modalContext);
                     _showGalleryChoiceDialog();
@@ -375,7 +372,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: Icon(Icons.picture_as_pdf_rounded, color: AppColors.accent),
                   ),
                   title: const Text('Documento PDF', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Referto nativo con de-identificazione in RAM', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.pop(modalContext);
                     _pickPdf();
@@ -418,7 +414,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: Icon(Icons.restaurant_rounded, color: AppColors.accent),
                   ),
                   title: const Text('Foto Pasto o Glucometro', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Nessun dato anagrafico da oscurare', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.pop(ctx);
                     _pickImage(ImageSource.gallery, kind: 'meal_photo', isReport: false);
@@ -430,7 +425,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: Icon(Icons.document_scanner_rounded, color: AppColors.accent),
                   ),
                   title: const Text('Referto Medico Cartaceo', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Apre l\'anteprima con Privacy Mask per annerire l\'intestazione', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.pop(ctx);
                     _pickImage(ImageSource.gallery, kind: 'medical_report', isReport: true);
@@ -570,7 +564,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // Se l'utente ha aperto la tastiera (es. sta modificando un campo dentro una scheda clinica),
     // non riapriamo il microfono per non togliergli il focus.
     final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
-    final hasPendingProposals = assistantMsg.proposedEntries.any(
+    final health = context.read<HealthProvider>();
+    final hasPendingProposals = _displayableProposals(assistantMsg, health).any(
       (p) => p.status == ProposalStatus.pending || p.status == ProposalStatus.saving,
     );
     final hasSuggestedAction = assistantMsg.suggestedAction != null;
@@ -875,6 +870,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   static const double _voiceBarHeight = 72.0;
+
+  List<ProposedEntry> _displayableProposals(ChatMessage message, HealthProvider health) {
+    return message.visibleProposals.where((p) {
+      if (p.targetTable == TargetTable.therapies) return false;
+      if (p.targetTable == TargetTable.therapyLogs &&
+          p.status != ProposalStatus.saved &&
+          (!health.hasLoaded || health.therapyItems.isEmpty)) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
 
   /// Bolla utente "live" mostrata direttamente dentro la chat appena l'utente inizia a parlare.
   /// Scrive le parole in tempo reale con font grande ad alta leggibilità e si invia
@@ -1805,7 +1812,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                         ),
                                       ),
                                     ),
-                                  if (message.visibleProposals.isNotEmpty)
+                                  if (_displayableProposals(message, context.watch<HealthProvider>()).isNotEmpty)
                                     Align(
                                       alignment: Alignment.centerLeft,
                                       child: Container(
@@ -1815,7 +1822,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                           crossAxisAlignment: CrossAxisAlignment.stretch,
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            for (final proposal in message.visibleProposals)
+                                            for (final proposal in _displayableProposals(message, context.watch<HealthProvider>()))
                                               ClinicalProposalCard(
                                                 key: ValueKey('${message.id}_${proposal.proposalId}'),
                                                 messageId: message.id,

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/clinical_parameter.dart';
@@ -10,20 +11,273 @@ import '../../models/medical_report.dart';
 import '../../providers/clinical_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/reports_provider.dart';
+import '../../services/device_file_service.dart';
 import '../../services/error_handler.dart';
 import '../../services/report_service.dart';
+import '../../theme/app_colors.dart';
 import '../../utils/app_date_picker.dart';
+import '../../utils/app_feedback.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/report_privacy_mask_dialog.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets/vital_entry_sheet.dart';
 
-/// Carica un referto (PDF) al backend, che lo salva su Storage ed estrae i
-/// valori clinici. Una volta arrivata la risposta l'utente SCEGLIE quali
-/// valori salvare (conferma manuale) e in quale data: solo allora finiscono
-/// in `diabetes_data` tramite [ClinicalProvider].
+enum _ReportSourceChoice {
+  camera,
+  gallery,
+  pdf,
+}
+
+class _PickedReportFile {
+  final Uint8List bytes;
+  final String filename;
+
+  const _PickedReportFile({required this.bytes, required this.filename});
+}
+
+/// Flusso di caricamento referto (Foto, Galleria o PDF) con analisi automatica
+/// e conferma Human-in-the-Loop dei parametri clinici estratti.
 class AddReportScreen extends StatefulWidget {
-  const AddReportScreen({super.key});
+  final Uint8List? initialBytes;
+  final String? initialFilename;
+
+  const AddReportScreen({
+    super.key,
+    this.initialBytes,
+    this.initialFilename,
+  });
+
+  /// Apre direttamente il menu a 3 opzioni (Foto Referto Clinico, Carica da Galleria,
+  /// Carica PDF); appena il documento è selezionato/confermato apre subito l'analisi
+  /// e la schermata di salvataggio parametri, saltando qualsiasi pagina intermedia.
+  static Future<void> startFlow(BuildContext context) async {
+    final aiConsent = context.read<ProfileProvider>().profile?.aiHealthConsent ?? false;
+    if (!aiConsent) {
+      AppFeedback.showErrorDialog(
+        context,
+        title: 'Consenso richiesto',
+        message:
+            'Il consenso al trattamento dati sanitari con IA è disattivato. Riattivalo da Impostazioni > Privacy e gestione dati per caricare i referti.',
+      );
+      return;
+    }
+
+    final picked = await _pickReportWithOptions(context);
+    if (picked == null || !context.mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AddReportScreen(
+          initialBytes: picked.bytes,
+          initialFilename: picked.filename,
+        ),
+      ),
+    );
+  }
+
+  static String _timestampedPhotoName(Uint8List bytes) {
+    final now = DateTime.now();
+    String p2(int n) => n.toString().padLeft(2, '0');
+    final stamp =
+        '${now.year}${p2(now.month)}${p2(now.day)}_${p2(now.hour)}${p2(now.minute)}${p2(now.second)}';
+    final mime = DeviceFileService.detectMimeType(bytes, fallbackExt: 'png');
+    final ext = DeviceFileService.extensionForMime(mime);
+    return 'Referto_$stamp.$ext';
+  }
+
+  static Future<_PickedReportFile?> _pickReportWithOptions(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    final choice = await showModalBottomSheet<_ReportSourceChoice>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (modalContext) {
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: cs.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.lightPeach,
+                    child: Icon(Icons.document_scanner_rounded, color: AppColors.accent),
+                  ),
+                  title: const Text('Foto Referto Clinico', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () => Navigator.pop(modalContext, _ReportSourceChoice.camera),
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.lightPeach,
+                    child: Icon(Icons.photo_library_rounded, color: AppColors.accent),
+                  ),
+                  title: const Text('Carica da Galleria', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () => Navigator.pop(modalContext, _ReportSourceChoice.gallery),
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.lightPeach,
+                    child: Icon(Icons.picture_as_pdf_rounded, color: AppColors.accent),
+                  ),
+                  title: const Text('Carica PDF', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () => Navigator.pop(modalContext, _ReportSourceChoice.pdf),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (choice == null || !context.mounted) return null;
+
+    if (choice == _ReportSourceChoice.pdf) {
+      return _pickPdfReport(context);
+    }
+    return _pickImageReport(
+      context,
+      source: choice == _ReportSourceChoice.camera ? ImageSource.camera : ImageSource.gallery,
+    );
+  }
+
+  static Future<_PickedReportFile?> _pickImageReport(
+    BuildContext context, {
+    required ImageSource source,
+  }) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+      if (pickedFile == null || !context.mounted) return null;
+
+      final rawBytes = await pickedFile.readAsBytes();
+      if (!context.mounted) return null;
+
+      final sanitized = await ReportPrivacyMaskDialog.show(
+        context,
+        imageBytes: rawBytes,
+        fileName: pickedFile.name,
+      );
+      if (sanitized == null || !context.mounted) return null;
+
+      final mimeType = detectImageMimeType(sanitized, fallback: '');
+      if (mimeType.isEmpty) {
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'Formato immagine non supportato. Usa un file JPG, PNG o WebP.',
+        );
+        return null;
+      }
+      if (sanitized.length > kMaxUploadAttachmentBytes) {
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'L\'immagine supera il limite massimo di 5 MB. Prova con una foto più leggera.',
+        );
+        return null;
+      }
+
+      final fileName = source == ImageSource.camera
+          ? _timestampedPhotoName(sanitized)
+          : normalizeMaskedFileName(pickedFile.name, sanitized);
+
+      // Salva automaticamente una copia della foto scattata in Galleria (Pictures/diaLog2)
+      if (source == ImageSource.camera && DeviceFileService.isAndroid) {
+        try {
+          final dest = await DeviceFileService.saveReportToDevice(
+            bytes: sanitized,
+            fileName: fileName,
+            mimeType: mimeType,
+          );
+          if (dest != null && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Foto referto salvata in $dest.')),
+            );
+          }
+        } catch (_) {}
+      }
+
+      return _PickedReportFile(bytes: sanitized, filename: fileName);
+    } catch (_) {
+      if (context.mounted) {
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'Impossibile selezionare l\'immagine. Riprova.',
+        );
+      }
+      return null;
+    }
+  }
+
+  static Future<_PickedReportFile?> _pickPdfReport(BuildContext context) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty || !context.mounted) return null;
+
+      final file = result.files.first;
+      Uint8List? rawBytes = file.bytes;
+      if (rawBytes == null && file.path != null) {
+        final f = File(file.path!);
+        if (await f.exists()) {
+          rawBytes = await f.readAsBytes();
+        }
+      }
+      if (!context.mounted) return null;
+
+      if (rawBytes == null || rawBytes.isEmpty) {
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'Impossibile leggere il file selezionato.',
+        );
+        return null;
+      }
+      if (!isPdfBytes(rawBytes)) {
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'Il file selezionato non è un documento PDF valido.',
+        );
+        return null;
+      }
+      if (rawBytes.length > kMaxUploadAttachmentBytes) {
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'Il documento PDF supera il limite massimo di 5 MB.',
+        );
+        return null;
+      }
+
+      return _PickedReportFile(bytes: rawBytes, filename: file.name);
+    } catch (_) {
+      if (context.mounted) {
+        AppFeedback.showErrorDialog(
+          context,
+          message: 'Impossibile selezionare il PDF. Riprova.',
+        );
+      }
+      return null;
+    }
+  }
 
   @override
   State<AddReportScreen> createState() => _AddReportScreenState();
@@ -45,6 +299,19 @@ class _AddReportScreenState extends State<AddReportScreen> {
   String? _error;
 
   static const _genericError = 'Operazione non riuscita. Controlla la connessione e riprova.';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialBytes != null && widget.initialFilename != null) {
+      _bytes = widget.initialBytes;
+      _filename = widget.initialFilename;
+      _uploading = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _upload();
+      });
+    }
+  }
 
   void _disposeValueControllers() {
     for (final ctrl in _valueCtrls.values) {
@@ -71,85 +338,10 @@ class _AddReportScreenState extends State<AddReportScreen> {
     });
   }
 
-  // ------------------------------------------------------------- Selezione
+  // ------------------------------------------------------------- Selezione + Upload immediato
 
-  Future<void> _pickFile() async {
+  Future<void> _pickAndUpload() async {
     FocusScope.of(context).unfocus();
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'],
-      withData: true,
-    );
-    if (picked == null || picked.files.isEmpty || !mounted) return;
-    final file = picked.files.first;
-    Uint8List? rawBytes = file.bytes;
-    if (rawBytes == null && file.path != null) {
-      final f = File(file.path!);
-      if (await f.exists()) {
-        rawBytes = await f.readAsBytes();
-      }
-    }
-    if (rawBytes == null || rawBytes.isEmpty) {
-      if (!mounted) return;
-      setState(() => _error = 'Non riesco a leggere il file selezionato.');
-      return;
-    }
-
-    final lowerName = file.name.toLowerCase();
-    final isPdf = isPdfBytes(rawBytes) ||
-        (lowerName.endsWith('.pdf') && detectImageMimeType(rawBytes, fallback: '').isEmpty);
-
-    Uint8List processedBytes = rawBytes;
-    String resolvedName = file.name;
-
-    if (isPdf) {
-      if (!isPdfBytes(rawBytes)) {
-        if (!mounted) return;
-        setState(() => _error = 'Il file selezionato non è un documento PDF valido.');
-        return;
-      }
-      if (rawBytes.length > kMaxUploadAttachmentBytes) {
-        if (!mounted) return;
-        setState(() => _error = 'Il documento PDF supera il limite massimo di 5 MB.');
-        return;
-      }
-    } else {
-      // Se il referto è un'immagine/scansione, apre il visual privacy mask per oscurare l'intestazione
-      // e normalizza formato (JPEG/PNG/WebP, conversione HEIC) e peso sotto il limite backend.
-      if (!mounted) return;
-      final sanitized = await ReportPrivacyMaskDialog.show(
-        context,
-        imageBytes: processedBytes,
-        fileName: file.name,
-      );
-      if (sanitized == null || !mounted) return;
-      if (detectImageMimeType(sanitized, fallback: '').isEmpty) {
-        setState(() => _error = 'Formato immagine non supportato. Usa un file JPG, PNG o WebP.');
-        return;
-      }
-      if (sanitized.length > kMaxUploadAttachmentBytes) {
-        setState(() => _error = 'L\'immagine supera il limite massimo di 5 MB. Prova con una foto più leggera.');
-        return;
-      }
-      processedBytes = sanitized;
-      resolvedName = normalizeMaskedFileName(file.name, processedBytes);
-    }
-
-    setState(() {
-      _filename = resolvedName;
-      _bytes = processedBytes;
-      _result = null;
-      _selected.clear();
-      _disposeValueControllers();
-      _examDate = null;
-      _dateCtrl.clear();
-      _error = null;
-    });
-  }
-
-  // ------------------------------------------------------------- Caricamento
-
-  Future<void> _upload() async {
     final aiConsent = context.read<ProfileProvider>().profile?.aiHealthConsent ?? false;
     if (!aiConsent) {
       setState(() {
@@ -159,10 +351,43 @@ class _AddReportScreenState extends State<AddReportScreen> {
       return;
     }
 
+    final picked = await AddReportScreen._pickReportWithOptions(context);
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _filename = picked.filename;
+      _bytes = picked.bytes;
+      _result = null;
+      _selected.clear();
+      _disposeValueControllers();
+      _examDate = null;
+      _dateCtrl.clear();
+      _error = null;
+    });
+
+    await _upload();
+  }
+
+  // ------------------------------------------------------------- Caricamento
+
+  Future<void> _upload() async {
+    final aiConsent = context.read<ProfileProvider>().profile?.aiHealthConsent ?? false;
+    if (!aiConsent) {
+      setState(() {
+        _uploading = false;
+        _error = 'Hai revocato il consenso al trattamento con Intelligenza Artificiale (GDPR Art. 9). '
+            'Riattivalo da Impostazioni > Privacy e gestione dati per analizzare automaticamente i referti.';
+      });
+      return;
+    }
+
     final bytes = _bytes;
     final filename = _filename;
     if (bytes == null || filename == null) {
-      setState(() => _error = 'Scegli prima il documento da caricare.');
+      setState(() {
+        _uploading = false;
+        _error = 'Scegli prima il documento da caricare.';
+      });
       return;
     }
     setState(() {
@@ -175,8 +400,6 @@ class _AddReportScreenState extends State<AddReportScreen> {
     try {
       result = await ReportService.upload(bytes: bytes, filename: filename, title: title);
     } catch (e, st) {
-      // Classifica: errore atteso -> messaggio qui; imprevisto -> schermata
-      // di errore (già aperta da ErrorHandler).
       final failure = ErrorHandler.handle(e, st, 'AddReportScreen.upload');
       if (!mounted) return;
       setState(() {
@@ -374,7 +597,6 @@ class _AddReportScreenState extends State<AddReportScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final result = _result;
-
     final isDark = theme.brightness == Brightness.dark;
 
     return AppScaffold(
@@ -385,71 +607,57 @@ class _AddReportScreenState extends State<AddReportScreen> {
           Row(
             children: [
               IconButton(
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: _saving ? null : () => Navigator.of(context).maybePop(),
                 icon: const Icon(Icons.arrow_back_rounded),
                 tooltip: 'Torna indietro',
               ),
               const SizedBox(width: 4),
-              Text(
-                'Aggiungi referto',
-                style: theme.textTheme.headlineLarge?.copyWith(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w800,
+              Expanded(
+                child: Text(
+                  result == null ? 'Caricamento referto' : 'Parametri del referto',
+                  style: theme.textTheme.headlineLarge?.copyWith(
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          if (result == null) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.6)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          if (_uploading) ...[
+            SectionCard(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.privacy_tip_outlined, size: 20, color: cs.primary),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Tutela Privacy (GDPR): i PDF digitali vengono anonimizzati in memoria prima dell\'analisi. Se carichi una foto di un referto cartaceo, inquadra solo la tabella dei valori o copri l\'intestazione con Nome e Codice Fiscale.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        height: 1.35,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Caricamento e analisi del referto...',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
+                  if (_filename != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      _filename!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: _uploading ? null : _pickFile,
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                textStyle: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
-              ),
-              icon: const Icon(Icons.attach_file_rounded),
-              label: Text(
-                _filename ?? 'Allega PDF o immagine',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(height: 16),
+          ] else if (result == null) ...[
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton.icon(
-                onPressed: _uploading ? null : _upload,
+                onPressed: _pickAndUpload,
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   textStyle: theme.textTheme.labelMedium?.copyWith(
@@ -457,10 +665,8 @@ class _AddReportScreenState extends State<AddReportScreen> {
                     fontSize: 15.5,
                   ),
                 ),
-                icon: _uploading
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.upload_file_rounded),
-                label: Text(_uploading ? 'Caricamento ed analisi...' : 'Carica e analizza documento'),
+                icon: const Icon(Icons.upload_file_rounded),
+                label: const Text('Carica referto'),
               ),
             ),
           ] else ...[
@@ -630,7 +836,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed: _saving || _uploading ? null : _pickFile,
+              onPressed: _saving || _uploading ? null : _pickAndUpload,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -640,7 +846,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
                 ),
               ),
               icon: const Icon(Icons.swap_horiz_rounded),
-              label: const Text('Scegli un altro documento'),
+              label: const Text('Carica un altro referto'),
             ),
           ],
           if (_error != null) ...[

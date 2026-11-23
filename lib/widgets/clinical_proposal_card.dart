@@ -364,9 +364,21 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
     final p = widget.proposal;
     final isSaved = p.status == ProposalStatus.saved;
     final isSaving = p.status == ProposalStatus.saving;
+
+    if (p.targetTable == TargetTable.therapies) {
+      return const SizedBox.shrink();
+    }
+    HealthProvider? watchedHealth;
+    if (p.targetTable == TargetTable.therapyLogs) {
+      watchedHealth = context.watch<HealthProvider>();
+      if (!isSaved && (!watchedHealth.hasLoaded || watchedHealth.therapyItems.isEmpty)) {
+        return const SizedBox.shrink();
+      }
+    }
+
     final hasMissing = !p.isComplete && p.missingFields.isNotEmpty;
-    final therapyBlockReason = (!isSaved && p.targetTable == TargetTable.therapyLogs)
-        ? _therapyConfirmBlockReason(context.watch<HealthProvider>())
+    final therapyBlockReason = (!isSaved && p.targetTable == TargetTable.therapyLogs && watchedHealth != null)
+        ? _therapyConfirmBlockReason(watchedHealth)
         : null;
 
     // Colori di stato coerenti con il design system
@@ -1062,49 +1074,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
     }
 
     if (therapies.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cs.errorContainer.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.error.withValues(alpha: 0.4)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.medication_outlined, size: 20, color: cs.error),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Non hai ancora nessuna terapia attiva configurata. Aggiungi prima i tuoi farmaci per poter registrare le assunzioni.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurface,
-                      fontWeight: FontWeight.w600,
-                      height: 1.35,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (!readOnly) ...[
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).pushNamed('/settings/therapy'),
-                icon: const Icon(Icons.settings_outlined, size: 18),
-                label: const Text('Configura terapia'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  side: const BorderSide(color: AppColors.accent),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
+      return const SizedBox.shrink();
     }
 
     return Column(
