@@ -94,7 +94,7 @@ class ProfileScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: AppPickerTile(
-                              icon: Icons.calendar_today_outlined,
+                              icon: Icons.calendar_month_outlined,
                               caption: 'Data di nascita',
                               valueText: selectedBirth == null
                                   ? 'gg/mm/aaaa'

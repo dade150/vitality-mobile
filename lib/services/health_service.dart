@@ -50,6 +50,41 @@ class HealthService {
   /// l'elenco del menu e i valori scritti nel database non possono divergere.
   static final List<String> activityLabels = List.unmodifiable(_activityToDb.keys);
 
+  static String activityToDb(String label) {
+    final trimmed = label.trim();
+    if (_activityToDb.containsKey(trimmed)) return _activityToDb[trimmed]!;
+    final upper = trimmed.toUpperCase();
+    if (_activityFromDb.containsKey(upper)) return upper;
+    return 'ALTRO';
+  }
+
+  static String activityFromDb(String? dbValue) =>
+      _activityFromDb[(dbValue ?? '').trim().toUpperCase()] ?? 'Altro';
+
+  // Intensità attività: etichetta dell'app -> enum del database (`intensity_enum`).
+  static const Map<String, String> _intensityToDb = {
+    'Leggera': 'LEGGERA',
+    'Moderata': 'MODERATA',
+    'Intensa': 'INTENSA',
+  };
+  static final Map<String, String> _intensityFromDb = {
+    for (final e in _intensityToDb.entries) e.value: e.key,
+  };
+
+  /// Etichette intensità mostrate nella UI per tutte le attività fisiche.
+  static final List<String> intensityLabels = List.unmodifiable(_intensityToDb.keys);
+
+  static String intensityToDb(String label) {
+    final trimmed = label.trim();
+    if (_intensityToDb.containsKey(trimmed)) return _intensityToDb[trimmed]!;
+    final upper = trimmed.toUpperCase();
+    if (_intensityFromDb.containsKey(upper)) return upper;
+    return 'MODERATA';
+  }
+
+  static String intensityFromDb(String? dbValue) =>
+      _intensityFromDb[(dbValue ?? '').trim().toUpperCase()] ?? 'Moderata';
+
   static String _iso(DateTime d) => d.toUtc().toIso8601String();
 
   /// 0 righe toccate = la riga non c'è più (lista obsoleta, doppia
@@ -296,7 +331,7 @@ class HealthService {
   Future<List<ActivityEntry>> fetchActivities(DateTime since) async {
     final rows = await _db
         .from('physical_activities')
-        .select('id, activity_type, duration_minutes, steps, activity_at')
+        .select('id, activity_type, duration_minutes, intensity, steps, activity_at')
         .gte('activity_at', _iso(since))
         .order('activity_at', ascending: true);
 
@@ -305,23 +340,27 @@ class HealthService {
       final date = DateTime.tryParse(_str(r['activity_at']) ?? '')?.toLocal();
       final id = _id(r['id']);
       if (date == null || id == null) continue;
+      final type = activityFromDb(_str(r['activity_type']));
       out.add(ActivityEntry(
         id: id,
         date: date,
-        type: _activityFromDb[_str(r['activity_type'])] ?? 'Altro',
+        type: type,
         minutes: _int(r['duration_minutes']),
-        steps: _int(r['steps']),
+        intensity: intensityFromDb(_str(r['intensity'])),
+        steps: type == 'Camminata' ? _int(r['steps']) : 0,
       ));
     }
     return out;
   }
 
   Future<void> insertActivity(ActivityEntry e) async {
-    _checkActivity(e.minutes, e.steps);
+    final effectiveSteps = e.isWalking ? e.steps : 0;
+    _checkActivity(e.minutes, effectiveSteps);
     await _db.from('physical_activities').insert({
-      'activity_type': _activityToDb[e.type] ?? 'ALTRO',
+      'activity_type': activityToDb(e.type),
       'duration_minutes': e.minutes,
-      'steps': e.steps > 0 ? e.steps : null,
+      'intensity': intensityToDb(e.intensity),
+      'steps': effectiveSteps > 0 ? effectiveSteps : null,
       'activity_at': _iso(e.date),
     });
   }
@@ -330,12 +369,17 @@ class HealthService {
     String id, {
     required int minutes,
     required int steps,
+    String? intensity,
+    String? type,
     DateTime? at,
   }) async {
-    _checkActivity(minutes, steps);
+    final effectiveSteps = (type != null && type != 'Camminata') ? 0 : steps;
+    _checkActivity(minutes, effectiveSteps);
     final data = <String, dynamic>{
+      if (type != null) 'activity_type': activityToDb(type),
       'duration_minutes': minutes,
-      'steps': steps > 0 ? steps : null,
+      if (intensity != null) 'intensity': intensityToDb(intensity),
+      'steps': effectiveSteps > 0 ? effectiveSteps : null,
       if (at != null) 'activity_at': _iso(at),
     };
     final rows = await _db
@@ -357,7 +401,7 @@ class HealthService {
   Future<List<TherapyItem>> fetchTherapies() async {
     final rows = await _db
         .from('therapies')
-        .select('id, drug_name, scheduled_time')
+        .select('id, drug_name, scheduled_time, frequency')
         .eq('is_active', true)
         .order('scheduled_time', ascending: true, nullsFirst: false)
         .order('id', ascending: true);
@@ -366,10 +410,12 @@ class HealthService {
     for (final r in rows) {
       final id = _id(r['id']);
       if (id == null) continue;
+      final freq = _str(r['frequency'])?.trim();
       out.add(TherapyItem(
         id: id,
         name: _str(r['drug_name']) ?? '',
         time: _hhmm(r['scheduled_time']),
+        frequency: (freq != null && freq.isNotEmpty) ? freq : TherapyItem.defaultFrequency,
       ));
     }
     return out;
@@ -380,24 +426,34 @@ class HealthService {
     return s.length >= 5 ? s.substring(0, 5) : '--:--';
   }
 
-  Future<void> insertTherapy({required String name, required String time}) async {
+  Future<void> insertTherapy({
+    required String name,
+    required String time,
+    String frequency = TherapyItem.defaultFrequency,
+  }) async {
     final n = name.trim();
     if (n.isEmpty || n.length > 100) throw ArgumentError('nome terapia non valido');
     final t = normalizeTime(time);
     if (t == null) throw ArgumentError('orario non valido');
+    final cleanFreq = frequency.trim().isEmpty ? TherapyItem.defaultFrequency : frequency.trim();
     await _db.from('therapies').insert({
-      // La schermata di configurazione non raccoglie ancora tipo/dosaggio/
-      // frequenza (colonne NOT NULL): valori di ripiego.
+      // La schermata di configurazione non raccoglie ancora tipo/dosaggio
+      // (colonne NOT NULL): valori di ripiego.
       'therapy_type': 'ALTRO',
       'drug_name': n,
       'dosage': '-',
-      'frequency': 'Giornaliera',
+      'frequency': cleanFreq,
       'scheduled_time': t,
       'is_active': true,
     });
   }
 
-  Future<void> updateTherapy(String id, {String? name, String? time}) async {
+  Future<void> updateTherapy(
+    String id, {
+    String? name,
+    String? time,
+    String? frequency,
+  }) async {
     final data = <String, dynamic>{};
     if (name != null && name.trim().isNotEmpty) {
       if (name.trim().length > 100) throw ArgumentError('nome terapia non valido');
@@ -407,6 +463,9 @@ class HealthService {
       final t = normalizeTime(time);
       if (t == null) throw ArgumentError('orario non valido');
       data['scheduled_time'] = t;
+    }
+    if (frequency != null && frequency.trim().isNotEmpty) {
+      data['frequency'] = frequency.trim();
     }
     if (data.isEmpty) return;
     final rows = await _db.from('therapies').update(data).eq('id', id).select('id');

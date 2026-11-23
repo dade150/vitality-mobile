@@ -81,6 +81,9 @@ class WhenSelector extends StatefulWidget {
     if (sameDay(d, now.subtract(const Duration(days: 1)))) {
       return 'Ieri, ${AppDateFormat.daySmall(d)} ${AppDateFormat.monthShort(d)}';
     }
+    if (sameDay(d, now.add(const Duration(days: 1)))) {
+      return 'Domani, ${AppDateFormat.daySmall(d)} ${AppDateFormat.monthShort(d)}';
+    }
     return '${AppDateFormat.daySmall(d)} ${AppDateFormat.monthShort(d)} ${d.year}';
   }
 

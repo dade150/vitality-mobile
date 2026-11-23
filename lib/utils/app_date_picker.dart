@@ -74,13 +74,15 @@ class AppDateTimePicker {
   }
 
   /// Apre il selettore dell'orario uniforme e localizzato in italiano nel formato a 24 ore.
+  /// Si apre direttamente in modalità numerica (`Ora` / `Minuto`), con possibilità di passare
+  /// all'orologio analogico dall'icona in basso a sinistra.
   static Future<TimeOfDay?> pickTime({
     required BuildContext context,
     required TimeOfDay initialTime,
     String? helpText,
     String cancelText = 'Annulla',
     String confirmText = 'Conferma',
-    TimePickerEntryMode initialEntryMode = TimePickerEntryMode.dial,
+    TimePickerEntryMode initialEntryMode = TimePickerEntryMode.input,
   }) async {
     FocusScope.of(context).unfocus();
     final theme = Theme.of(context);

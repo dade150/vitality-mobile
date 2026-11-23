@@ -59,9 +59,7 @@ class GlucoseHistoryScreen extends StatelessWidget {
               itemBuilder: (context, index) {
                 final reading = readings[index];
                 final val = reading.value;
-                final isHypo = val < 70;
-                final isHyper = val > 180;
-                final statusColor = isHypo || isHyper ? cs.error : const Color(0xFF2E7D32);
+                final isOutOfRange = val < 70 || val > 180;
 
                 final isDark = theme.brightness == Brightness.dark;
                 final accentText = isDark ? cs.primary : AppColors.accentText;
@@ -90,33 +88,13 @@ class GlucoseHistoryScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Text(
-                                  '${val.round()} mg/dL',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: cs.onSurface,
-                                    fontSize: 19,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: statusColor.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    isHypo ? 'Bassa' : isHyper ? 'Alta' : 'Nel target',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                      color: statusColor,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            Text(
+                              '${val.round()} mg/dL',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: isOutOfRange ? cs.error : cs.onSurface,
+                                fontSize: 19,
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(

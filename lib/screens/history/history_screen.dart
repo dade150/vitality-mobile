@@ -438,7 +438,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final entries = health.activityEntries.where((a) => _inPeriod(a.date)).toList();
-    final steps = entries.fold<int>(0, (s, a) => s + a.steps);
+    final steps = entries.where((a) => a.isWalking).fold<int>(0, (s, a) => s + a.steps);
     final minutes = entries.fold<int>(0, (s, a) => s + a.minutes);
 
     final dailyMinutes = List<double?>.filled(7, null);

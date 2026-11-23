@@ -51,7 +51,9 @@ class HealthProvider extends AuthScopedProvider {
 
   int get todaySteps {
     final now = DateTime.now();
-    return _activities.where((a) => _sameDay(a.date, now)).fold<int>(0, (s, a) => s + a.steps);
+    return _activities
+        .where((a) => _sameDay(a.date, now) && a.isWalking)
+        .fold<int>(0, (s, a) => s + a.steps);
   }
 
   int get todayCalories {
@@ -127,9 +129,10 @@ class HealthProvider extends AuthScopedProvider {
             if (raw is Map) {
               final n = raw['name']?.toString() ?? '';
               final t = raw['time']?.toString() ?? '';
+              final f = raw['frequency']?.toString() ?? TherapyItem.defaultFrequency;
               if (n.isNotEmpty && t.isNotEmpty) {
                 try {
-                  await _service.insertTherapy(name: n, time: t);
+                  await _service.insertTherapy(name: n, time: t, frequency: f);
                 } catch (_) {}
               }
             }
@@ -283,11 +286,25 @@ class HealthProvider extends AuthScopedProvider {
   }
 
   /// L'id di [item] viene ignorato: lo assegna il database.
-  Future<bool> addTherapyItem(TherapyItem item) =>
-      _write(() => _service.insertTherapy(name: item.name, time: item.time), _reloadTherapies);
+  Future<bool> addTherapyItem(TherapyItem item) => _write(
+        () => _service.insertTherapy(
+          name: item.name,
+          time: item.time,
+          frequency: item.frequency,
+        ),
+        _reloadTherapies,
+      );
 
-  Future<bool> updateTherapyItem(String id, {String? name, String? time}) =>
-      _write(() => _service.updateTherapy(id, name: name, time: time), _reloadTherapies);
+  Future<bool> updateTherapyItem(
+    String id, {
+    String? name,
+    String? time,
+    String? frequency,
+  }) =>
+      _write(
+        () => _service.updateTherapy(id, name: name, time: time, frequency: frequency),
+        _reloadTherapies,
+      );
 
   /// Disattiva la terapia (lo storico delle assunzioni viene conservato).
   Future<bool> removeTherapyItem(String id) =>
@@ -328,9 +345,23 @@ class HealthProvider extends AuthScopedProvider {
   Future<bool> addActivity(ActivityEntry entry) =>
       _write(() => _service.insertActivity(entry), _reloadActivities);
 
-  Future<bool> updateActivity(String id, {required int minutes, required int steps, DateTime? at}) =>
+  Future<bool> updateActivity(
+    String id, {
+    required int minutes,
+    required int steps,
+    String? intensity,
+    String? type,
+    DateTime? at,
+  }) =>
       _write(
-        () => _service.updateActivity(id, minutes: minutes, steps: steps, at: at),
+        () => _service.updateActivity(
+          id,
+          minutes: minutes,
+          steps: steps,
+          intensity: intensity,
+          type: type,
+          at: at,
+        ),
         _reloadActivities,
       );
 

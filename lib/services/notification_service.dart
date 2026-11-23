@@ -84,11 +84,11 @@ class NotificationService {
 
   // ------------------------------------------------------------- ID Helpers
 
-  static int _therapyNotificationId(String id) =>
-      100000 + (id.hashCode.abs() % 800000);
+  static int _therapyNotificationId(String id, {int weekday = 0}) =>
+      100000 + ((id.hashCode.abs() % 20000) * 8) + (weekday.clamp(0, 7));
 
   static int _therapySnoozeId(String id) =>
-      300000 + (id.hashCode.abs() % 800000);
+      300000 + (id.hashCode.abs() % 200000);
 
   static int _appointment24hNotificationId(String id) =>
       1000000 + (id.hashCode.abs() % 800000);
@@ -339,7 +339,7 @@ class NotificationService {
     if (kIsWeb) return;
 
     final sortedKeys = therapies
-        .map((t) => '${t.id}|${t.time}|${t.taken}')
+        .map((t) => '${t.id}|${t.time}|${t.frequency}|${t.taken}')
         .toList()
       ..sort();
     final signature = '$enabled|${sortedKeys.join(';')}';
@@ -367,6 +367,14 @@ class NotificationService {
     final now = tz.TZDateTime.now(tz.local);
 
     for (final item in therapies) {
+      // Cancella preventivamente tutti gli 8 slot (giornaliero + Lun..Dom) per questo farmaco
+      // così anche dopo un riavvio dell'app non restano vecchie notifiche su giorni rimossi.
+      for (int slot = 0; slot <= 7; slot++) {
+        try {
+          await _plugin.cancel(_therapyNotificationId(item.id, weekday: slot));
+        } catch (_) {}
+      }
+
       // Se è già presa oggi, cancella anche eventuale snooze pendente
       if (item.taken) {
         try {
@@ -378,24 +386,6 @@ class NotificationService {
       if (parts.isEmpty) continue;
       final hour = int.tryParse(parts[0]) ?? 8;
       final minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
-
-      var scheduledDate = tz.TZDateTime(
-        tz.local,
-        now.year,
-        now.month,
-        now.day,
-        hour,
-        minute,
-      );
-
-      // Smart Skip: se l'ora è già passata oggi o se l'utente ha già preso il farmaco,
-      // la prima notifica scatterà a partire da domani.
-      if (scheduledDate.isBefore(now) || item.taken) {
-        scheduledDate = scheduledDate.add(const Duration(days: 1));
-      }
-
-      final id = _therapyNotificationId(item.id);
-      _scheduledTherapyIds.add(id);
 
       final payload = jsonEncode({
         'type': 'therapy',
@@ -425,35 +415,102 @@ class NotificationService {
         ),
       );
 
-      try {
-        await _plugin.zonedSchedule(
-          id,
-          title,
-          body,
-          scheduledDate,
-          NotificationDetails(android: details),
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          matchDateTimeComponents: DateTimeComponents.time,
-          payload: payload,
-        );
-      } catch (_) {
+      Future<void> scheduleOne({
+        required int id,
+        required tz.TZDateTime date,
+        required DateTimeComponents matchComponents,
+      }) async {
+        _scheduledTherapyIds.add(id);
         try {
           await _plugin.zonedSchedule(
             id,
             title,
             body,
-            scheduledDate,
+            date,
             NotificationDetails(android: details),
-            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
             uiLocalNotificationDateInterpretation:
                 UILocalNotificationDateInterpretation.absoluteTime,
-            matchDateTimeComponents: DateTimeComponents.time,
+            matchDateTimeComponents: matchComponents,
             payload: payload,
           );
-        } catch (e, st) {
-          ErrorHandler.logOnly(e, st, 'NotificationService.syncTherapies.single');
+        } catch (_) {
+          try {
+            await _plugin.zonedSchedule(
+              id,
+              title,
+              body,
+              date,
+              NotificationDetails(android: details),
+              androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation:
+                  UILocalNotificationDateInterpretation.absoluteTime,
+              matchDateTimeComponents: matchComponents,
+              payload: payload,
+            );
+          } catch (e, st) {
+            ErrorHandler.logOnly(e, st, 'NotificationService.syncTherapies.single');
+          }
+        }
+      }
+
+      if (item.isDaily) {
+        var dayOffset = 0;
+        var scheduledDate = tz.TZDateTime(
+          tz.local,
+          now.year,
+          now.month,
+          now.day,
+          hour,
+          minute,
+        );
+        // Smart Skip: se l'ora è già passata oggi o se l'utente ha già preso il farmaco,
+        // la prima notifica scatterà a partire da domani (usando wall-clock locale per sicurezza DST).
+        if (scheduledDate.isBefore(now) || item.taken) {
+          dayOffset = 1;
+          scheduledDate = tz.TZDateTime(
+            tz.local,
+            now.year,
+            now.month,
+            now.day + dayOffset,
+            hour,
+            minute,
+          );
+        }
+        await scheduleOne(
+          id: _therapyNotificationId(item.id),
+          date: scheduledDate,
+          matchComponents: DateTimeComponents.time,
+        );
+      } else {
+        // Frequenza settimanale o giorni specifici: una notifica ricorrente per giorno scelto
+        for (final weekday in item.scheduledWeekdays) {
+          var daysUntil = (weekday - now.weekday + 7) % 7;
+          var scheduledDate = tz.TZDateTime(
+            tz.local,
+            now.year,
+            now.month,
+            now.day + daysUntil,
+            hour,
+            minute,
+          );
+
+          if (daysUntil == 0 && (scheduledDate.isBefore(now) || item.taken)) {
+            scheduledDate = tz.TZDateTime(
+              tz.local,
+              now.year,
+              now.month,
+              now.day + 7,
+              hour,
+              minute,
+            );
+          }
+
+          await scheduleOne(
+            id: _therapyNotificationId(item.id, weekday: weekday),
+            date: scheduledDate,
+            matchComponents: DateTimeComponents.dayOfWeekAndTime,
+          );
         }
       }
     }

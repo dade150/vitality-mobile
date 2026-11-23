@@ -1,19 +1,31 @@
 import 'package:flutter/material.dart';
 
+import '../services/health_service.dart';
+import '../utils/app_date_picker.dart';
 import 'vital_entry_sheet.dart';
 
-/// Campo di testo del foglio di modifica.
+/// Campo del foglio di modifica (testo libero, menu a tendina oppure selettore orario uniforme).
 class EntryField {
   final String label;
   final String initialValue;
   final TextInputType keyboardType;
   final int maxLines;
+  final bool isTimePicker;
+  final bool allowClearTime;
+  final String? emptyTimeLabel;
+  final String? timeHelpText;
+  final List<String>? dropdownOptions;
 
   const EntryField({
     required this.label,
     required this.initialValue,
     this.keyboardType = TextInputType.number,
     this.maxLines = 1,
+    this.isTimePicker = false,
+    this.allowClearTime = false,
+    this.emptyTimeLabel,
+    this.timeHelpText,
+    this.dropdownOptions,
   });
 }
 
@@ -156,6 +168,27 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
   /// chiuderebbe la schermata sottostante.
   void _closeSheet() {
     if (_route?.isCurrent ?? false) Navigator.of(context).pop();
+  }
+
+  Future<void> _pickFieldTime(int index, EntryField field) async {
+    TimeOfDay initial = TimeOfDay.now();
+    final current = HealthService.normalizeTime(_controllers[index].text);
+    if (current != null) {
+      final parts = current.split(':');
+      initial = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
+    final picked = await AppDateTimePicker.pickTime(
+      context: context,
+      initialTime: initial,
+      helpText: field.timeHelpText ?? field.label,
+    );
+    if (picked == null || !mounted) return;
+    final hh = picked.hour.toString().padLeft(2, '0');
+    final mm = picked.minute.toString().padLeft(2, '0');
+    setState(() {
+      _controllers[index].text = '$hh:$mm';
+      _error = null;
+    });
   }
 
   Future<void> _save() async {
@@ -301,16 +334,66 @@ class _EditEntriesSheetState extends State<_EditEntriesSheet> {
         ),
       ),
       for (var i = 0; i < entry.fields.length; i++) ...[
-        Text(entry.fields[i].label, style: theme.textTheme.labelLarge),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _controllers[i],
-          enabled: !_busy,
-          textInputAction: i == entry.fields.length - 1 ? TextInputAction.done : TextInputAction.next,
-          keyboardType: entry.fields[i].keyboardType,
-          maxLines: entry.fields[i].maxLines,
-        ),
-        const SizedBox(height: 16),
+        if (entry.fields[i].isTimePicker) ...[
+          Text(entry.fields[i].label, style: theme.textTheme.labelLarge),
+          const SizedBox(height: 8),
+          AppPickerTile(
+            icon: Icons.schedule_rounded,
+            caption: 'Orario',
+            valueText: _controllers[i].text.trim().isEmpty
+                ? (entry.fields[i].emptyTimeLabel ?? 'Seleziona')
+                : _controllers[i].text.trim(),
+            enabled: !_busy,
+            onTap: () => _pickFieldTime(i, entry.fields[i]),
+            trailing: entry.fields[i].allowClearTime && _controllers[i].text.trim().isNotEmpty
+                ? IconButton(
+                    tooltip: 'Rimuovi orario',
+                    icon: const Icon(Icons.clear_rounded, size: 20),
+                    onPressed: _busy
+                        ? null
+                        : () => setState(() {
+                              _controllers[i].clear();
+                              _error = null;
+                            }),
+                  )
+                : null,
+          ),
+          const SizedBox(height: 16),
+        ] else if (entry.fields[i].dropdownOptions != null) ...[
+          Text(entry.fields[i].label, style: theme.textTheme.labelLarge),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            key: ValueKey('dd_${entry.id}_$i'),
+            initialValue: entry.fields[i].dropdownOptions!.contains(_controllers[i].text)
+                ? _controllers[i].text
+                : entry.fields[i].dropdownOptions!.first,
+            items: entry.fields[i].dropdownOptions!
+                .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
+                .toList(),
+            onChanged: _busy
+                ? null
+                : (val) {
+                    if (val != null) {
+                      setState(() {
+                        _controllers[i].text = val;
+                        _error = null;
+                      });
+                    }
+                  },
+          ),
+          const SizedBox(height: 16),
+        ] else ...[
+          Text(entry.fields[i].label, style: theme.textTheme.labelLarge),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _controllers[i],
+            enabled: !_busy,
+            textInputAction: i == entry.fields.length - 1 ? TextInputAction.done : TextInputAction.next,
+            keyboardType: entry.fields[i].keyboardType,
+            maxLines: entry.fields[i].maxLines,
+          ),
+          const SizedBox(height: 16),
+        ],
       ],
       if (_when != null) ...[
         WhenSelector(

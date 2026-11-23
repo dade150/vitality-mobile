@@ -108,9 +108,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
           if (existing.isEmpty) {
             for (final t in _data.therapies) {
               try {
-                await HealthService().insertTherapy(name: t.name, time: t.time);
+                await HealthService().insertTherapy(
+                  name: t.name,
+                  time: t.time,
+                  frequency: t.frequency,
+                );
               } catch (e, st) {
                 ErrorHandler.logOnly(e, st, 'RegisterScreen.insertTherapy');
+              }
+            }
+          } else {
+            // Se il trigger handle_new_user ha inserito le terapie col default 'Giornaliera',
+            // allinea subito eventuali frequenze settimanali/personalizzate scelte in registrazione.
+            for (final t in _data.therapies.where((x) => !x.isDaily)) {
+              final matches = existing.where(
+                (e) => e.name.trim() == t.name.trim() && e.time == t.time && e.isDaily,
+              );
+              for (final match in matches) {
+                try {
+                  await HealthService().updateTherapy(match.id, frequency: t.frequency);
+                } catch (e, st) {
+                  ErrorHandler.logOnly(e, st, 'RegisterScreen.syncTherapyFrequency');
+                }
               }
             }
           }

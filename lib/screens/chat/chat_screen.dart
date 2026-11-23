@@ -1966,7 +1966,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       isDense: true,
                                       filled: true,
                                       fillColor: cs.surfaceContainerLowest,
-                                      hintText: 'Scrivi un messaggio...',
+                                      hintText: _pendingAttachment == null
+                                          ? 'Scrivi un messaggio...'
+                                          : (_pendingAttachment!.kind == 'meal_photo'
+                                              ? 'Aggiungi dettagli (es. 150 g, marca) o invia...'
+                                              : 'Aggiungi un messaggio o invia...'),
                                       hintMaxLines: 1,
                                       hintStyle: theme.textTheme.bodyMedium?.copyWith(
                                         color: cs.onSurfaceVariant.withValues(alpha: 0.7),

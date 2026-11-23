@@ -85,27 +85,36 @@ class ActivityHistoryScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 2,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Text(
-                                  '${act.minutes} min',
+                                  '${act.type} · ${act.minutes} min',
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: cs.onSurface,
-                                    fontSize: 18.5,
+                                    fontSize: 17.5,
                                   ),
                                 ),
-                                if (act.steps > 0) ...[
-                                  const SizedBox(width: 8),
+                                Text(
+                                  '· ${act.intensity}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: accentText,
+                                    fontSize: 14.5,
+                                  ),
+                                ),
+                                if (act.isWalking && act.steps > 0)
                                   Text(
                                     '(${act.steps} passi)',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       color: cs.onSurfaceVariant,
-                                      fontSize: 15.5,
+                                      fontSize: 14.5,
                                     ),
                                   ),
-                                ],
                               ],
                             ),
                             const SizedBox(height: 4),

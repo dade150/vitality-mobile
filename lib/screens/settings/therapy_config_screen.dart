@@ -22,15 +22,21 @@ class TherapyConfigScreen extends StatelessWidget {
     return TherapyItemDialog.show(
       context: context,
       existing: existing,
-      onSave: (name, time) async {
+      onSave: (name, time, frequency) async {
         if (existing == null) {
           return await health.addTherapyItem(TherapyItem(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             name: name,
             time: time,
+            frequency: frequency,
           ));
         } else {
-          return await health.updateTherapyItem(existing.id, name: name, time: time);
+          return await health.updateTherapyItem(
+            existing.id,
+            name: name,
+            time: time,
+            frequency: frequency,
+          );
         }
       },
     );
@@ -78,7 +84,7 @@ class TherapyConfigScreen extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.medication_outlined),
                         title: Text(item.name),
-                        subtitle: Text(item.time),
+                        subtitle: Text('Ore ${item.time} · ${item.frequencySummary}'),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

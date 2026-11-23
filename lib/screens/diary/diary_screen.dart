@@ -142,8 +142,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   bool _inPeriod(DateTime t) => !t.isBefore(_periodStart) && t.isBefore(_periodEnd);
 
-  int get _periodDays => _periodEnd.difference(_periodStart).inDays;
-
   /// True se il periodo corrente è precedente a oggi (permette di andare avanti
   /// fino a tornare a oggi / settimana corrente, ma non nel futuro).
   bool get _canGoForward {
@@ -518,10 +516,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
               ),
               EntryField(
                 label: m.type == MealType.fuoriPasto
-                    ? 'Orario fuori pasto (es. 17:30)'
-                    : 'Orario (opzionale, es. 13:00)',
+                    ? 'Orario fuori pasto'
+                    : 'Orario del pasto (opzionale)',
                 initialValue: m.hasExplicitTime ? _hhmm(m.date) : '',
-                keyboardType: TextInputType.datetime,
+                isTimePicker: true,
+                allowClearTime: m.type != MealType.fuoriPasto,
+                emptyTimeLabel: m.type == MealType.fuoriPasto ? 'Seleziona' : 'Abituale',
+                timeHelpText: m.type == MealType.fuoriPasto ? 'Orario fuori pasto' : 'Orario del pasto',
               ),
             ],
           ),
@@ -586,32 +587,44 @@ class _DiaryScreenState extends State<DiaryScreen> {
           EditableEntry(
             id: a.id!,
             title: '${a.type} · ${a.minutes} min',
-            subtitle: a.steps > 0
-                ? 'Ore ${_hhmm(a.date)} · ${a.steps} passi'
-                : 'Ore ${_hhmm(a.date)}',
+            subtitle: a.isWalking && a.steps > 0
+                ? 'Ore ${_hhmm(a.date)} · ${a.intensity} · ${a.steps} passi'
+                : 'Ore ${_hhmm(a.date)} · ${a.intensity}',
             initialDateTime: a.date,
             whenLabel: "Quando hai svolto l'attività?",
             fields: [
               EntryField(label: 'Durata (minuti)', initialValue: '${a.minutes}'),
-              EntryField(label: 'Passi (opzionale)', initialValue: a.steps > 0 ? '${a.steps}' : ''),
+              EntryField(
+                label: 'Intensità',
+                initialValue: a.intensity,
+                dropdownOptions: HealthService.intensityLabels,
+              ),
+              if (a.isWalking)
+                EntryField(label: 'Passi (opzionale)', initialValue: a.steps > 0 ? '${a.steps}' : ''),
             ],
           ),
       ],
       validate: (e, v) {
         final min = int.tryParse(v[0]);
         if (min == null || min < 1 || min > 1440) return 'Durata: valore tra 1 e 1440 minuti';
-        if (v[1].isNotEmpty) {
-          final steps = int.tryParse(v[1]);
+        if (v.length > 2 && v[2].isNotEmpty) {
+          final steps = int.tryParse(v[2]);
           if (steps == null || steps < 0 || steps > 200000) return 'Passi: valore tra 0 e 200000';
         }
         return null;
       },
-      onSave: (e, v, when) => health.updateActivity(
-        e.id,
-        minutes: int.parse(v[0]),
-        steps: v[1].isEmpty ? 0 : int.parse(v[1]),
-        at: when,
-      ),
+      onSave: (e, v, when) {
+        final act = items.firstWhere((a) => a.id == e.id);
+        final steps = (act.isWalking && v.length > 2 && v[2].isNotEmpty) ? int.parse(v[2]) : 0;
+        return health.updateActivity(
+          e.id,
+          minutes: int.parse(v[0]),
+          intensity: v[1],
+          type: act.type,
+          steps: steps,
+          at: when,
+        );
+      },
       onDelete: (e) => health.deleteActivity(e.id),
       errorMessage: () => health.errorMessage,
     );
@@ -807,7 +820,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final therapyCount = health.therapyItems.length;
-    final expected = therapyCount * _periodDays;
+    int expected = 0;
     int taken = 0;
     final dailyRatios = List<double?>.filled(7, null);
     final now = DateTime.now();
@@ -821,14 +834,21 @@ class _DiaryScreenState extends State<DiaryScreen> {
           dailyRatios[i] = null;
           continue;
         }
+        final scheduledForDay =
+            health.therapyItems.where((t) => t.isScheduledForDate(day)).toList();
+        if (scheduledForDay.isEmpty) {
+          dailyRatios[i] = null;
+          continue;
+        }
+        expected += scheduledForDay.length;
         int dayTaken = 0;
-        for (final item in health.therapyItems) {
+        for (final item in scheduledForDay) {
           if (health.isTherapyTaken(item.id, day)) {
             dayTaken++;
             taken++;
           }
         }
-        dailyRatios[i] = dayTaken / therapyCount;
+        dailyRatios[i] = (dayTaken / scheduledForDay.length).clamp(0.0, 1.0);
       }
     }
 
@@ -1079,7 +1099,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final entries = health.activityEntries.where((a) => _inPeriod(a.date)).toList();
-    final steps = entries.fold<int>(0, (s, a) => s + a.steps);
+    final steps = entries.where((a) => a.isWalking).fold<int>(0, (s, a) => s + a.steps);
     final minutes = entries.fold<int>(0, (s, a) => s + a.minutes);
 
     final dailyMinutes = List<double?>.filled(7, null);
@@ -1140,6 +1160,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isPast = _dayEnd.isBefore(DateTime.now()) || _dayEnd.isAtSameMomentAs(DateTime.now());
+    final dayItems = health.therapyItems
+        .where((item) => item.isScheduledForDate(_selectedDate) || health.isTherapyTaken(item.id, _selectedDate))
+        .toList();
 
     return SectionCard(
       child: Column(
@@ -1158,8 +1181,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
               'Nessuna terapia registrata',
               style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             )
+          else if (dayItems.isEmpty)
+            Text(
+              'Nessuna terapia prevista per questa giornata',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            )
           else
-            for (final item in health.therapyItems)
+            for (final item in dayItems)
               _buildTherapyRow(context, health, item, isPast),
         ],
       ),
@@ -1465,65 +1493,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
             Builder(
               builder: (_) {
                 final isOutOfRange = reading.value < 70 || reading.value > 180;
-                final isCritical = reading.value < 54 || reading.value >= 400;
-                final statusLabel = reading.value < 54
-                    ? 'Ipoglicemia severa (<54)'
-                    : reading.value < 70
-                        ? 'Ipoglicemia (<70)'
-                        : reading.value >= 400
-                            ? 'Iperglicemia critica (≥400)'
-                            : reading.value > 180
-                                ? 'Iperglicemia (>180)'
-                                : 'Nel target (70–180)';
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        _ValueLine(
-                          value: _fmtNum(reading.value),
-                          unit: 'mg/dL',
-                          color: isOutOfRange ? cs.error : cs.onSurface,
-                        ),
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isOutOfRange
-                                  ? cs.errorContainer
-                                  : cs.secondaryContainer.withValues(alpha: 0.7),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  isCritical
-                                      ? Icons.emergency_rounded
-                                      : isOutOfRange
-                                          ? Icons.warning_amber_rounded
-                                          : Icons.check_circle_outline_rounded,
-                                  size: 16,
-                                  color: isOutOfRange ? cs.error : cs.secondary,
-                                ),
-                                const SizedBox(width: 5),
-                                Flexible(
-                                  child: Text(
-                                    statusLabel,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: isOutOfRange ? cs.onErrorContainer : cs.onSecondaryContainer,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                    _ValueLine(
+                      value: _fmtNum(reading.value),
+                      unit: 'mg/dL',
+                      color: isOutOfRange ? cs.error : cs.onSurface,
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1573,16 +1549,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
                           color: (r.value < 70 || r.value > 180) ? cs.error : cs.onSurface,
                         ),
                       ),
-                      if (r.value < 70 || r.value > 180) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          r.value < 70 ? '(Ipoglicemia)' : '(Iperglicemia)',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: cs.error,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -1770,7 +1736,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final entries = health.activityEntries.where((a) => _sameDay(a.date, _selectedDate)).toList();
-    final steps = entries.fold<int>(0, (s, a) => s + a.steps);
+    final steps = entries.where((a) => a.isWalking).fold<int>(0, (s, a) => s + a.steps);
     final minutes = entries.fold<int>(0, (s, a) => s + a.minutes);
 
     return SectionCard(
@@ -1798,8 +1764,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Ore ${_hhmm(a.date)} · ${a.type} (${a.minutes} min'
-                  '${a.steps > 0 ? ', ${a.steps} passi' : ''})',
+                  'Ore ${_hhmm(a.date)} · ${a.type} (${a.minutes} min · ${a.intensity}'
+                  '${a.isWalking && a.steps > 0 ? ', ${a.steps} passi' : ''})',
                   style: theme.textTheme.bodySmall,
                 ),
               ),

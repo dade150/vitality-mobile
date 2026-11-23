@@ -2,17 +2,111 @@ class TherapyItem {
   /// Anticipo massimo consentito rispetto all'orario previsto per segnare una dose come assunta.
   static const Duration earlyWindow = Duration(minutes: 30);
 
+  static const String defaultFrequency = 'Giornaliera';
+
+  static const Map<int, String> weekdayShortLabels = {
+    DateTime.monday: 'Lun',
+    DateTime.tuesday: 'Mar',
+    DateTime.wednesday: 'Mer',
+    DateTime.thursday: 'Gio',
+    DateTime.friday: 'Ven',
+    DateTime.saturday: 'Sab',
+    DateTime.sunday: 'Dom',
+  };
+
+  static const Map<int, String> weekdayFullLabels = {
+    DateTime.monday: 'Lunedì',
+    DateTime.tuesday: 'Martedì',
+    DateTime.wednesday: 'Mercoledì',
+    DateTime.thursday: 'Giovedì',
+    DateTime.friday: 'Venerdì',
+    DateTime.saturday: 'Sabato',
+    DateTime.sunday: 'Domenica',
+  };
+
+  static const Set<int> allWeekdays = {
+    DateTime.monday,
+    DateTime.tuesday,
+    DateTime.wednesday,
+    DateTime.thursday,
+    DateTime.friday,
+    DateTime.saturday,
+    DateTime.sunday,
+  };
+
   final String id;
   String name;
   String time; // es. "08:00"
+  String frequency; // es. "Giornaliera", "Settimanale (Domenica)", "Giorni specifici (Lun, Mer, Ven)"
   bool taken;
 
   TherapyItem({
     required this.id,
     required this.name,
     required this.time,
+    this.frequency = defaultFrequency,
     this.taken = false,
   });
+
+  /// Estrae i giorni della settimana (`DateTime.monday..sunday`) da una stringa `frequency`.
+  /// Se è giornaliera o non contiene giorni specifici, restituisce tutti e 7 i giorni.
+  static Set<int> parseWeekdays(String? rawFrequency) {
+    // Normalizza gli accenti (`ì` -> `i`) perché in Dart RegExp `\b` considera i caratteri
+    // non-ASCII come `\W` e non farebbe match dopo `lunedì`/`martedì`/`mercoledì`/`giovedì`/`venerdì`.
+    final norm = (rawFrequency ?? '')
+        .trim()
+        .toLowerCase()
+        .replaceAll('ì', 'i')
+        .replaceAll('í', 'i');
+    if (norm.isEmpty ||
+        norm.contains('giornalier') ||
+        norm.contains('ogni giorno') ||
+        norm.contains('tutti i giorni')) {
+      return Set<int>.from(allWeekdays);
+    }
+
+    final found = <int>{};
+    if (RegExp(r'\blun(?:edi)?\b').hasMatch(norm)) found.add(DateTime.monday);
+    if (RegExp(r'\bmar(?:tedi)?\b').hasMatch(norm)) found.add(DateTime.tuesday);
+    if (RegExp(r'\bmer(?:coledi)?\b').hasMatch(norm)) found.add(DateTime.wednesday);
+    if (RegExp(r'\bgio(?:vedi)?\b').hasMatch(norm)) found.add(DateTime.thursday);
+    if (RegExp(r'\bven(?:erdi)?\b').hasMatch(norm)) found.add(DateTime.friday);
+    if (RegExp(r'\bsab(?:ato)?\b').hasMatch(norm)) found.add(DateTime.saturday);
+    if (RegExp(r'\bdom(?:enica)?\b').hasMatch(norm)) found.add(DateTime.sunday);
+
+    return found.isEmpty ? Set<int>.from(allWeekdays) : found;
+  }
+
+  /// Converte un insieme di giorni della settimana nella stringa leggibile salvata in `therapies.frequency`.
+  static String formatFrequency(Set<int> weekdays) {
+    final valid = weekdays.where((d) => d >= DateTime.monday && d <= DateTime.sunday).toList()
+      ..sort();
+    if (valid.isEmpty || valid.length == 7) {
+      return defaultFrequency;
+    }
+    if (valid.length == 1) {
+      return 'Settimanale (${weekdayFullLabels[valid.first]})';
+    }
+    final shortList = valid.map((d) => weekdayShortLabels[d]!).join(', ');
+    return 'Giorni specifici ($shortList)';
+  }
+
+  /// Giorni della settimana in cui è prevista l'assunzione (`1=Lun .. 7=Dom`).
+  Set<int> get scheduledWeekdays => parseWeekdays(frequency);
+
+  /// True se la terapia è prevista tutti i giorni.
+  bool get isDaily => scheduledWeekdays.length == 7;
+
+  /// True se la terapia è prevista nel giorno [day].
+  bool isScheduledForDate(DateTime day) => scheduledWeekdays.contains(day.weekday);
+
+  /// Etichetta compatta leggibile per liste e card (es. `"Tutti i giorni"`, `"Ogni Domenica"`, `"Lun, Mer, Ven"`).
+  String get frequencySummary {
+    final days = scheduledWeekdays.toList()..sort();
+    if (days.length == 7) return 'Tutti i giorni';
+    if (days.length == 1) return 'Ogni ${weekdayFullLabels[days.first]}';
+    return days.map((d) => weekdayShortLabels[d]!).join(', ');
+  }
 
   /// Orario programmato nel giorno di [day], oppure `null` se `time` non è valido (`--:--`).
   DateTime? scheduledDateTimeFor(DateTime day) {

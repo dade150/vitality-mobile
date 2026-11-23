@@ -143,7 +143,7 @@ class _RegisterStep1ProfileState extends State<RegisterStep1Profile> {
             ),
             const SizedBox(height: 16),
             AppPickerTile(
-              icon: Icons.calendar_today_outlined,
+              icon: Icons.calendar_month_outlined,
               caption: 'Data di nascita',
               valueText: widget.data.birth == null ? 'gg/mm/aaaa' : _formatDate(widget.data.birth!),
               onTap: _pickBirthDate,

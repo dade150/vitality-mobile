@@ -171,22 +171,23 @@ class ProposalService {
 
   // ------------------------------------------------------- Physical Activities
   Future<void> _saveActivity(Map<String, dynamic> data) async {
-    final rawType = (data['activity_type'] ?? data['type'] ?? 'CAMMINATA')
-        .toString()
-        .trim()
-        .toUpperCase();
+    final dbType = HealthService.activityToDb(
+      (data['activity_type'] ?? data['type'] ?? 'CAMMINATA').toString(),
+    );
     final duration = _parseInt(data['duration_minutes'] ?? data['minutes']) ?? 0;
     if (duration <= 0) throw ArgumentError('La durata deve essere di almeno 1 minuto');
 
-    final steps = _parseInt(data['steps']);
-    final intensity = (data['intensity'] ?? 'MODERATA').toString().trim().toUpperCase();
+    final steps = dbType == 'CAMMINATA' ? _parseInt(data['steps']) : null;
+    final intensity = HealthService.intensityToDb(
+      (data['intensity'] ?? 'MODERATA').toString(),
+    );
     final notes = data['notes']?.toString().trim();
     final when = _parseDate(data['activity_at'] ?? data['date']);
 
     await _db.from('physical_activities').insert({
-      'activity_type': rawType,
+      'activity_type': dbType,
       'duration_minutes': duration,
-      'intensity': intensity.isEmpty ? 'MODERATA' : intensity,
+      'intensity': intensity,
       if (steps != null && steps > 0) 'steps': steps,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
       'activity_at': _iso(when),

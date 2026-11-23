@@ -13,10 +13,10 @@ import '../../providers/reports_provider.dart';
 import '../../services/error_handler.dart';
 import '../../services/report_service.dart';
 import '../../utils/app_date_picker.dart';
-import '../../utils/date_format.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/report_privacy_mask_dialog.dart';
 import '../../widgets/section_card.dart';
+import '../../widgets/vital_entry_sheet.dart';
 
 /// Carica un referto (PDF) al backend, che lo salva su Storage ed estrae i
 /// valori clinici. Una volta arrivata la risposta l'utente SCEGLIE quali
@@ -62,7 +62,7 @@ class _AddReportScreenState extends State<AddReportScreen> {
 
   void _setExamDate(DateTime d) {
     _examDate = d;
-    _dateCtrl.text = AppDateFormat.dayMonthYear(d);
+    _dateCtrl.text = WhenSelector.formatDayLabel(d);
   }
 
   void _toggle(ClinicalParameterType type) {
@@ -596,9 +596,11 @@ class _AddReportScreenState extends State<AddReportScreen> {
                   ],
                   const Divider(),
                   const SizedBox(height: 12),
+                  Text("Data dell'esame", style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
                   AppPickerTile(
                     icon: Icons.calendar_month_outlined,
-                    caption: "Data dell'esame",
+                    caption: 'Giorno',
                     valueText: _examDate == null ? 'Tocca per scegliere la data' : _dateCtrl.text,
                     enabled: !_saving,
                     onTap: _pickDate,

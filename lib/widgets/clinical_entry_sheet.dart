@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/clinical_parameter.dart';
 import '../utils/app_date_picker.dart';
-import '../utils/date_format.dart';
+import 'vital_entry_sheet.dart';
 
 /// Foglio per aggiungere o modificare un valore clinico.
 ///
@@ -93,7 +93,7 @@ class _ClinicalEntrySheetState extends State<_ClinicalEntrySheet> {
 
   void _setDate(DateTime d) {
     _date = d;
-    _dateCtrl.text = AppDateFormat.dayMonthYear(d);
+    _dateCtrl.text = WhenSelector.formatDayLabel(d);
   }
 
   /// Chiude solo se il foglio è ancora la route in cima (vedi entry_edit_sheet).
@@ -237,9 +237,11 @@ class _ClinicalEntrySheetState extends State<_ClinicalEntrySheet> {
               decoration: InputDecoration(suffixText: _type.unit),
             ),
             const SizedBox(height: 16),
+            Text("Data dell'esame", style: theme.textTheme.labelLarge),
+            const SizedBox(height: 8),
             AppPickerTile(
               icon: Icons.calendar_month_outlined,
-              caption: "Data dell'esame",
+              caption: 'Giorno',
               valueText: _date == null ? 'Tocca per scegliere la data' : _dateCtrl.text,
               enabled: !_busy,
               onTap: _pickDate,

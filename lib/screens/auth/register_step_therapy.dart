@@ -30,17 +30,19 @@ class _RegisterStepTherapyState extends State<RegisterStepTherapy> {
     await TherapyItemDialog.show(
       context: context,
       existing: existing,
-      onSave: (name, time) async {
+      onSave: (name, time, frequency) async {
         setState(() {
           if (existing != null && index != null) {
             existing.name = name;
             existing.time = time;
+            existing.frequency = frequency;
           } else {
             widget.data.therapies.add(
               TherapyItem(
                 id: DateTime.now().millisecondsSinceEpoch.toString(),
                 name: name,
                 time: time,
+                frequency: frequency,
               ),
             );
           }
@@ -128,7 +130,13 @@ class _RegisterStepTherapyState extends State<RegisterStepTherapy> {
                       children: [
                         Icon(Icons.schedule_rounded, size: 14, color: cs.onSurfaceVariant),
                         const SizedBox(width: 4),
-                        Text('Ore ${therapies[i].time}', style: theme.textTheme.bodySmall),
+                        Expanded(
+                          child: Text(
+                            'Ore ${therapies[i].time} · ${therapies[i].frequencySummary}',
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
                       ],
                     ),
                     trailing: Row(

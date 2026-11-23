@@ -5,6 +5,7 @@ import '../../models/appointment.dart';
 import '../../providers/appointments_provider.dart';
 import '../../utils/app_date_picker.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
+import '../../widgets/vital_entry_sheet.dart';
 
 class AddVisitScreen extends StatefulWidget {
   final Appointment? existing;
@@ -233,27 +234,31 @@ class _AddVisitScreenState extends State<AddVisitScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  Text('Quando è la visita?', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 10),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
+                        flex: 6,
                         child: AppPickerTile(
                           icon: Icons.calendar_month_outlined,
-                          caption: 'Data della visita',
+                          caption: 'Giorno',
                           valueText: _date == null
-                              ? 'Seleziona data'
-                              : '${_date!.day.toString().padLeft(2, '0')}/${_date!.month.toString().padLeft(2, '0')}/${_date!.year}',
+                              ? 'Seleziona'
+                              : WhenSelector.formatDayLabel(_date!),
                           enabled: !_busy,
                           onTap: _pickDate,
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
+                        flex: 5,
                         child: AppPickerTile(
                           icon: Icons.schedule_rounded,
-                          caption: 'Orario visita',
+                          caption: 'Orario',
                           valueText: _time == null
-                              ? '--:--'
+                              ? 'Seleziona'
                               : '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}',
                           enabled: !_busy,
                           onTap: _pickTime,

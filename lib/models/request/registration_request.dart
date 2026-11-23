@@ -53,7 +53,9 @@ class RegistrationData {
       'altezza': altezza,
       'peso': peso,
       'note_anamnestiche': noteAnamnestiche.isEmpty ? null : noteAnamnestiche,
-      'therapies': therapies.map((t) => {'name': t.name, 'time': t.time}).toList(),
+      'therapies': therapies
+          .map((t) => {'name': t.name, 'time': t.time, 'frequency': t.frequency})
+          .toList(),
       'terms_accepted': termsAccepted,
       'terms_accepted_at': termsAccepted ? nowIso : null,
       'terms_version': currentTermsVersion,

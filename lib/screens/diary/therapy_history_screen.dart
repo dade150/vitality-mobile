@@ -93,7 +93,7 @@ class TherapyHistoryScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Orario previsto: ${item.time}',
+                              'Ore ${item.time} · ${item.frequencySummary}',
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: cs.onSurfaceVariant,
                                 fontSize: 14.5,

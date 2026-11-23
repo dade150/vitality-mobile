@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/clinical_parameter.dart';
@@ -8,7 +7,9 @@ import '../models/meal_entry.dart';
 import '../models/proposed_entry.dart';
 import '../models/therapy_item.dart';
 import '../providers/health_provider.dart';
+import '../providers/profile_provider.dart';
 import '../services/health_service.dart';
+import '../services/nutrition_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/app_date_picker.dart';
 import 'vital_entry_sheet.dart';
@@ -40,6 +41,11 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
 
   // Controllers per i vari campi
   final Map<String, TextEditingController> _controllers = {};
+
+  // Stato ricalcolo nutrizionale (CREA) dopo modifica della descrizione del pasto
+  bool _recalculatingMeal = false;
+  String? _mealRecalcInfo;
+  String? _mealRecalcError;
 
   @override
   void initState() {
@@ -147,6 +153,8 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
       final val = v.text.trim();
       if (val.isNotEmpty) {
         result[k] = val;
+      } else {
+        result.remove(k);
       }
     });
 
@@ -159,6 +167,16 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
         result['meal_at'] = dateIso;
         break;
       case TargetTable.physicalActivities:
+        final dbType = HealthService.activityToDb(
+          (result['activity_type'] ?? 'CAMMINATA').toString(),
+        );
+        result['activity_type'] = dbType;
+        result['intensity'] = HealthService.intensityToDb(
+          (result['intensity'] ?? 'MODERATA').toString(),
+        );
+        if (dbType != 'CAMMINATA') {
+          result.remove('steps');
+        }
         result['activity_at'] = dateIso;
         break;
       case TargetTable.appointments:
@@ -172,6 +190,64 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
         break;
     }
     return result;
+  }
+
+  Future<void> _recalculateMealNutrition() async {
+    final desc = _controllers['description']?.text.trim() ?? '';
+    if (desc.length < 2) {
+      setState(() {
+        _mealRecalcError = 'Inserisci prima cosa hai mangiato (es. "Yogurt bianco 150 g").';
+        _mealRecalcInfo = null;
+      });
+      return;
+    }
+
+    final aiConsent = context.read<ProfileProvider>().profile?.aiHealthConsent ?? false;
+    if (!aiConsent) {
+      setState(() {
+        _mealRecalcError =
+            'Consenso IA non attivo: modifica manualmente carboidrati e calorie qui sotto.';
+        _mealRecalcInfo = null;
+      });
+      return;
+    }
+
+    final rawMealType = (_localData['meal_type'] ?? 'PRANZO').toString().toUpperCase();
+    final mealType = MealTypeLabel.fromDb(rawMealType, _selectedDateTime);
+
+    setState(() {
+      _recalculatingMeal = true;
+      _mealRecalcError = null;
+      _mealRecalcInfo = null;
+    });
+
+    try {
+      final result = await NutritionService().estimateMeal(
+        description: desc,
+        mealType: mealType,
+      );
+      if (!mounted) return;
+      setState(() {
+        _controllers['calories']?.text = result.totalCalories.toString();
+        _controllers['carbs_grams']?.text = result.totalCarbsGrams.toString();
+        _localData['calories'] = result.totalCalories;
+        _localData['carbs_grams'] = result.totalCarbsGrams;
+        _localData['is_estimated'] = true;
+        _mealRecalcInfo = result.hasCreaItems
+            ? 'Ricalcolato su tabelle ufficiali CREA (${result.totalCarbsGrams} g carb, ${result.totalCalories} kcal).'
+            : 'Valori ricalcolati (${result.totalCarbsGrams} g carb, ${result.totalCalories} kcal).';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _mealRecalcError =
+            'Ricalcolo momentaneamente non disponibile: puoi modificare manualmente carboidrati e calorie.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _recalculatingMeal = false);
+      }
+    }
   }
 
   /// Verifica eventuali blocchi di sicurezza per la registrazione di un'assunzione terapia:
@@ -219,7 +295,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
     }
   }
 
-  Future<void> _pickFutureAppointmentDateTime() async {
+  Future<void> _pickFutureAppointmentDate() async {
     final now = DateTime.now();
     final pickedDate = await AppDateTimePicker.pickDate(
       context: context,
@@ -229,22 +305,54 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
       helpText: 'Data della visita',
     );
     if (pickedDate == null || !mounted) return;
+    setState(() {
+      _selectedDateTime = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        _selectedDateTime.hour,
+        _selectedDateTime.minute,
+      );
+    });
+  }
 
+  Future<void> _pickFutureAppointmentTime() async {
     final pickedTime = await AppDateTimePicker.pickTime(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
       helpText: 'Orario della visita',
     );
     if (pickedTime == null || !mounted) return;
-
     setState(() {
       _selectedDateTime = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
+        _selectedDateTime.year,
+        _selectedDateTime.month,
+        _selectedDateTime.day,
         pickedTime.hour,
         pickedTime.minute,
       );
+    });
+  }
+
+  Future<void> _pickTherapyScheduledTime() async {
+    TimeOfDay initial = const TimeOfDay(hour: 8, minute: 0);
+    final raw = _controllers['scheduled_time']?.text.trim() ?? '';
+    final normalized = HealthService.normalizeTime(raw);
+    if (normalized != null) {
+      final parts = normalized.split(':');
+      initial = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
+    final picked = await AppDateTimePicker.pickTime(
+      context: context,
+      initialTime: initial,
+      helpText: 'Orario di assunzione',
+    );
+    if (picked == null || !mounted) return;
+    final hh = picked.hour.toString().padLeft(2, '0');
+    final mm = picked.minute.toString().padLeft(2, '0');
+    setState(() {
+      _controllers['scheduled_time']?.text = '$hh:$mm';
+      _localData['scheduled_time'] = '$hh:$mm';
     });
   }
 
@@ -354,6 +462,21 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
   Widget _buildHeader(ThemeData theme, ColorScheme cs, bool isSaved, bool hasMissing) {
     final p = widget.proposal;
     final table = p.targetTable;
+    String headerTitle = p.summaryTitle;
+    if (table == TargetTable.meals) {
+      final desc = _controllers['description']?.text.trim() ?? '';
+      if (desc.isNotEmpty) {
+        final rawMealType = (_localData['meal_type'] ?? 'PRANZO').toString().toUpperCase();
+        final mealType = MealTypeLabel.fromDb(rawMealType, _selectedDateTime);
+        headerTitle = '${mealType.label}: $desc';
+      }
+    } else if (table == TargetTable.physicalActivities) {
+      final actLabel = HealthService.activityFromDb(_localData['activity_type']?.toString());
+      final intLabel = HealthService.intensityFromDb(_localData['intensity']?.toString());
+      final durText = _controllers['duration_minutes']?.text.trim() ?? '';
+      final durPart = durText.isNotEmpty ? '$durText min · $intLabel' : 'durata da confermare · $intLabel';
+      headerTitle = 'Attività: $actLabel ($durPart)';
+    }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,7 +512,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
               ),
               const SizedBox(height: 2),
               Text(
-                p.summaryTitle,
+                headerTitle,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
@@ -650,10 +773,60 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
         _buildTextFormField(
           keyName: 'description',
           label: 'Cosa hai mangiato?',
-          hint: 'es. Pasta al pomodoro e insalata',
+          hint: 'es. Yogurt bianco 150 g (puoi modificare descrizione e porzione)',
           readOnly: readOnly,
+          minLines: 1,
+          maxLines: 3,
+          suffixIcon: readOnly ? null : const Icon(Icons.edit_outlined, size: 18),
+          onChangedExtra: (_) => setState(() {
+            _mealRecalcInfo = null;
+            _mealRecalcError = null;
+          }),
           validator: (v) => (v == null || v.trim().isEmpty) ? 'Descrizione obbligatoria' : null,
         ),
+        if (!readOnly) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _recalculatingMeal ? null : _recalculateMealNutrition,
+              icon: _recalculatingMeal
+                  ? const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.calculate_outlined, size: 18),
+              label: Text(
+                _recalculatingMeal ? 'Ricalcolo in corso...' : 'Ricalcola kcal e carb (CREA)',
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+          if (_mealRecalcInfo != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _mealRecalcInfo!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.secondarySeed,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (_mealRecalcError != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _mealRecalcError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
         const SizedBox(height: 10),
         Row(
           children: [
@@ -664,6 +837,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
                 hint: 'es. 80',
                 readOnly: readOnly,
                 keyboardType: TextInputType.number,
+                onChangedExtra: (_) => _localData['is_estimated'] = false,
               ),
             ),
             const SizedBox(width: 10),
@@ -674,6 +848,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
                 hint: 'es. 450',
                 readOnly: readOnly,
                 keyboardType: TextInputType.number,
+                onChangedExtra: (_) => _localData['is_estimated'] = false,
               ),
             ),
           ],
@@ -692,16 +867,15 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
 
   // 3. Activity Fields
   Widget _buildActivityFields(ThemeData theme, ColorScheme cs, bool readOnly) {
-    final rawType = (_localData['activity_type'] ?? 'CAMMINATA').toString().toUpperCase();
-    final currentType = HealthService.activityLabels.firstWhere(
-      (l) => l.toUpperCase() == rawType || (rawType == 'BICICLETTA' && l == 'Ciclismo') || (rawType == 'PALESTRA' && l == 'Ginnastica'),
-      orElse: () => 'Camminata',
-    );
+    final currentType = HealthService.activityFromDb(_localData['activity_type']?.toString());
+    final currentIntensity = HealthService.intensityFromDb(_localData['intensity']?.toString());
+    final isWalking = currentType == 'Camminata';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<String>(
+          key: ValueKey('act_type_$currentType'),
           initialValue: currentType,
           decoration: _inputDecoration(label: 'Tipo di attività', isMissing: false),
           items: HealthService.activityLabels.map((l) {
@@ -711,7 +885,30 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
               ? null
               : (val) {
                   if (val != null) {
-                    setState(() => _localData['activity_type'] = val.toUpperCase());
+                    final dbType = HealthService.activityToDb(val);
+                    setState(() {
+                      _localData['activity_type'] = dbType;
+                      if (dbType != 'CAMMINATA') {
+                        _controllers['steps']?.clear();
+                        _localData.remove('steps');
+                      }
+                    });
+                  }
+                },
+        ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          key: ValueKey('act_int_$currentIntensity'),
+          initialValue: currentIntensity,
+          decoration: _inputDecoration(label: 'Intensità', isMissing: false),
+          items: HealthService.intensityLabels.map((l) {
+            return DropdownMenuItem(value: l, child: Text(l));
+          }).toList(),
+          onChanged: readOnly
+              ? null
+              : (val) {
+                  if (val != null) {
+                    setState(() => _localData['intensity'] = HealthService.intensityToDb(val));
                   }
                 },
         ),
@@ -725,6 +922,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
                 hint: 'es. 30',
                 readOnly: readOnly,
                 keyboardType: TextInputType.number,
+                onChangedExtra: (_) => setState(() {}),
                 validator: (v) {
                   final n = int.tryParse(v ?? '');
                   if (n == null || n <= 0) return 'Minimo 1 min';
@@ -732,16 +930,18 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
                 },
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildTextFormField(
-                keyName: 'steps',
-                label: 'Passi (opzionale)',
-                hint: 'es. 3500',
-                readOnly: readOnly,
-                keyboardType: TextInputType.number,
+            if (isWalking) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildTextFormField(
+                  keyName: 'steps',
+                  label: 'Passi (opzionale)',
+                  hint: 'es. 3500',
+                  readOnly: readOnly,
+                  keyboardType: TextInputType.number,
+                ),
               ),
-            ),
+            ],
           ],
         ),
         const SizedBox(height: 10),
@@ -765,8 +965,6 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
 
   // 4. Appointment Fields
   Widget _buildAppointmentFields(ThemeData theme, ColorScheme cs, bool readOnly) {
-    final dateFormat = DateFormat('EEEE d MMMM y, HH:mm', 'it_IT');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -792,12 +990,33 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
           readOnly: readOnly,
         ),
         const SizedBox(height: 12),
-        AppPickerTile(
-          icon: Icons.event_available_rounded,
-          caption: 'Data e orario visita',
-          valueText: dateFormat.format(_selectedDateTime),
-          enabled: !readOnly,
-          onTap: _pickFutureAppointmentDateTime,
+        Text('Quando è la visita?', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 6,
+              child: AppPickerTile(
+                icon: Icons.calendar_month_outlined,
+                caption: 'Giorno',
+                valueText: WhenSelector.formatDayLabel(_selectedDateTime),
+                enabled: !readOnly,
+                onTap: _pickFutureAppointmentDate,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 5,
+              child: AppPickerTile(
+                icon: Icons.schedule_rounded,
+                caption: 'Orario',
+                valueText: WhenSelector.hhmm(_selectedDateTime),
+                enabled: !readOnly,
+                onTap: _pickFutureAppointmentTime,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -904,7 +1123,9 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
                 (t) => DropdownMenuItem<String>(
                   value: t.id,
                   child: Text(
-                    '${t.name} (ore ${t.time})',
+                    t.isDaily
+                        ? '${t.name} (ore ${t.time})'
+                        : '${t.name} (ore ${t.time} · ${t.frequencySummary})',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -986,6 +1207,7 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
 
   // 6. Therapy Fields
   Widget _buildTherapyFields(ThemeData theme, ColorScheme cs, bool readOnly) {
+    final scheduledText = _controllers['scheduled_time']?.text.trim() ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -997,27 +1219,19 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
           validator: (v) => (v == null || v.trim().isEmpty) ? 'Nome obbligatorio' : null,
         ),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextFormField(
-                keyName: 'dosage',
-                label: 'Dosaggio',
-                hint: 'es. 500 mg',
-                readOnly: readOnly,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildTextFormField(
-                keyName: 'scheduled_time',
-                label: 'Orario (HH:MM)',
-                hint: 'es. 08:00',
-                readOnly: readOnly,
-                inputFormatters: const [TimeTextInputFormatter()],
-              ),
-            ),
-          ],
+        _buildTextFormField(
+          keyName: 'dosage',
+          label: 'Dosaggio',
+          hint: 'es. 500 mg',
+          readOnly: readOnly,
+        ),
+        const SizedBox(height: 10),
+        AppPickerTile(
+          icon: Icons.schedule_rounded,
+          caption: 'Orario di assunzione',
+          valueText: scheduledText.isEmpty ? 'Seleziona' : scheduledText,
+          enabled: !readOnly,
+          onTap: _pickTherapyScheduledTime,
         ),
         const SizedBox(height: 10),
         _buildTextFormField(
@@ -1084,6 +1298,10 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
     TextInputType keyboardType = TextInputType.text,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    int? minLines,
+    int maxLines = 1,
+    Widget? suffixIcon,
+    ValueChanged<String>? onChangedExtra,
   }) {
     final ctrl = _controllers[keyName];
     final isMissing = _isMissing(keyName);
@@ -1091,12 +1309,15 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
     return TextFormField(
       controller: ctrl,
       readOnly: readOnly,
-      keyboardType: keyboardType,
+      keyboardType: maxLines > 1 ? TextInputType.multiline : keyboardType,
+      minLines: minLines,
+      maxLines: maxLines,
       inputFormatters: inputFormatters,
       decoration: _inputDecoration(
         label: label,
         hint: hint,
         isMissing: isMissing,
+        suffixIcon: suffixIcon,
       ),
       validator: validator ??
           (v) {
@@ -1106,6 +1327,8 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
             return null;
           },
       onChanged: (val) {
+        _localData[keyName] = val;
+        onChangedExtra?.call(val);
         if (isMissing) setState(() {});
       },
     );
@@ -1115,12 +1338,14 @@ class _ClinicalProposalCardState extends State<ClinicalProposalCard> {
     required String label,
     String? hint,
     required bool isMissing,
+    Widget? suffixIcon,
   }) {
     final cs = Theme.of(context).colorScheme;
 
     return InputDecoration(
       labelText: label,
       hintText: hint,
+      suffixIcon: suffixIcon,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       enabledBorder: OutlineInputBorder(

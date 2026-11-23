@@ -21,9 +21,13 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
   bool _whenInitialized = false;
   ModalRoute<dynamic>? _route;
 
-  // Stesse etichette usate dal servizio per scrivere `activity_type`.
+  // Stesse etichette usate dal servizio per scrivere `activity_type` e `intensity`.
   static final List<String> _types = HealthService.activityLabels;
+  static final List<String> _intensities = HealthService.intensityLabels;
   String _type = HealthService.activityLabels.first;
+  String _intensity = 'Moderata';
+
+  bool get _isWalking => _type == 'Camminata';
 
   @override
   void didChangeDependencies() {
@@ -55,18 +59,30 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
       _showMessage('Inserisci una durata tra 1 e 1440 minuti.');
       return;
     }
-    final stepsText = _stepsController.text.trim();
-    final steps = stepsText.isEmpty ? 0 : int.tryParse(stepsText);
-    if (steps == null || steps < 0 || steps > 200000) {
-      _showMessage('Inserisci un numero di passi tra 0 e 200000.');
-      return;
+    final int steps;
+    if (_isWalking) {
+      final stepsText = _stepsController.text.trim();
+      final parsedSteps = stepsText.isEmpty ? 0 : int.tryParse(stepsText);
+      if (parsedSteps == null || parsedSteps < 0 || parsedSteps > 200000) {
+        _showMessage('Inserisci un numero di passi tra 0 e 200000.');
+        return;
+      }
+      steps = parsedSteps;
+    } else {
+      steps = 0;
     }
 
     final health = context.read<HealthProvider>();
 
     setState(() => _saving = true);
     final ok = await health.addActivity(
-      ActivityEntry(date: _when, type: _type, minutes: minutes, steps: steps),
+      ActivityEntry(
+        date: _when,
+        type: _type,
+        minutes: minutes,
+        intensity: _intensity,
+        steps: steps,
+      ),
     );
     if (!mounted) return;
     if (ok) {
@@ -128,7 +144,27 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
                       items: _types
                           .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                           .toList(),
-                      onChanged: (v) => setState(() => _type = v ?? _type),
+                      onChanged: _saving
+                          ? null
+                          : (v) {
+                              final next = v ?? _type;
+                              setState(() {
+                                _type = next;
+                                if (!_isWalking) _stepsController.clear();
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 20),
+                    Text('Intensità', style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: _intensity,
+                      items: _intensities
+                          .map((i) => DropdownMenuItem(value: i, child: Text(i)))
+                          .toList(),
+                      onChanged: _saving
+                          ? null
+                          : (v) => setState(() => _intensity = v ?? _intensity),
                     ),
                     const SizedBox(height: 20),
                     Text('Durata (minuti)', style: theme.textTheme.labelLarge),
@@ -136,19 +172,22 @@ class _AddActivityScreenState extends State<AddActivityScreen> {
                     TextField(
                       controller: _minutesController,
                       keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.next,
+                      textInputAction: _isWalking ? TextInputAction.next : TextInputAction.done,
                       decoration: const InputDecoration(hintText: 'es. 30'),
+                      onSubmitted: _isWalking ? null : (_) => _save(),
                     ),
-                    const SizedBox(height: 20),
-                    Text('Passi (opzionale)', style: theme.textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _stepsController,
-                      keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.done,
-                      decoration: const InputDecoration(hintText: 'es. 2500'),
-                      onSubmitted: (_) => _save(),
-                    ),
+                    if (_isWalking) ...[
+                      const SizedBox(height: 20),
+                      Text('Passi (opzionale)', style: theme.textTheme.labelLarge),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _stepsController,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        decoration: const InputDecoration(hintText: 'es. 2500'),
+                        onSubmitted: (_) => _save(),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     WhenSelector(
                       label: "Quando hai svolto l'attività?",
