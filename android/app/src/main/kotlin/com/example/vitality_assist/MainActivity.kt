@@ -1,5 +1,6 @@
 package com.example.vitality_assist
 
+import android.content.ClipData
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -273,6 +274,7 @@ class MainActivity : FlutterActivity() {
 
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(contentUri, mimeType)
+            clipData = ClipData.newRawUri("", contentUri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 

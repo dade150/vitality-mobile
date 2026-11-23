@@ -57,12 +57,14 @@ class ReportService {
   static Future<void> openReportWithExternalApp(BuildContext context, MedicalReport report) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final navigator = Navigator.of(context);
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
     final db = Supabase.instance.client;
 
     // Mostra breve indicatore durante il download autenticato
     var loaderOpen = true;
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       barrierDismissible: false,
       builder: (_) => const PopScope(
         canPop: false,
@@ -89,9 +91,9 @@ class ReportService {
     );
 
     void closeLoader() {
-      if (loaderOpen && navigator.canPop()) {
+      if (loaderOpen && rootNavigator.canPop()) {
         loaderOpen = false;
-        navigator.pop();
+        rootNavigator.pop();
       }
     }
 
@@ -114,7 +116,8 @@ class ReportService {
               }
             }
           }
-        } catch (_) {
+        } catch (stErr, stTrace) {
+          ErrorHandler.logOnly(stErr, stTrace, 'ReportService.storageDownload');
           // Fallback al download PDF dal backend se il file non è presente in Storage
         }
       }
@@ -143,7 +146,8 @@ class ReportService {
       closeLoader();
       if (!context.mounted) return;
 
-      final mimeType = DeviceFileService.detectMimeType(bytes, fallbackExt: ext);
+      final fileBytes = bytes;
+      final mimeType = DeviceFileService.detectMimeType(fileBytes, fallbackExt: ext);
       final resolvedExt = DeviceFileService.extensionForMime(mimeType);
       final safeName = report.title.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
       final fallbackLabel = numId != null ? 'Referto_$numId' : 'Referto';
@@ -153,13 +157,14 @@ class ReportService {
         MaterialPageRoute<void>(
           builder: (_) => ReportViewerScreen(
             report: report,
-            bytes: bytes!,
+            bytes: fileBytes,
             fileName: fileName,
             mimeType: mimeType,
           ),
         ),
       );
-    } catch (e) {
+    } catch (e, st) {
+      ErrorHandler.logOnly(e, st, 'ReportService.openReport');
       closeLoader();
       messenger?.showSnackBar(
         SnackBar(
