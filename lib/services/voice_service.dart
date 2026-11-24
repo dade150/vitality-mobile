@@ -24,6 +24,7 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
   int _listenEpoch = 0;
   int _activeListenEpoch = 0;
   int _speakEpoch = 0;
+  Timer? _notListeningGraceTimer;
   final ValueNotifier<double> _soundLevelNotifier = ValueNotifier<double>(0.0);
   String? _speakingMessageKey;
   String? _lastError;
@@ -115,25 +116,49 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
 
   // ------------------------------------------------------------- STT (Microfono)
 
+  void _finishListeningSession({required int expectedEpoch}) {
+    _notListeningGraceTimer?.cancel();
+    _notListeningGraceTimer = null;
+    if (!_isListening || _activeListenEpoch != expectedEpoch || expectedEpoch != _listenEpoch) {
+      return;
+    }
+    // Incrementa _listenEpoch alla chiusura della sessione così nessun callback tardivo
+    // di Android SpeechRecognizer (es. finalResult dopo notListening) può riattivare onResult.
+    _listenEpoch++;
+    _isListening = false;
+    _resetSoundLevelSafe();
+    final cb = _onListeningDone;
+    _onListeningDone = null;
+    _notifySafe();
+    cb?.call();
+  }
+
   Future<bool> initSpeech() async {
     if (_isSpeechInitialized) return true;
 
     try {
       _isSpeechInitialized = await _speech.initialize(
         onStatus: (status) {
-          if (status == 'done' || status == 'notListening') {
+          if (status == 'done') {
+            _finishListeningSession(expectedEpoch: _activeListenEpoch);
+          } else if (status == 'notListening') {
+            // Su Android onEndOfSpeech emette 'notListening' ~150ms PRIMA del finalResult:
+            // attendiamo brevemente così il finalResult arriva pulito una sola volta,
+            // chiudendo comunque la sessione se il dispositivo non emette 'done'.
             if (_isListening && _activeListenEpoch == _listenEpoch) {
-              _isListening = false;
-              _resetSoundLevelSafe();
-              final cb = _onListeningDone;
-              _onListeningDone = null;
-              _notifySafe();
-              cb?.call();
+              final epoch = _activeListenEpoch;
+              _notListeningGraceTimer?.cancel();
+              _notListeningGraceTimer = Timer(const Duration(milliseconds: 350), () {
+                _finishListeningSession(expectedEpoch: epoch);
+              });
             }
           }
         },
         onError: (errorNotification) {
-          if (_activeListenEpoch != _listenEpoch && !_isListening) return;
+          if (_activeListenEpoch != _listenEpoch || !_isListening) return;
+          _notListeningGraceTimer?.cancel();
+          _notListeningGraceTimer = null;
+          _listenEpoch++;
           _lastErrorCode = errorNotification.errorMsg;
           _lastError = _mapSpeechError(errorNotification.errorMsg);
           _isListening = false;
@@ -159,6 +184,8 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
     VoidCallback? onDone,
     String localeId = 'it_IT',
   }) async {
+    _notListeningGraceTimer?.cancel();
+    _notListeningGraceTimer = null;
     final myEpoch = ++_listenEpoch;
 
     if (_isListening) {
@@ -197,19 +224,14 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await _speech.listen(
         onResult: (result) {
-          if (myEpoch != _listenEpoch || _disposed) return;
+          if (myEpoch != _listenEpoch || !_isListening || _disposed) return;
           final sanitized = _sanitizeTranscript(result.recognizedWords);
           // Protegge dal bug Android per cui un callback finale vuoto sovrascrive il testo appena dettato.
           if (sanitized.isNotEmpty) {
             onResult(sanitized);
           }
-          if (result.finalResult && _isListening) {
-            _isListening = false;
-            _resetSoundLevelSafe();
-            final cb = _onListeningDone;
-            _onListeningDone = null;
-            _notifySafe();
-            cb?.call();
+          if (result.finalResult && _isListening && myEpoch == _listenEpoch) {
+            _finishListeningSession(expectedEpoch: myEpoch);
           }
         },
         onSoundLevelChange: (level) {
@@ -249,6 +271,8 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> stopListening() async {
+    _notListeningGraceTimer?.cancel();
+    _notListeningGraceTimer = null;
     _listenEpoch++;
     if (!_isListening) return;
     _isListening = false;
@@ -264,6 +288,8 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Interrompe e annulla immediatamente l'ascolto senza invocare [onDone] (es. tasto Annulla / Background / Logout).
   Future<void> cancelListening() async {
+    _notListeningGraceTimer?.cancel();
+    _notListeningGraceTimer = null;
     _listenEpoch++;
     _onListeningDone = null;
     final wasListening = _isListening;
@@ -295,7 +321,10 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
       });
 
       _tts.setCompletionHandler(() {
-        _ttsStopPending = false;
+        if (_ttsStopPending) {
+          _ttsStopPending = false;
+          return;
+        }
         _isSpeaking = false;
         _speakingMessageKey = null;
         final doneCb = _onSpeakCompleted;
@@ -595,6 +624,8 @@ class VoiceService extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     _disposed = true;
+    _notListeningGraceTimer?.cancel();
+    _notListeningGraceTimer = null;
     WidgetsBinding.instance.removeObserver(this);
     unawaited(cancelListening());
     unawaited(stopSpeaking());

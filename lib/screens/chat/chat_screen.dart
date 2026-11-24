@@ -74,6 +74,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _isVoiceConversationMode = false;
   bool _isStartingVoiceTurn = false;
   bool _isCommittingVoice = false;
+  String? _lastCommittedVoiceText;
+  DateTime? _lastCommittedVoiceAt;
   Timer? _silenceAutoSendTimer;
   Timer? _autoRelistenTimer;
 
@@ -462,7 +464,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final att = _pendingAttachment;
     if ((text.isEmpty && att == null) || chat.isSending) return;
 
-    if (voice.isListening) {
+    if (voice.isListening || fromVoiceConversation) {
       await voice.cancelListening();
     }
     if (voice.isSpeaking) {
@@ -615,12 +617,34 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return;
     }
 
+    // Anti-duplicazione: ignora un eventuale reinvio identico ravvicinato (< 6 s)
+    // dovuto a callback residui del riconoscitore vocale Android.
+    final normalized = spoken.toLowerCase();
+    final now = DateTime.now();
+    if (_lastCommittedVoiceText == normalized &&
+        _lastCommittedVoiceAt != null &&
+        now.difference(_lastCommittedVoiceAt!) < const Duration(seconds: 6)) {
+      if (mounted) {
+        setState(() {
+          _liveSpokenText = '';
+        });
+      }
+      return;
+    }
+
     _isCommittingVoice = true;
+    _lastCommittedVoiceText = normalized;
+    _lastCommittedVoiceAt = now;
+    if (mounted) {
+      setState(() {
+        _liveSpokenText = '';
+      });
+    }
     try {
       final voice = context.read<VoiceService>();
-      if (voice.isListening) {
-        await voice.cancelListening();
-      }
+      // Cancella sempre in modo incondizionato per incrementare l'epoca di ascolto
+      // anche se isListening era già passato a false su onStatus('notListening').
+      await voice.cancelListening();
       if (!mounted) return;
       await _send(overrideText: spoken, fromVoiceConversation: true);
     } finally {
@@ -707,7 +731,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       final started = await voice.startListening(
         onResult: (words) {
-          if (!mounted || words.isEmpty) return;
+          if (!mounted ||
+              _isCommittingVoice ||
+              context.read<ChatProvider>().isSending ||
+              !voice.isListening ||
+              words.isEmpty) {
+            return;
+          }
           final changed = words != _liveSpokenText;
           if (changed) {
             setState(() {
